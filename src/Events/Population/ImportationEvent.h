@@ -12,7 +12,7 @@ public:
   ImportationEvent(const ImportationEvent&) = delete;
   void operator=(const ImportationEvent&) = delete;
   ImportationEvent(ImportationEvent&&) = delete;
-  void operator=(ImportationEvent&&) = delete;
+  ImportationEvent operator=(ImportationEvent&&) = delete;
 
   // OBJECTPOOL(ImportationEvent)
 private:

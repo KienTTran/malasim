@@ -26,7 +26,7 @@ public:
   Reporter(const Reporter &orig) = delete;
   void operator=(const Reporter &orig) = delete;
   Reporter(Reporter &&orig) = delete;
-  void operator=(Reporter &&orig) = delete;
+  Reporter operator=(Reporter &&orig) = delete;
 
 public:
   Model *model{};

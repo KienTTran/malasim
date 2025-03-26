@@ -12,7 +12,7 @@ public:
   NovelDrugReporter(const NovelDrugReporter &) = delete;
   void operator=(const NovelDrugReporter &) = delete;
   NovelDrugReporter(NovelDrugReporter &&) = delete;
-  void operator=(NovelDrugReporter &&) = delete;
+  NovelDrugReporter operator=(NovelDrugReporter &&) = delete;
 
 public:
 

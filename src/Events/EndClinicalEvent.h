@@ -16,7 +16,7 @@ public:
   EndClinicalEvent(const EndClinicalEvent&) = delete;
   void operator=(const EndClinicalEvent&) = delete;
   EndClinicalEvent(EndClinicalEvent&&) = delete;
-  void operator=(EndClinicalEvent&&) = delete;
+  EndClinicalEvent operator=(EndClinicalEvent&&) = delete;
 
 //  OBJECTPOOL(EndClinicalEvent)
 private:

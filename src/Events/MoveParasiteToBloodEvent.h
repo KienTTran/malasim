@@ -21,7 +21,7 @@ public:
   MoveParasiteToBloodEvent(const MoveParasiteToBloodEvent &orig) = delete;
   void operator=(const MoveParasiteToBloodEvent &orig) = delete;
   MoveParasiteToBloodEvent(MoveParasiteToBloodEvent &&orig) = delete;
-  void operator=(MoveParasiteToBloodEvent &&orig) = delete;
+  MoveParasiteToBloodEvent operator=(MoveParasiteToBloodEvent &&orig) = delete;
 
 //  OBJECTPOOL(MoveParasiteToBloodEvent)
 private:

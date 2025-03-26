@@ -13,7 +13,7 @@ public:
   MMCReporter(const MMCReporter &) = delete;
   void operator=(const MMCReporter &) = delete;
   MMCReporter(MMCReporter &&) = delete;
-  void operator=(MMCReporter &&) = delete;
+  MMCReporter operator=(MMCReporter &&) = delete;
 
 public:
   std::stringstream ss;

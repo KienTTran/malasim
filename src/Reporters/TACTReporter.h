@@ -13,7 +13,7 @@ public:
   TACTReporter(const TACTReporter &) = delete;
   void operator=(const TACTReporter &) = delete;
   TACTReporter(TACTReporter &&) = delete;
-  void operator=(TACTReporter &&) = delete;
+  TACTReporter operator=(TACTReporter &&) = delete;
 
 public:
 

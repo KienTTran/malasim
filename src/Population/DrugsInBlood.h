@@ -13,7 +13,7 @@ class DrugType;
 
 class DrugsInBlood {
   // OBJECTPOOL(DrugsInBlood)
-  //disallow copy and assign
+  //disallow copy and assign and move
   DrugsInBlood(const DrugsInBlood&) = delete;
   void operator=(const DrugsInBlood&) = delete;
   DrugsInBlood(const DrugsInBlood&&) = delete;

@@ -12,7 +12,7 @@ public:
   ValidationReporter(const ValidationReporter &) = delete;
   void operator=(const ValidationReporter &) = delete;
   ValidationReporter(ValidationReporter &&) = delete;
-  void operator=(ValidationReporter &&) = delete;
+  ValidationReporter operator=(ValidationReporter &&) = delete;
 
 public:
   const std::string group_sep = "-1111\t";

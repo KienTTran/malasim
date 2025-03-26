@@ -16,7 +16,7 @@ public:
   EndClinicalByNoTreatmentEvent(const EndClinicalByNoTreatmentEvent&) = delete;
   void operator=(const EndClinicalByNoTreatmentEvent&) = delete;
   EndClinicalByNoTreatmentEvent(EndClinicalByNoTreatmentEvent&&) = delete;
-  void operator=(EndClinicalByNoTreatmentEvent&&) = delete;
+  EndClinicalByNoTreatmentEvent operator=(EndClinicalByNoTreatmentEvent&&) = delete;
 
 //  OBJECTPOOL(EndClinicalByNoTreatmentEvent)
 

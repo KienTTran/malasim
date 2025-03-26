@@ -9,7 +9,7 @@ public:
   ConsoleReporter(const ConsoleReporter &) = delete;
   void operator=(const ConsoleReporter &) = delete;
   ConsoleReporter(ConsoleReporter &&) = delete;
-  void operator=(ConsoleReporter &&) = delete;
+  ConsoleReporter operator=(ConsoleReporter &&) = delete;
 
  public:
   ConsoleReporter();

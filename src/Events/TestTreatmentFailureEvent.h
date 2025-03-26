@@ -23,7 +23,7 @@ public:
   TestTreatmentFailureEvent(const TestTreatmentFailureEvent&) = delete;
   void operator=(const TestTreatmentFailureEvent&) = delete;
   TestTreatmentFailureEvent(TestTreatmentFailureEvent&&) = delete;
-  void operator=(TestTreatmentFailureEvent&&) = delete;
+  TestTreatmentFailureEvent operator=(TestTreatmentFailureEvent&&) = delete;
 
 //  OBJECTPOOL(TestTreatmentFailureEvent)
 private:

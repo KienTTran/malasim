@@ -17,7 +17,7 @@ public:
   ProgressToClinicalEvent(const ProgressToClinicalEvent&) = delete;
   void operator=(const ProgressToClinicalEvent&) = delete;
   ProgressToClinicalEvent(ProgressToClinicalEvent&&) = delete;
-  void operator=(ProgressToClinicalEvent&&) = delete;
+  ProgressToClinicalEvent operator=(ProgressToClinicalEvent&&) = delete;
 
  // OBJECTPOOL(ProgressToClinicalEvent)
 private:

@@ -18,7 +18,7 @@ public:
   ReceiveTherapyEvent(const ReceiveTherapyEvent &) = delete;
   void operator=(const ReceiveTherapyEvent &) = delete;
   ReceiveTherapyEvent(ReceiveTherapyEvent &&) = delete;
-  void operator=(ReceiveTherapyEvent &&) = delete;
+  ReceiveTherapyEvent operator=(ReceiveTherapyEvent &&) = delete;
 
 private:
   Therapy *received_therapy_ = nullptr;

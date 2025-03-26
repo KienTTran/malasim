@@ -10,7 +10,7 @@ public:
   SingleRoundMDAEvent(const SingleRoundMDAEvent &) = delete;
   void operator=(const SingleRoundMDAEvent &) = delete;
   SingleRoundMDAEvent(SingleRoundMDAEvent &&) = delete;
-  void operator=(SingleRoundMDAEvent &&) = delete;
+  SingleRoundMDAEvent operator=(SingleRoundMDAEvent &&) = delete;
 
  public:
   std::vector<double> fraction_population_targeted;

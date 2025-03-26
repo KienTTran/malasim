@@ -17,7 +17,7 @@ public:
   MatureGametocyteEvent(const MatureGametocyteEvent&) = delete;
   void operator=(const MatureGametocyteEvent&) = delete;
   MatureGametocyteEvent(MatureGametocyteEvent&&) = delete;
-  void operator=(MatureGametocyteEvent&&) = delete;
+  MatureGametocyteEvent operator=(MatureGametocyteEvent&&) = delete;
 
   // OBJECTPOOL(MatureGametocyteEvent)
 private:

@@ -10,7 +10,7 @@ class IntroduceLumefantrineMutantEvent : public Event {
   IntroduceLumefantrineMutantEvent(const IntroduceLumefantrineMutantEvent &) = delete;
   void operator=(const IntroduceLumefantrineMutantEvent &) = delete;
   IntroduceLumefantrineMutantEvent(IntroduceLumefantrineMutantEvent &&) = delete;
-  void operator=(IntroduceLumefantrineMutantEvent &&) = delete;
+  IntroduceLumefantrineMutantEvent operator=(IntroduceLumefantrineMutantEvent &&) = delete;
 
   // OBJECTPOOL(IntroduceLumefantrineMutantEvent)
 

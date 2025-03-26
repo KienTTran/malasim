@@ -11,7 +11,7 @@ class Introduce580YMutantEvent : public Event {
   Introduce580YMutantEvent(const Introduce580YMutantEvent&) = delete;
   void operator=(const Introduce580YMutantEvent&) = delete;
   Introduce580YMutantEvent(Introduce580YMutantEvent&&) = delete;
-  void operator=(Introduce580YMutantEvent&&) = delete;
+  Introduce580YMutantEvent operator=(Introduce580YMutantEvent&&) = delete;
 
 //    OBJECTPOOL(Introduce580YMutantEvent)
 private:

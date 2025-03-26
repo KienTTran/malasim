@@ -31,7 +31,7 @@ class Person :  public PersonIndexAllHandler,
                 public Dispatcher {
   // OBJECTPOOL(Person)
 
-  // Disable copy and assignment
+  // Disable copy and assignment and move
   Person(const Person&) = delete;
   void operator=(const Person&) = delete;
   Person(Person&&) = delete;

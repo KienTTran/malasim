@@ -10,7 +10,7 @@ public:
   TurnOnMutationEvent(const TurnOnMutationEvent&) = delete;
   void operator=(const TurnOnMutationEvent&) = delete;
   TurnOnMutationEvent(TurnOnMutationEvent&&) = delete;
-  void operator=(TurnOnMutationEvent&&) = delete;
+  TurnOnMutationEvent operator=(TurnOnMutationEvent&&) = delete;
 
   double mutation_probability = 0.0;
   int drug_id = -1;
