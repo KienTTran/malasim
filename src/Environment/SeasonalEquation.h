@@ -7,7 +7,9 @@
 
 class SeasonalEquation : public ISeasonalInfo {
 public:
-  SeasonalEquation();
+  ~SeasonalEquation() override = default;
+  SeasonalEquation() = default;
+
   void build(int number_of_locations);
   double get_seasonal_factor(const date::sys_days &today, const int &location) override;
   void set_from_raster();

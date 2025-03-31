@@ -16,13 +16,7 @@
 
 class SeasonalRainfall : public ISeasonalInfo {
 public:
-  //disallow copy and assign and move
-  SeasonalRainfall(const SeasonalRainfall&) = delete;
-  void operator=(const SeasonalRainfall&) = delete;
-  SeasonalRainfall(SeasonalRainfall&&) = delete;
-  SeasonalRainfall& operator=(SeasonalRainfall&&) = delete;
   ~SeasonalRainfall() override = default;
-
   SeasonalRainfall() = default;
 
   void build();

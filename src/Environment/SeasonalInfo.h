@@ -10,11 +10,6 @@
 
 class ISeasonalInfo {
 public:
-    //disallow copy and assign and move
-    ISeasonalInfo(const ISeasonalInfo&) = delete;
-    void operator=(const ISeasonalInfo&) = delete;
-    ISeasonalInfo(ISeasonalInfo&&) = delete;
-    ISeasonalInfo& operator=(ISeasonalInfo&&) = delete;
   // Return the seasonal factor for the given day and location, based upon the
   // loaded configuration.
   virtual double get_seasonal_factor(const date::sys_days &today,

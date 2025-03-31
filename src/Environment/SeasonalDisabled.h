@@ -5,6 +5,9 @@
 
 class SeasonalDisabled : public ISeasonalInfo {
 public:
+  ~SeasonalDisabled() override = default;
+  SeasonalDisabled() = default;
+
   double get_seasonal_factor(const date::sys_days &today,
                            const int &location) override;
 };

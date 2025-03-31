@@ -8,8 +8,6 @@
 
 #include "Utils/Constants.h"
 
-SeasonalEquation::SeasonalEquation() = default;
-
 void SeasonalEquation::build(int number_of_locations) {
     if (raster_) {
         set_from_raster();
