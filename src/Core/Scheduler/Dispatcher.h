@@ -3,7 +3,6 @@
 
 #include <map>
 #include <uuid.h>
-#include <vector>
 
 class Event;
 
@@ -19,10 +18,9 @@ private:
  // std::vector<Event*> *events_;
  std::map<uuids::uuid, Event*> *events_;
 public:
-  std::map<uuids::uuid, Event*> *events() const { return events_; }
+  [[nodiscard]] std::map<uuids::uuid, Event*> *events() const { return events_; }
   void set_events(std::map<uuids::uuid, Event*> *value) { events_ = value; }
 
- public:
   Dispatcher();
 
   //    Dispatcher(const Dispatcher& orig);

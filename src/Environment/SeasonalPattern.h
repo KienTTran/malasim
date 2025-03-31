@@ -15,6 +15,13 @@ class SpatialData;
 
 class SeasonalPattern : public ISeasonalInfo {
 public:
+  //disallow copy and assign and move
+  SeasonalPattern(const SeasonalPattern&) = delete;
+  void operator=(const SeasonalPattern&) = delete;
+  SeasonalPattern(SeasonalPattern&&) = delete;
+  SeasonalPattern& operator=(SeasonalPattern&&) = delete;
+  ~SeasonalPattern() override = default;
+
   void build(SpatialData* spatial_data);
   void read(const std::string &filename);
   double get_seasonal_factor(const date::sys_days &today, const int &location) override;

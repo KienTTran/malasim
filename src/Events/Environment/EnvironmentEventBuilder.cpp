@@ -30,7 +30,7 @@ std::vector<Event*> EnvironmentEventBuilder::build_update_ecozone_event(
     for (std::size_t ndx = 0; ndx < node.size(); ndx++) {
       // Load the values
       auto start_date = node[ndx]["day"].as<date::year_month_day>();
-      auto time =
+      const auto time =
           (date::sys_days{start_date} - date::sys_days{config->get_simulation_timeframe().get_starting_date()})
               .count();
       auto from = node[ndx]["from"].as<int>();
