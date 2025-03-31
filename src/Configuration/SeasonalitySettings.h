@@ -238,17 +238,17 @@ struct convert<SeasonalitySettings> {
     }
 
     if(rhs.get_mode() == "equation") {
-      auto model = new SeasonalEquation();
+      auto *model = new SeasonalEquation();
       convert<SeasonalEquation*>::decode(node["equation"], model);
       rhs.set_seasonal_equation(model);
     }
     if(rhs.get_mode() == "rainfall") {
-      auto model = new SeasonalRainfall();
+      auto *model = new SeasonalRainfall();
       convert<SeasonalRainfall*>::decode(node["rainfall"], model);
       rhs.set_seasonal_rainfall(model);
     }
     if(rhs.get_mode() == "pattern") {
-      auto model = new SeasonalPattern();
+      auto *model = new SeasonalPattern();
       convert<SeasonalPattern*>::decode(node["pattern"], model);
       rhs.set_seasonal_pattern(model);
     }

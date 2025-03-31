@@ -1,7 +1,5 @@
 #include "SeasonalRainfall.h"
 
-SeasonalRainfall::SeasonalRainfall() = default;
-
 void SeasonalRainfall::build() {
   read(filename_);
   if (adjustments_.size() != period_) {
@@ -13,7 +11,7 @@ void SeasonalRainfall::build() {
 
 double SeasonalRainfall::get_seasonal_factor(const date::sys_days &today, const int &location) {
   int doy = TimeHelpers::day_of_year(today);
-  doy = (doy == 366) ? doy - 2 : doy - 1;
+  doy = doy == 366 ? doy - 2 : doy - 1;
   return adjustments_[doy];
 }
 
@@ -49,6 +47,6 @@ int SeasonalRainfall::get_period() const {
   return period_;
 }
 
-void SeasonalRainfall::set_period(int value) {
+void SeasonalRainfall::set_period(const int value) {
   period_ = value;
 }

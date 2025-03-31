@@ -8,12 +8,18 @@
 
 #include "Configuration/Config.h"
 #include "Configuration/SeasonalitySettings.h"
-#include "Utils/TypeDef.hxx"
 #include "Events/Event.h"
 #include "Simulation/Model.h"
 #include <spdlog/spdlog.h>
 
 class UpdateEcozoneEvent : public Event {
+public:
+  //disallow copy, assign and move
+  UpdateEcozoneEvent(const UpdateEcozoneEvent&) = delete;
+  void operator=(const UpdateEcozoneEvent&) = delete;
+  UpdateEcozoneEvent(UpdateEcozoneEvent&&) = delete;
+  UpdateEcozoneEvent& operator=(UpdateEcozoneEvent&&) = delete;
+
 private:
   int from_;
   int to_;
@@ -25,7 +31,7 @@ private:
     spdlog::info("Updating ecozone from {} to {}", from_, to_);
 
     // Defer to the object for the actual update
-    auto seasons =Model::get_config()->get_seasonality_settings().get_seasonal_equation();
+    auto *seasons = Model::get_config()->get_seasonality_settings().get_seasonal_equation();
     // if (seasons == nullptr) {
     //   throw std::runtime_error(
     //       "Configuration called for seasonality to be updated with a mode that "
@@ -37,7 +43,7 @@ private:
 public:
   inline static const std::string EventName = "update_ecozone_event";
 
-  UpdateEcozoneEvent(int from, int to, int start) : from_(from), to_(to) {
+  UpdateEcozoneEvent(const int from, const int to, const int start) : from_(from), to_(to) {
     time = start;
   }
 

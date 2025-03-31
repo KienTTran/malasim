@@ -1,0 +1,101 @@
+strategy_parameters:
+  strategy_db:
+    0:
+      name: SP-AQ-CQ-AL-MFTStrategy
+      type: MFT
+      therapy_ids: [5, 2, 12, 6]
+      distribution: [0.3, 0.3, 0.3, 0.1]
+    1:
+      name: AL-SFTStrategy
+      type: SFT
+      therapy_ids: [6]
+    2:
+      name: ASAQ-SFTStrategy
+      type: SFT
+      therapy_ids: [7]
+    3:
+      name: CyclingStrategy
+      type: Cycling
+      therapy_ids: [8, 7, 6]
+      cycling_time: 1825
+    4:
+      name: AdaptiveCyclingStrategy
+      type: AdaptiveCycling
+      therapy_ids: [8, 7, 6]
+      trigger_value: 0.1
+      delay_until_actual_trigger: 365
+      turn_off_days: 365
+    5:
+      name: MFTStrategy
+      type: MFT
+      therapy_ids: [8, 7, 6]
+      distribution: [0.333333, 0.333333, 0.333334]
+    6:
+      name: AL-ASAQ-DP-MFTRebalancingStrategy1
+      type: MFTRebalancing
+      therapy_ids: [8, 7, 6]
+      distribution: [0.333333, 0.333333, 0.333334]
+      delay_until_actual_trigger: 365
+      update_duration_after_rebalancing: 365
+    7:
+      name: AL-ASAQ-DP-MFTRebalancingStrategy2
+      type: MFTRebalancing
+      therapy_ids: [8, 7, 6]
+      distribution: [0.333333, 0.333333, 0.333334]
+      delay_until_actual_trigger: 365
+      update_duration_after_rebalancing: 730
+    8:
+      name: AL-ASAQ-DP-MFTRebalancingStrategy4
+      type: MFTRebalancing
+      therapy_ids: [8, 7, 6]
+      distribution: [0.333333, 0.333333, 0.333334]
+      delay_until_actual_trigger: 365
+      update_duration_after_rebalancing: 1460
+    9:
+      name: DPM-SFTStrategy
+      type: SFT
+      therapy_ids: [10]
+    10:
+      name: AL-AQ-SFTStrategy
+      type: SFT
+      therapy_ids: [11]
+    11:
+      name: AL-BaseLineStrategy
+      type: NestedMFT
+      strategy_ids: [1, 0]
+      start_distribution: [0.05, 0.95]
+      peak_distribution: [0.8, 0.2]
+      peak_after: 3650
+    12:
+      name: ASAQ-BaseLineStrategy
+      type: MFTMultiLocation
+      therapy_ids: [2, 0]
+      start_distribution_by_location: [[0.05, 0.95]]
+      peak_distribution_by_location: [[0.8, 0.2]]
+      peak_after: 3650
+    13:
+      name: BaseLineStrategy
+      type: NestedMFTMultiLocation
+      strategy_ids: [0, 1]
+      start_distribution_by_location: [[0.05, 0.95]]
+      peak_distribution_by_location: [[0.8, 0.2]]
+      peak_after: 3650
+    14:
+      name: DHAPPQ-SFTStrategy
+      type: SFT
+      therapy_ids: [8]
+    15:
+      name: Burnin-SFTStrategy
+      type: SFT
+      therapy_ids: [13]
+    16:
+      name: NovelDrugIntroductionStrategy
+      type: NovelDrugIntroduction
+      strategy_ids: [0,3]
+      start_distribution: [0.7,0.3]
+      peak_distribution: [0.7,0.3]
+      peak_after: 0
+      newly_introduced_strategy_id: 4
+      tf_threshold: 0.1
+      replacement_fraction: 0.1
+      replacement_duration: 0

@@ -1,9 +1,9 @@
 mkfile_path := $(abspath $(lastword $(MAKEFILE_LIST)))
 PWD := $(dir $(mkfile_path))
-VCPKG_ROOT ?= $(if $(VCPKG_ROOT),$(VCPKG_ROOT),~/vcpkg)
-VCPKG_EXEC := $(VCPKG_ROOT)/vcpkg
-VCPKG_TOOLCHAIN := $(VCPKG_ROOT)/scripts/buildsystems/vcpkg.cmake
-TOOLCHAIN_ARG := $(if $(VCPKG_ROOT),-DCMAKE_TOOLCHAIN_FILE=$(VCPKG_TOOLCHAIN),)
+VCPKG_ROOT_PATH ?= $(if $(VCPKG_ROOT),$(VCPKG_ROOT),~/vcpkg)
+VCPKG_EXEC := $(VCPKG_ROOT_PATH)/vcpkg
+VCPKG_TOOLCHAIN := $(VCPKG_ROOT_PATH)/scripts/buildsystems/vcpkg.cmake
+TOOLCHAIN_ARG := $(if $(VCPKG_ROOT_PATH),-DCMAKE_TOOLCHAIN_FILE=$(VCPKG_TOOLCHAIN),)
 BUILD_TYPE ?= Release
 DEFAULT_APP_EXECUTABLE := build/bin/malasim
 # Capture the second word in MAKECMDGOALS (if it exists)
@@ -21,7 +21,7 @@ build b:
 	cmake --build build --config $(BUILD_TYPE) -j 6
 
 test t: build
-	cd build && ctest --output-on-failure
+	cd build && GTEST_COLOR=1 ctest -V
 
 run r: build 
 	./$(APP_EXECUTABLE)
@@ -30,13 +30,13 @@ clean:
 	rm -rf build
 
 setup-vcpkg:
-	if [ -n "$(VCPKG_ROOT)" ] && [ ! -x "$(VCPKG_EXEC)" ]; then \
+	if [ -n "$(VCPKG_ROOT_PATH)" ] && [ ! -x "$(VCPKG_EXEC)" ]; then \
 		git submodule update --init; \
-		$(VCPKG_ROOT)/bootstrap-vcpkg.sh; \
+		$(VCPKG_ROOT_PATH)/bootstrap-vcpkg.sh; \
 	fi
 
 install-deps: setup-vcpkg
-	[ -z "$(VCPKG_ROOT)" ] || $(VCPKG_EXEC) install
+	[ -z "$(VCPKG_ROOT_PATH)" ] || $(VCPKG_EXEC) install
 
 generate g:
 	cmake -Bbuild -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) -DENABLE_TRAVEL_TRACKING=$(ENABLE_TRAVEL_TRACKING) -DBUILD_TESTS=$(BUILD_TESTS) $(TOOLCHAIN_ARG) .

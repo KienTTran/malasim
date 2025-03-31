@@ -16,7 +16,9 @@
 
 class SeasonalRainfall : public ISeasonalInfo {
 public:
-  SeasonalRainfall();
+  ~SeasonalRainfall() override = default;
+  SeasonalRainfall() = default;
+
   void build();
   double get_seasonal_factor(const date::sys_days &today, const int &location) override;
   void read(const std::string &filename);
@@ -29,7 +31,7 @@ public:
 private:
   std::string filename_;
   std::vector<double> adjustments_;
-  int period_;
+  int period_ = 12;
 };
 
 

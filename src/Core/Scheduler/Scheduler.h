@@ -3,7 +3,7 @@
 
 #include <chrono>
 #include "date/date.h"
-#include "Simulation/Model.h" // Assuming Model is defined in a separate header file
+#include "Simulation/Model.h"
 #include "Utils/TypeDef.hxx"
 
 class Scheduler {
@@ -30,7 +30,7 @@ public:
 
   // Getter and Setter for current_time
   [[nodiscard]] int current_time() const { return current_time_; }
-  void set_current_time(int time) { current_time_ = time; }
+  void set_current_time(const int time) { current_time_ = time; }
 
   // Getter and Setter for total_available_time
   [[nodiscard]] int total_available_time() const { return total_available_time_; }
@@ -42,7 +42,7 @@ public:
 
   // Getter and Setter for is_force_stop
   [[nodiscard]] bool is_force_stop() const { return is_force_stop_; }
-  void set_is_force_stop(bool force_stop) { is_force_stop_ = force_stop; }
+  void set_is_force_stop(const bool force_stop) { is_force_stop_ = force_stop; }
 
   void extend_total_time(int new_total_time);
 

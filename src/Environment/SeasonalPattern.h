@@ -15,6 +15,9 @@ class SpatialData;
 
 class SeasonalPattern : public ISeasonalInfo {
 public:
+  ~SeasonalPattern() override = default;
+  SeasonalPattern() = default;
+
   void build(SpatialData* spatial_data);
   void read(const std::string &filename);
   double get_seasonal_factor(const date::sys_days &today, const int &location) override;

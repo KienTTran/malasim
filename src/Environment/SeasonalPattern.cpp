@@ -11,7 +11,7 @@ void SeasonalPattern::build(SpatialData* spatial_data) {
 
   // Validate against SpatialData if available
   if (spatial_data->get_unit_count(admin_level_id) > 0) {
-    auto boundary = spatial_data->get_boundary(admin_level);
+    const auto *boundary = spatial_data->get_boundary(admin_level);
     if (admin_unit_adjustments.size()
         != boundary->max_unit_id + 1) {
       throw std::runtime_error(
@@ -23,7 +23,7 @@ void SeasonalPattern::build(SpatialData* spatial_data) {
   }
 }
 
-int SeasonalPattern::get_admin_unit_for_location(int location) const {
+int SeasonalPattern::get_admin_unit_for_location(const int location) const {
   if (SpatialData::get_instance().get_unit_count(admin_level_id) <= 0) {
     return min_admin_unit_id;
   }
@@ -96,20 +96,19 @@ void SeasonalPattern::read(const std::string &filename) {
 // }
 
 double SeasonalPattern::get_seasonal_factor(const date::sys_days &today, const int &location) {
-  int admin_unit = get_admin_unit_for_location(location);
+  const int admin_unit = get_admin_unit_for_location(location);
 
   int doy = TimeHelpers::day_of_year(today);
 
   // Get the month (0-11)
-  auto ymd = date::year_month_day{today};
-  int month = static_cast<unsigned>(ymd.month()) - 1;
+  const auto ymd = date::year_month_day{today};
+  const auto month = static_cast<unsigned int>(ymd.month()) - 1;
 
   // For monthly data, use the month directly
   if (is_monthly) {
     return admin_unit_adjustments[admin_unit][month];
-  } else {
-    // For daily data, use the day of year (0-364)
-    doy = (doy == 366) ? 364 : doy - 1;
-    return admin_unit_adjustments[admin_unit][doy];
   }
+  // For daily data, use the day of year (0-364)
+  doy = doy == 366 ? 364 : doy - 1;
+  return admin_unit_adjustments[admin_unit][doy];
 }
