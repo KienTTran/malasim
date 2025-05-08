@@ -421,7 +421,8 @@ void Person::determine_symptomatic_recrudescence(
     //     Model::CONFIG->parasite_density_level()
     //         .log_parasite_density_asymptomatic);
     // Schedule a relapse event
-    schedule_clinical_recurrence_event(clinical_caused_parasite);
+
+    // schedule_clinical_recurrence_event(clinical_caused_parasite);
 
     this->recurrence_status_ = Person::RecurrenceStatus::WITH_SYMPTOM;
     // mark the test treatment failure event as a failure
