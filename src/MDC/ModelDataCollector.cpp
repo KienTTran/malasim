@@ -137,6 +137,9 @@ void ModelDataCollector::initialize() {
 
     cumulative_mutants_by_location_ = IntVector(Model::get_config()->number_of_locations(), 0);
 
+    progress_to_clinical_in_7d_counter = std::vector<ProgressToClinicalCounter>(
+        Model::get_config()->number_of_locations(),ProgressToClinicalCounter());
+
     current_utl_duration_ = 0;
     utl_duration_ = IntVector();
 
@@ -232,7 +235,13 @@ void ModelDataCollector::initialize() {
     monthly_number_of_treatment_by_location_ =
         IntVector(Model::get_config()->number_of_locations(), 0);
     monthly_number_of_recrudescence_treatment_by_location_ =
-        IntVector(Model::get_config()->number_of_locations(), 0);
+      LongVector(Model::get_config()->number_of_locations(), 0);
+    monthly_number_of_recrudescence_treatment_by_location_age_class_ =
+      LongVector2(Model::get_config()->number_of_locations(),
+      LongVector(Model::get_config()->number_of_age_classes(), 0));
+    monthly_number_of_recrudescence_treatment_by_location_age_ =
+      LongVector2(Model::get_config()->number_of_locations(),
+                 LongVector(80, 0));
     monthly_number_of_tf_by_location_ = IntVector(Model::get_config()->number_of_locations(), 0);
     monthly_number_of_new_infections_by_location_ =
         IntVector(Model::get_config()->number_of_locations(), 0);
@@ -727,6 +736,9 @@ void ModelDataCollector::record_1_recrudescence_treatment(const int &location, c
                                                           const int &therapy_id) {
   if (!recording_) { return; }
   monthly_number_of_recrudescence_treatment_by_location_[location] += 1;
+  monthly_number_of_recrudescence_treatment_by_location_age_class_[location][age_class] += 1;
+  const int age_clamp = (age < 80) ? age : 79;
+  monthly_number_of_recrudescence_treatment_by_location_age_[location][age_clamp] += 1;
 }
 
 void ModelDataCollector::record_1_mutation(const int &location, Genotype* from, Genotype* to) {
@@ -1007,6 +1019,8 @@ void ModelDataCollector::monthly_update() {
       zero_fill(monthly_treatment_failure_by_location_therapy_[loc]);
       zero_fill(monthly_treatment_success_by_location_age_class_[loc]);
       zero_fill(monthly_treatment_success_by_location_therapy_[loc]);
+      zero_fill(monthly_number_of_recrudescence_treatment_by_location_age_class_[loc]);
+      zero_fill(monthly_number_of_recrudescence_treatment_by_location_age_[loc]);
 
       monthly_number_of_treatment_by_location_[loc] = 0;
       monthly_number_of_tf_by_location_[loc] = 0;

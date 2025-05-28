@@ -31,13 +31,9 @@ private:
   RETURNING id;
   )"""";
 
-  // Dynamically generated query prefixes for each admin level
-  std::vector<std::string> insert_site_query_prefixes_;
-  std::vector<std::string> insert_genome_query_prefixes_;
-
   // Database schema management
-  void create_all_reporting_tables();
-  void create_reporting_tables_for_level(int level_id,
+  virtual void create_all_reporting_tables();
+  virtual void create_reporting_tables_for_level(int level_id,
     const std::string& age_class_column_definitions,
     const std::string& age_class_columns,
     const std::string& age_column_definitions,
@@ -49,11 +45,15 @@ private:
   void populate_location_admin_map_table();
 
   // Utility methods for table names
-  std::string get_site_table_name(int level_id) const;
-  std::string get_genome_table_name(int level_id) const;
+  virtual std::string get_site_table_name(int level_id) const;
+  virtual std::string get_genome_table_name(int level_id) const;
 
 
 protected:
+  // Dynamically generated query prefixes for each admin level
+  std::vector<std::string> insert_site_query_prefixes_;
+  std::vector<std::string> insert_genome_query_prefixes_;
+
   // Special level_id for cell-level data
   int CELL_LEVEL_ID = -1;
   // Database connection

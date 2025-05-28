@@ -843,12 +843,12 @@ void Person::schedule_clinical_recurrence_event(ClonalParasitePopulation* parasi
     if (existing_progress_event) {
       int existing_time = existing_progress_event->get_time();
       if (std::abs(existing_time - new_event_time) <= 7) {
-        Model::get_mdc()->progress_to_clinical_in_7d_counter.total++;
+        Model::get_mdc()->progress_to_clinical_in_7d_counter[location_].total++;
         if (existing_progress_event->clinical_caused_parasite() == parasite) {
-          Model::get_mdc()->progress_to_clinical_in_7d_counter.recrudescence++;
+          Model::get_mdc()->progress_to_clinical_in_7d_counter[location_].recrudescence++;
         }
         else {
-          Model::get_mdc()->progress_to_clinical_in_7d_counter.new_infection++;
+          Model::get_mdc()->progress_to_clinical_in_7d_counter[location_].new_infection++;
         }
       }
     }

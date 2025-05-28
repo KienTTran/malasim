@@ -767,14 +767,36 @@ public:
   }
 
 private:
-  IntVector monthly_number_of_recrudescence_treatment_by_location_;
+  LongVector monthly_number_of_recrudescence_treatment_by_location_;
 
 public:
-  IntVector &monthly_number_of_recrudescence_treatment_by_location() {
+  LongVector &monthly_number_of_recrudescence_treatment_by_location() {
     return monthly_number_of_recrudescence_treatment_by_location_;
   }
-  void set_monthly_number_of_recrudescence_treatment_by_location(const IntVector &value) {
+  void set_monthly_number_of_recrudescence_treatment_by_location(const LongVector &value) {
     monthly_number_of_recrudescence_treatment_by_location_ = value;
+  }
+
+private:
+  LongVector2 monthly_number_of_recrudescence_treatment_by_location_age_class_;
+
+public:
+  LongVector2 &monthly_number_of_recrudescence_treatment_by_location_age_class() {
+    return monthly_number_of_recrudescence_treatment_by_location_age_class_;
+  }
+  void set_monthly_number_of_recrudescence_treatment_by_location_age_class(const LongVector2 &value) {
+    monthly_number_of_recrudescence_treatment_by_location_age_class_ = value;
+  }
+
+private:
+  LongVector2 monthly_number_of_recrudescence_treatment_by_location_age_;
+
+public:
+  LongVector2 &monthly_number_of_recrudescence_treatment_by_location_age() {
+    return monthly_number_of_recrudescence_treatment_by_location_age_;
+  }
+  void set_monthly_number_of_recrudescence_treatment_by_location_age(const LongVector2 &value) {
+    monthly_number_of_recrudescence_treatment_by_location_age_ = value;
   }
 
 private:
@@ -1258,11 +1280,11 @@ private:
 
 public:
   struct ProgressToClinicalCounter {
-    long long total{0};
-    long long new_infection{0};
-    long long recrudescence{0};
+    Ul total{0};
+    Ul new_infection{0};
+    Ul recrudescence{0};
   };
-  ProgressToClinicalCounter progress_to_clinical_in_7d_counter;
+  std::vector<ProgressToClinicalCounter> progress_to_clinical_in_7d_counter;
 };
 
 #endif /* MODELDATACOLLECTOR_H */

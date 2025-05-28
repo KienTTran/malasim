@@ -2,6 +2,7 @@
 #define SQLITEVALIDATIONREPORTER_H
 
 #include "Reporters/SQLiteDbReporter.h"
+#include "Utils/TypeDef.h"
 class Person;
 
 class SQLiteValidationReporter : public SQLiteDbReporter {
@@ -34,6 +35,13 @@ protected:
     std::vector<std::vector<int>> clinical_episodes_by_age;
     std::vector<std::vector<int>> population_by_age;
     std::vector<std::vector<double>> total_immune_by_age;
+    std::vector<std::vector<int>> multiple_of_infection;
+    std::vector<Ul> progress_to_clinical_in_7d_total;
+    std::vector<Ul> progress_to_clinical_in_7d_recrudescence;
+    std::vector<Ul> progress_to_clinical_in_7d_new_infection;
+    std::vector<Ul> recrudescence_treatment;
+    std::vector<std::vector<Ul>> recrudescence_treatment_by_age_class;
+    std::vector<std::vector<Ul>> recrudescence_treatment_by_age;
   };
 
   struct MonthlyGenomeData {
@@ -49,6 +57,16 @@ protected:
   std::vector<std::string> insert_values;
 
 private:
+  void create_all_reporting_tables() override;
+  void create_reporting_tables_for_level(int level_id,
+    const std::string& age_class_column_definitions,
+    const std::string& age_class_columns,
+    const std::string& age_column_definitions,
+    const std::string& age_columns
+    ) override;
+  std::string get_site_table_name(int level_id) const override;
+  std::string get_genome_table_name(int level_id) const override;
+
   void reset_site_data_structures(int level_id, int vector_size, size_t numAgeClasses);
   void reset_genome_data_structures(int level_id, int vector_size, size_t numGenotypes);
   void count_infections_for_location(int level_id, int location_id);

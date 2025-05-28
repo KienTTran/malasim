@@ -71,6 +71,7 @@ void SQLiteDbReporter::populate_admin_level_table() {
 
 // Function to create tables for each admin level
 void SQLiteDbReporter::create_all_reporting_tables() {
+  spdlog::info("SQLiteDbReporter Creating all reporting tables");
   auto admin_levels = Model::get_spatial_data()->get_admin_level_manager()->get_level_names();
 
   std::string age_class_column_definitions;
@@ -136,6 +137,7 @@ void SQLiteDbReporter::create_reporting_tables_for_level(
     const std::string &age_class_columns,
     const std::string &age_column_definitions,
     const std::string &age_columns) {
+  spdlog::info("SQLiteDbReporter Creating reporting tables for level");
   // Generate table names for this level
   std::string site_table_name = get_site_table_name(level_id);
   std::string genome_table_name = get_genome_table_name(level_id);

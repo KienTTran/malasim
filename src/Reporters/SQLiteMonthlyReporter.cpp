@@ -118,6 +118,16 @@ void SQLiteMonthlyReporter::calculate_and_build_up_site_data_insert_values(int m
       singleRow += fmt::format(", {}", episodes);
     }
 
+    for (const auto &population :
+         monthly_site_data_by_level[level_id].population_by_age[unit_id]) {
+      singleRow += fmt::format(", {}", population);
+         }
+
+    for (const auto &immune :
+         monthly_site_data_by_level[level_id].total_immune_by_age[unit_id]) {
+      singleRow += fmt::format(", {}", immune);
+         }
+
     singleRow +=
         fmt::format(", {}, {}, {}, {}, {}, {}, {}, {}, {}, {})",
                     monthly_site_data_by_level[level_id].treatments[unit_id], calculatedEir,
@@ -223,6 +233,18 @@ void SQLiteMonthlyReporter::collect_site_data_for_location(int location_id, int 
             ->monthly_number_of_clinical_episode_by_location_age()[location_id][age];
   }
 
+  for (auto age = 0;  age < 80; age++) {
+    monthly_site_data_by_level[level_id].population_by_age[unit_id][age] +=
+        Model::get_mdc()
+            ->popsize_by_location_age()[location_id][age];
+  }
+
+  for (auto age = 0;  age < 80; age++) {
+    monthly_site_data_by_level[level_id].total_immune_by_age[unit_id][age] +=
+        Model::get_mdc()
+            ->total_immune_by_location_age()[location_id][age];
+  }
+
   // EIR and PfPR is a bit more complicated since it could be an invalid value
   // early in the simulation, and when aggregating at the district level the
   // weighted mean needs to be reported instead
@@ -271,7 +293,11 @@ void SQLiteMonthlyReporter::reset_site_data_structures(int level_id, int vector_
   monthly_site_data_by_level[level_id].clinical_episodes_by_age_class.assign(
   vector_size, std::vector<int>(numAgeClasses, 0));
   monthly_site_data_by_level[level_id].clinical_episodes_by_age.assign(
-      vector_size, std::vector<int>(80, 0));
+  vector_size, std::vector<int>(80, 0));
+  monthly_site_data_by_level[level_id].population_by_age.assign(
+  vector_size, std::vector<int>(80, 0));
+  monthly_site_data_by_level[level_id].total_immune_by_age.assign(
+      vector_size, std::vector<double>(80, 0));
   monthly_site_data_by_level[level_id].treatments.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].treatment_failures.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].nontreatment.assign(vector_size, 0);

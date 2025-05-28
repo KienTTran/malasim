@@ -295,9 +295,36 @@ void ValidationReporter::monthly_report() {
     }
     ss << group_sep;  // 914
   }
-  ss << Model::get_mdc()->progress_to_clinical_in_7d_counter.total << sep;
-  ss << Model::get_mdc()->progress_to_clinical_in_7d_counter.recrudescence << sep;
-  ss << Model::get_mdc()->progress_to_clinical_in_7d_counter.new_infection << sep;
+  for (auto loc = 0; loc < Model::get_config()->number_of_locations(); loc++) {
+    ss << Model::get_mdc()->progress_to_clinical_in_7d_counter[loc].total;
+    ss << group_sep;  // 916
+  }
+  for (auto loc = 0; loc < Model::get_config()->number_of_locations(); loc++) {
+    ss << Model::get_mdc()->progress_to_clinical_in_7d_counter[loc].recrudescence;
+    ss << group_sep;  // 918
+  }
+  for (auto loc = 0; loc < Model::get_config()->number_of_locations(); loc++) {
+    ss << Model::get_mdc()->progress_to_clinical_in_7d_counter[loc].new_infection;
+    ss << group_sep;  // 920
+  }
+  for (auto loc = 0; loc < Model::get_config()->number_of_locations(); loc++) {
+    ss << Model::get_mdc()->monthly_number_of_recrudescence_treatment_by_location()[loc];
+    ss << group_sep;  // 922
+  }
+  for (auto loc = 0; loc < Model::get_config()->number_of_locations(); loc++) {
+    for (auto ac = 0; ac < Model::get_config()->number_of_age_classes(); ac++) {
+      ss << Model::get_mdc()->monthly_number_of_recrudescence_treatment_by_location_age_class()[loc][ac]
+         << sep;
+    }
+    ss << group_sep;  /// 938
+  }
+  for (auto loc = 0; loc < Model::get_config()->number_of_locations(); loc++) {
+    for (int age = 0; age < 80; age++) {
+      ss << Model::get_mdc()->monthly_number_of_recrudescence_treatment_by_location_age()[loc][age]
+         << sep;
+    }
+    ss << group_sep;  /// 1019
+  }
   monthly_data_logger->info(ss.str());
 
   std::stringstream gene_freq_ss;
