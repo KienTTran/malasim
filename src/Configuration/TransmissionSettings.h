@@ -15,7 +15,7 @@ public:
 
   // Setter for transmission_parameter with validation
   void set_transmission_parameter(const double value) {
-    if (value <= 0) throw std::invalid_argument("transmission_parameter must be greater than 0");
+    if (value < 0) throw std::invalid_argument("transmission_parameter must be >= 0");
     transmission_parameter_ = value;
   }
 
