@@ -1273,6 +1273,10 @@ public:
     current_number_of_mutation_events_ = value;
   }
 
+public:
+  void set_recording(const bool &value) { recording_ = value; }
+  [[nodiscard]] bool get_recording() const { return recording_; }
+
 private:
   bool recording_ = false;
   void update_average_number_bitten(const int &location, const int &birthday,

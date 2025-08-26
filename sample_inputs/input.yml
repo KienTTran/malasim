@@ -250,7 +250,7 @@ immune_system_parameters:
   mean_initial_condition: 0.1 # Initial immune function mean at time zero
   sd_initial_condition: 0.1 # Initial immune function standard deviation at time zero
   immune_inflation_rate: 0.01 # Age-dependent faster acquisition of immunity from age 1 to age 10 (per year)
-  min_clinical_probability: 0.05 # Minimum probability of experiencing symptoms from a new infection
+  min_clinical_probability: 0.01 # Minimum probability of experiencing symptoms from a new infection
   max_clinical_probability: 0.99 # Maximum probability of experiencing symptoms from a new infection
   immune_effect_on_progression_to_clinical: 5.4 # Slope of the sigmoidal probability vs. immunity function
   age_mature_immunity: 10 # Age at which immune function is mature
