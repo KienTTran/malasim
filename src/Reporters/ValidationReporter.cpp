@@ -329,6 +329,18 @@ void ValidationReporter::monthly_report() {
     }
     ss << group_sep;  /// 1019
   }
+  for (auto loc = 0; loc < Model::get_config()->number_of_locations(); loc++) {
+    ss << Model::get_mdc()->monthly_treatment_failure_by_location()[loc]
+         << sep;
+    ss << group_sep;  // 1021
+  }
+  for (auto loc = 0; loc < Model::get_config()->number_of_locations(); loc++) {
+    for (auto ac = 0; ac < Model::get_config()->number_of_age_classes(); ac++) {
+      ss << Model::get_mdc()->monthly_treatment_failure_by_location_age_class()[loc][ac]
+        << sep;
+    }
+    ss << group_sep;  // 1107
+  }
   monthly_data_logger->info(ss.str());
 
   std::stringstream gene_freq_ss;
