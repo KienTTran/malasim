@@ -430,6 +430,7 @@ void Person::determine_symptomatic_recrudescence(
       auto* tf_event = dynamic_cast<TestTreatmentFailureEvent*>(event.get());
       if (tf_event != nullptr && tf_event->clinical_caused_parasite() == clinical_caused_parasite) {
         event->set_executable(false);
+        Model::get_mdc()->record_1_tf(location_, true);
         Model::get_mdc()->record_1_treatment_failure_by_therapy(location_, age_class_,
                                                                 tf_event->therapy_id());
       }

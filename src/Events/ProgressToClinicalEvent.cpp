@@ -32,6 +32,7 @@ bool ProgressToClinicalEvent::should_receive_treatment(Person* person) {
 
 void ProgressToClinicalEvent::handle_no_treatment(Person* person) {
   // did not receive treatment
+  Model::get_mdc()->record_1_tf(person->get_location(), false);
   Model::get_mdc()->record_1_non_treated_case(person->get_location(), person->get_age(),
                                               person->get_age_class());
 
