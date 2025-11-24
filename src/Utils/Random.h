@@ -41,7 +41,8 @@ public:
    *
    * @param external_rng Pointer to an external GSL RNG. Defaults to nullptr.
    */
-  explicit Random(gsl_rng* external_rng = nullptr, uint64_t seed = -1);
+  explicit Random(gsl_rng* external_rng = nullptr, uint64_t seed = static_cast<uint64_t>(-1));
+
 
   /**
    * @brief Destructor.
@@ -329,16 +330,18 @@ private:
   std::unique_ptr<gsl_rng, GslRngDeleter> rng_;
 
   /**
-   * @brief Initializes the GSL random number generator with a given seed.
-   *
-   * If the provided seed is zero, it uses `std::random_device` to generate a
-   * random seed.
-   *
-   * @param initial_seed Seed value. Defaults to 0.
-   *
-   * @throws std::runtime_error If RNG allocation fails.
-   */
-  void initialize(uint64_t initial_seed = 0);
+ * @brief Initializes the GSL random number generator with a given seed.
+ *
+ * If the provided seed is UINT64_MAX (i.e. -1 as the default), it uses
+ * `std::random_device` to generate a random seed. Otherwise it uses the
+ * value passed in.
+ *
+ * @param initial_seed Seed value. Defaults to UINT64_MAX (cast from -1).
+ *
+ * @throws std::runtime_error If RNG allocation fails.
+ */
+  void initialize(uint64_t initial_seed = static_cast<uint64_t>(-1));
+
 
 public:
   template <class T>

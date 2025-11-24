@@ -339,7 +339,13 @@ void ValidationReporter::monthly_report() {
       ss << Model::get_mdc()->monthly_treatment_failure_by_location_age_class()[loc][ac]
         << sep;
     }
-    ss << group_sep;  // 1107
+    ss << group_sep;  // 1137
+  }
+  for (auto loc = 0; loc < Model::get_config()->number_of_locations(); loc++) {
+    ss << Model::get_mdc()->total_number_of_bites_by_location()[loc] << sep;
+    ss << Model::get_mdc()->total_number_of_bites_by_location_year()[loc] << sep;
+    ss << Model::get_mdc()->person_days_by_location_year()[loc] << sep;
+    ss << group_sep;  // 1141
   }
   monthly_data_logger->info(ss.str());
 

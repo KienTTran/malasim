@@ -214,15 +214,126 @@ std::size_t Population::size_residents_only(const int &location) {
 
 std::size_t Population::size_at(const int &location) { return popsize_by_location_[location]; }
 
+// void Population::perform_infection_event() {
+//   PersonPtrVector today_infections;
+//
+//   const auto tracking_index =
+//       Model::get_scheduler()->current_time() % Model::get_config()->number_of_tracking_days();
+//
+//   for (int loc = 0; loc < Model::get_config()->number_of_locations(); ++loc) {
+//     const double foi = force_of_infection_for_n_days_by_location_[tracking_index][loc];
+//     if (foi <= DBL_EPSILON) continue;
+//
+//     const double new_beta =
+//         Model::get_config()->location_db()[loc].beta *
+//         Model::get_config()->get_seasonality_settings().get_seasonal_factor(
+//             Model::get_scheduler()->get_calendar_date(), loc);
+//
+//     const double poisson_means = new_beta * foi;
+//     const int number_of_bites = Model::get_random()->random_poisson(poisson_means);
+//     if (number_of_bites <= 0) continue;
+//
+//     // Stats
+//     Model::get_mdc()->collect_number_of_bites(loc, number_of_bites);
+//
+//     // Sampling guards
+//     if (all_alive_persons_by_location_[loc].empty()) {
+//       spdlog::trace("all_alive_persons_by_location location {} is empty", loc);
+//       continue;
+//     }
+//     if (sum_relative_biting_by_location_[loc] <= 0.0) {
+//       spdlog::trace("sum_relative_biting_by_location[{}] is zero", loc);
+//       continue;
+//     }
+//
+//     // Draw bite recipients
+//     auto persons_bitten_today = Model::get_random()->roulette_sampling<Person>(
+//         number_of_bites,
+//         individual_relative_biting_by_location_[loc],
+//         all_alive_persons_by_location_[loc],
+//         /*allow_repetition=*/false,
+//         sum_relative_biting_by_location_[loc]);
+//
+//     // Early guard on mosquito table
+//     if (Model::get_mosquito()->genotypes_table[tracking_index][loc].empty()) {
+//       spdlog::trace("mosquito genotypes_table[{}][{}] is empty", tracking_index, loc);
+//       continue;
+//     }
+//
+//     const bool use_challenge =
+//         Model::get_config()->get_transmission_settings().get_transmission_parameter() > 0.0;
+//
+//     for (auto* person : persons_bitten_today) {
+//       assert(person->get_host_state() != Person::DEAD);
+//       person->increase_number_of_times_bitten();
+//
+//       const int genotype_id = Model::get_mosquito()->random_genotype(loc, tracking_index);
+//       if (genotype_id < 0) continue; // extra safety
+//
+//       // Draw once per bite
+//       const double draw = Model::get_random()->random_flat(0.0, 1.0);
+//
+//       bool infected = false;
+//       if (use_challenge) {
+//         // v4-style immunity curve, but safe/clamped
+//         double theta = person->get_immune_system()->get_current_value();
+//         theta = std::clamp(theta, 0.0, 1.0);
+//
+//         double pr = Model::get_config()->get_transmission_settings().get_transmission_parameter();
+//         double t = (theta - 0.2) / 0.6;
+//         t = std::clamp(t, 0.0, 1.0); // only blend on [0.2,0.8] region
+//
+//         double pr_inf = pr * (1.0 - t) + 0.1 * t;
+//         if (theta > 0.8) pr_inf = 0.1;
+//         if (theta < 0.2) pr_inf = pr;
+//         pr_inf = std::clamp(pr_inf, 0.0, 1.0);
+//
+//         infected = (draw <= pr_inf);
+//       } else {
+//         if (Model::get_config()
+//                 ->get_epidemiological_parameters()
+//                 .get_using_variable_probability_infectious_bites_cause_infection()) {
+//           infected = (draw <= person->p_infection_from_an_infectious_bite());
+//         } else {
+//           infected = (draw <= Model::get_config()
+//                                ->get_transmission_settings()
+//                                .get_p_infection_from_an_infectious_bite());
+//         }
+//       }
+//
+//       if (infected &&
+//           person->get_host_state() != Person::EXPOSED &&
+//           person->liver_parasite_type() == nullptr) {
+//         person->get_today_infections().push_back(genotype_id);
+//         today_infections.push_back(person);
+//       }
+//     }
+//   }
+//
+//   if (today_infections.empty()) return;
+//
+//   for (auto* person : today_infections) {
+//     if (!person->get_today_infections().empty()) {
+//       Model::get_mdc()->record_1_infection(person->get_location());
+//     }
+//     person->randomly_choose_parasite();
+//   }
+//
+//   today_infections.clear();
+// }
 void Population::perform_infection_event() {
   PersonPtrVector today_infections;
 
   const auto tracking_index =
-      Model::get_scheduler()->current_time() % Model::get_config()->number_of_tracking_days();
+      Model::get_scheduler()->current_time() %
+      Model::get_config()->number_of_tracking_days();
 
   for (int loc = 0; loc < Model::get_config()->number_of_locations(); ++loc) {
-    const double foi = force_of_infection_for_n_days_by_location_[tracking_index][loc];
-    if (foi <= DBL_EPSILON) continue;
+    const double foi =
+        force_of_infection_for_n_days_by_location_[tracking_index][loc];
+    if (foi <= DBL_EPSILON) {
+      continue;
+    }
 
     const double new_beta =
         Model::get_config()->location_db()[loc].beta *
@@ -230,13 +341,28 @@ void Population::perform_infection_event() {
             Model::get_scheduler()->get_calendar_date(), loc);
 
     const double poisson_means = new_beta * foi;
-    const int number_of_bites = Model::get_random()->random_poisson(poisson_means);
-    if (number_of_bites <= 0) continue;
+    const int number_of_bites =
+        Model::get_random()->random_poisson(poisson_means);
 
-    // Stats
+    // Optional log (keep or comment out as you like)
+    // spdlog::info(
+    //     "trac index {} beta {} factor {} pmean {} nbites {}",
+    //     tracking_index,
+    //     Model::get_config()->location_db()[loc].beta,
+    //     Model::get_config()->get_seasonality_settings().get_seasonal_factor(
+    //         Model::get_scheduler()->get_calendar_date(), loc),
+    //     poisson_means,
+    //     number_of_bites);
+
+    if (number_of_bites <= 0) {
+      continue;
+    }
+
+    // Stats (same as v6 already)
     Model::get_mdc()->collect_number_of_bites(loc, number_of_bites);
 
-    // Sampling guards
+    // Sampling guards (safe; v5 didn’t have explicit guards but behavior
+    // is identical when things are well-formed)
     if (all_alive_persons_by_location_[loc].empty()) {
       spdlog::trace("all_alive_persons_by_location location {} is empty", loc);
       continue;
@@ -254,51 +380,41 @@ void Population::perform_infection_event() {
         /*allow_repetition=*/false,
         sum_relative_biting_by_location_[loc]);
 
-    // Early guard on mosquito table
+    // Early guard on mosquito table (extra safety vs v5, no behavioral change
+    // when table is non-empty)
     if (Model::get_mosquito()->genotypes_table[tracking_index][loc].empty()) {
-      spdlog::trace("mosquito genotypes_table[{}][{}] is empty", tracking_index, loc);
+      spdlog::trace(
+          "mosquito genotypes_table[{}][{}] is empty",
+          tracking_index,
+          loc);
       continue;
     }
 
-    const bool use_challenge =
-        Model::get_config()->get_transmission_settings().get_transmission_parameter() > 0.0;
-
+    // v5-style infection probability (NO "challenge" curve)
     for (auto* person : persons_bitten_today) {
       assert(person->get_host_state() != Person::DEAD);
       person->increase_number_of_times_bitten();
 
-      const int genotype_id = Model::get_mosquito()->random_genotype(loc, tracking_index);
-      if (genotype_id < 0) continue; // extra safety
+      const int genotype_id =
+          Model::get_mosquito()->random_genotype(loc, tracking_index);
+      if (genotype_id < 0) {
+        continue;  // safety
+      }
 
-      // Draw once per bite
+      // One uniform draw per bite
       const double draw = Model::get_random()->random_flat(0.0, 1.0);
 
       bool infected = false;
-      if (use_challenge) {
-        // v4-style immunity curve, but safe/clamped
-        double theta = person->get_immune_system()->get_current_value();
-        theta = std::clamp(theta, 0.0, 1.0);
-
-        double pr = Model::get_config()->get_transmission_settings().get_transmission_parameter();
-        double t = (theta - 0.2) / 0.6;
-        t = std::clamp(t, 0.0, 1.0); // only blend on [0.2,0.8] region
-
-        double pr_inf = pr * (1.0 - t) + 0.1 * t;
-        if (theta > 0.8) pr_inf = 0.1;
-        if (theta < 0.2) pr_inf = pr;
-        pr_inf = std::clamp(pr_inf, 0.0, 1.0);
-
-        infected = (draw <= pr_inf);
+      if (Model::get_config()
+              ->get_epidemiological_parameters()
+              .get_using_variable_probability_infectious_bites_cause_infection()) {
+        // Individual-specific infection prob (v5 behavior)
+        infected = (draw <= person->p_infection_from_an_infectious_bite());
       } else {
-        if (Model::get_config()
-                ->get_epidemiological_parameters()
-                .get_using_variable_probability_infectious_bites_cause_infection()) {
-          infected = (draw <= person->p_infection_from_an_infectious_bite());
-        } else {
-          infected = (draw <= Model::get_config()
-                               ->get_transmission_settings()
-                               .get_p_infection_from_an_infectious_bite());
-        }
+        // Global infection prob (v5 behavior)
+        infected = (draw <= Model::get_config()
+                             ->get_transmission_settings()
+                             .get_p_infection_from_an_infectious_bite());
       }
 
       if (infected &&
@@ -310,10 +426,15 @@ void Population::perform_infection_event() {
     }
   }
 
-  if (today_infections.empty()) return;
+  // Solve multiple infections (v5 logic)
+  if (today_infections.empty()) {
+    return;
+  }
 
   for (auto* person : today_infections) {
     if (!person->get_today_infections().empty()) {
+      // v5: monthly_number_of_new_infections_by_location[loc]++
+      // v6 equivalent:
       Model::get_mdc()->record_1_infection(person->get_location());
     }
     person->randomly_choose_parasite();
@@ -321,6 +442,7 @@ void Population::perform_infection_event() {
 
   today_infections.clear();
 }
+
 
 
 void Population::generate_individual(int location, int age_class) {
@@ -409,70 +531,168 @@ void Population::generate_individual(int location, int age_class) {
   add_person(std::move(person));
 }
 
+// void Population::introduce_initial_cases() {
+//   if (Model::get_instance() != nullptr) {
+//     // Reset and calculate FOI based on the current population state (pre-infection introduction).
+//     update_current_foi();
+//     // std::cout << Model::CONFIG->initial_parasite_info().size() << std::endl;
+//     for (const auto p_info :
+//          Model::get_config()->get_genotype_parameters().get_initial_parasite_info()) {
+//       auto num_of_infections = Model::get_random()->random_poisson(
+//           std::round(static_cast<double>(size_at(p_info.location)) * p_info.prevalence));
+//       num_of_infections = num_of_infections <= 0 ? 1 : num_of_infections;
+//
+//       auto* genotype = Model::get_genotype_db()->at(p_info.parasite_type_id);
+//       // spdlog::debug("Introducing genotype {} {} with prevalence: {} : {} infections at location
+//       // {}",
+//       //           p_info.parasite_type_id, genotype->get_aa_sequence(), p_info.prevalence,
+//       //           num_of_infections, p_info.location);
+//       introduce_parasite(p_info.location, genotype, num_of_infections);
+//     }
+//     // Recalculate FOI to account for newly introduced infections.
+//     update_current_foi();
+//
+//     // update force of infection for N days
+//     for (auto day = 0; day < Model::get_config()->number_of_tracking_days(); day++) {
+//       for (auto loc = 0; loc < Model::get_config()->number_of_locations(); loc++) {
+//         force_of_infection_for_n_days_by_location_[day][loc] =
+//             current_force_of_infection_by_location_[loc];
+//       }
+//       Model::get_mosquito()->infect_new_cohort_in_PRMC(Model::get_config(), Model::get_random(),
+//                                                        this, day);
+//     }
+//   }
+// }
 void Population::introduce_initial_cases() {
-  if (Model::get_instance() != nullptr) {
-    // Reset and calculate FOI based on the current population state (pre-infection introduction).
-    update_current_foi();
-    // std::cout << Model::CONFIG->initial_parasite_info().size() << std::endl;
-    for (const auto p_info :
-         Model::get_config()->get_genotype_parameters().get_initial_parasite_info()) {
-      auto num_of_infections = Model::get_random()->random_poisson(
-          std::round(static_cast<double>(size_at(p_info.location)) * p_info.prevalence));
-      num_of_infections = num_of_infections <= 0 ? 1 : num_of_infections;
-
-      auto* genotype = Model::get_genotype_db()->at(p_info.parasite_type_id);
-      // spdlog::debug("Introducing genotype {} {} with prevalence: {} : {} infections at location
-      // {}",
-      //           p_info.parasite_type_id, genotype->get_aa_sequence(), p_info.prevalence,
-      //           num_of_infections, p_info.location);
-      introduce_parasite(p_info.location, genotype, num_of_infections);
-    }
-    // Recalculate FOI to account for newly introduced infections.
-    update_current_foi();
-
-    // update force of infection for N days
-    for (auto day = 0; day < Model::get_config()->number_of_tracking_days(); day++) {
-      for (auto loc = 0; loc < Model::get_config()->number_of_locations(); loc++) {
-        force_of_infection_for_n_days_by_location_[day][loc] =
-            current_force_of_infection_by_location_[loc];
-      }
-      Model::get_mosquito()->infect_new_cohort_in_PRMC(Model::get_config(), Model::get_random(),
-                                                       this, day);
-    }
-  }
-}
-
-void Population::introduce_parasite(const int &location, Genotype* parasite_type,
-                                    const int &num_of_infections) {
-  if (all_alive_persons_by_location_[location].empty()) {
-    // spdlog::debug("introduce_parasite all_alive_persons_by_location location {} is empty",
-    // location);
+  if (Model::get_instance() == nullptr) {
     return;
   }
-  auto persons_bitten_today = Model::get_random()->roulette_sampling<Person>(
-      num_of_infections, individual_relative_biting_by_location_[location],
-      all_alive_persons_by_location_[location], false);
 
-  for (auto* person : persons_bitten_today) { setup_initial_infection(person, parasite_type); }
+  // v5: loop over initial_parasite_info and seed infections by prevalence
+  for (const auto p_info :
+       Model::get_config()
+           ->get_genotype_parameters()
+           .get_initial_parasite_info()) {
+    auto num_of_infections = Model::get_random()->random_poisson(
+        std::round(static_cast<double>(size_at(p_info.location)) *
+                   p_info.prevalence));
+    // Ensure at least one infection if prevalence > 0
+    if (num_of_infections <= 0) {
+      num_of_infections = 1;
+    }
+
+    auto* genotype = Model::get_genotype_db()->at(p_info.parasite_type_id);
+
+    // Same as v5 introduce_parasite call
+    introduce_parasite(p_info.location, genotype, num_of_infections);
+           }
+
+  // v5: update current FOI after seeding infections
+  update_current_foi();
+
+  // v5: fill FOI history and infect mosquito cohorts for PRMC
+  for (auto day = 0; day < Model::get_config()->number_of_tracking_days();
+       ++day) {
+    for (auto loc = 0; loc < Model::get_config()->number_of_locations();
+         ++loc) {
+      force_of_infection_for_n_days_by_location_[day][loc] =
+          current_force_of_infection_by_location_[loc];
+         }
+    Model::get_mosquito()->infect_new_cohort_in_PRMC(
+        Model::get_config(), Model::get_random(), this, day);
+       }
 }
 
-void Population::setup_initial_infection(Person* person, Genotype* parasite_type) {
+
+// void Population::introduce_parasite(const int &location, Genotype* parasite_type,
+//                                     const int &num_of_infections) {
+//   if (all_alive_persons_by_location_[location].empty()) {
+//     // spdlog::debug("introduce_parasite all_alive_persons_by_location location {} is empty",
+//     // location);
+//     return;
+//   }
+//   auto persons_bitten_today = Model::get_random()->roulette_sampling<Person>(
+//       num_of_infections, individual_relative_biting_by_location_[location],
+//       all_alive_persons_by_location_[location], false);
+//
+//   for (auto* person : persons_bitten_today) { setup_initial_infection(person, parasite_type); }
+// }
+void Population::introduce_parasite(const int &location,
+                                    Genotype* parasite_type,
+                                    const int &num_of_infections) {
+  // v5 didn’t explicitly check, but this guard is harmless and avoids
+  // UB if something is misconfigured.
+  if (all_alive_persons_by_location_[location].empty()) {
+    // spdlog::trace("introduce_parasite: location {} has no alive persons",
+    //               location);
+    return;
+  }
+
+  auto persons_bitten_today = Model::get_random()->roulette_sampling<Person>(
+      num_of_infections,
+      individual_relative_biting_by_location_[location],
+      all_alive_persons_by_location_[location],
+      /*allow_repetition=*/false);
+
+  for (auto* person : persons_bitten_today) {
+    setup_initial_infection(person, parasite_type);  // v5: initial_infection
+  }
+}
+
+
+// void Population::setup_initial_infection(Person* person, Genotype* parasite_type) {
+//   person->get_immune_system()->set_increase(true);
+//   person->set_host_state(Person::ASYMPTOMATIC);
+//
+//   auto* blood_parasite = person->add_new_parasite_to_blood(parasite_type);
+//
+//   const auto size = Model::get_random()->random_flat(Model::get_config()
+//                                                          ->get_parasite_parameters()
+//                                                          .get_parasite_density_levels()
+//                                                          .get_log_parasite_density_from_liver(),
+//                                                      Model::get_config()
+//                                                          ->get_parasite_parameters()
+//                                                          .get_parasite_density_levels()
+//                                                          .get_log_parasite_density_clinical());
+//
+//   blood_parasite->set_gametocyte_level(
+//       Model::get_config()->get_epidemiological_parameters().get_gametocyte_level_full());
+//   blood_parasite->set_last_update_log10_parasite_density(size);
+//
+//   const auto p_clinical = person->get_probability_progress_to_clinical();
+//   const auto prob = Model::get_random()->random_flat(0.0, 1.0);
+//
+//   if (prob < p_clinical) {
+//     // progress to clinical after several days
+//     blood_parasite->set_update_function(Model::progress_to_clinical_update_function());
+//     person->schedule_progress_to_clinical_event(blood_parasite);
+//   } else {
+//     // only progress to clearance by Immune system
+//     // progress to clearance
+//     blood_parasite->set_update_function(Model::immunity_clearance_update_function());
+//   }
+// }
+void Population::setup_initial_infection(Person* person,
+                                         Genotype* parasite_type) {
   person->get_immune_system()->set_increase(true);
   person->set_host_state(Person::ASYMPTOMATIC);
 
   auto* blood_parasite = person->add_new_parasite_to_blood(parasite_type);
 
-  const auto size = Model::get_random()->random_flat(Model::get_config()
-                                                         ->get_parasite_parameters()
-                                                         .get_parasite_density_levels()
-                                                         .get_log_parasite_density_from_liver(),
-                                                     Model::get_config()
-                                                         ->get_parasite_parameters()
-                                                         .get_parasite_density_levels()
-                                                         .get_log_parasite_density_clinical());
+  const auto size = Model::get_random()->random_flat(
+      Model::get_config()
+          ->get_parasite_parameters()
+          .get_parasite_density_levels()
+          .get_log_parasite_density_from_liver(),
+      Model::get_config()
+          ->get_parasite_parameters()
+          .get_parasite_density_levels()
+          .get_log_parasite_density_clinical());
 
   blood_parasite->set_gametocyte_level(
-      Model::get_config()->get_epidemiological_parameters().get_gametocyte_level_full());
+      Model::get_config()
+          ->get_epidemiological_parameters()
+          .get_gametocyte_level_full());
   blood_parasite->set_last_update_log10_parasite_density(size);
 
   const auto p_clinical = person->get_probability_progress_to_clinical();
@@ -480,14 +700,16 @@ void Population::setup_initial_infection(Person* person, Genotype* parasite_type
 
   if (prob < p_clinical) {
     // progress to clinical after several days
-    blood_parasite->set_update_function(Model::progress_to_clinical_update_function());
+    blood_parasite->set_update_function(
+        Model::progress_to_clinical_update_function());
     person->schedule_progress_to_clinical_event(blood_parasite);
   } else {
-    // only progress to clearance by Immune system
-    // progress to clearance
-    blood_parasite->set_update_function(Model::immunity_clearance_update_function());
+    // only progress to clearance by immune system
+    blood_parasite->set_update_function(
+        Model::immunity_clearance_update_function());
   }
 }
+
 
 void Population::perform_birth_event() {
   //    std::cout << "Birth Event" << std::endl;

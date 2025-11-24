@@ -87,7 +87,7 @@ private:
 
 template <>
 struct YAML::convert<PopulationDemographic> {
-  static Node encode(PopulationDemographic &rhs) {
+  static Node encode(const PopulationDemographic &rhs) {
     Node node;
     node["age_structure"] = rhs.get_age_structure();
     node["initial_age_structure"] = rhs.get_initial_age_structure();

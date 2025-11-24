@@ -188,8 +188,6 @@ public:
     recurrence_status_ = recurrence_status;
   }
 
-  void update_relative_bitting_rate();
-
   void notify_change(const Property &property, const void* old_value, const void* new_value);
 
   void set_location(const int &value);

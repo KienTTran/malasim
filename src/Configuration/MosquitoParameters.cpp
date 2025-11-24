@@ -8,23 +8,38 @@ void MosquitoParameters::process_config_using_locations(std::vector<Spatial::Loc
   spdlog::info("Processing MosquitoParameters");
   if (get_mosquito_config().get_mode() == SpatialSettings::GRID_BASED_MODE) {
     spdlog::info("Processing MosquitoParameters using grid based mode");
-    AscFile* raster =
-        Model::get_spatial_data()->get_raster(SpatialData::SpatialFileType::ECOCLIMATIC);
-    if (raster == nullptr) {
-      throw std::invalid_argument("Mosquito  raster flag set without eco-climatic raster loaded.");
+    AscFile* size_raster =
+        Model::get_spatial_data()->get_raster(SpatialData::SpatialFileType::MOSQUITO_SIZE);
+    if (size_raster == nullptr) {
+      throw std::invalid_argument("Mosquito raster flag set without mosquito size raster loaded.");
     }
     // Prepare to run
-    spdlog::info("Setting seasonal equation using raster data.");
+    spdlog::info("Setting mosquito size using raster data.");
     // Load the values based upon the raster data
-    auto size = locations.size();
     int index = 0;
-    for (int row = 0; row < raster->nrows; row++) {
-      for (int col = 0; col < raster->ncols; col++) {
+    for (int row = 0; row < size_raster->nrows; row++) {
+      for (int col = 0; col < size_raster->ncols; col++) {
         // Pass if we have no data here
-        if (raster->data[row][col] == raster->nodata_value) { continue; }
+        if (size_raster->data[row][col] == size_raster->nodata_value) { continue; }
         // Set the seasonal period
-        locations[index].mosquito_ifr = locations[index].mosquito_ifr;
-        locations[index].mosquito_size = locations[index].mosquito_size;
+        locations[index].mosquito_size = size_raster->data[row][col];
+        index++;
+      }
+    }
+    AscFile* ifr_raster =
+        Model::get_spatial_data()->get_raster(SpatialData::SpatialFileType::MOSQUITO_IFR);
+    if (ifr_raster == nullptr) {
+      throw std::invalid_argument("Mosquito raster flag set without mosquito ifr raster loaded.");
+    }
+    spdlog::info("Setting mosquito ifr using raster data.");
+    // Load the values based upon the raster data
+    index = 0;
+    for (int row = 0; row < ifr_raster->nrows; row++) {
+      for (int col = 0; col < ifr_raster->ncols; col++) {
+        // Pass if we have no data here
+        if (ifr_raster->data[row][col] == ifr_raster->nodata_value) { continue; }
+        // Set the seasonal period
+        locations[index].mosquito_ifr = ifr_raster->data[row][col];
         index++;
       }
     }

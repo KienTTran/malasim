@@ -20,6 +20,7 @@ class IStrategy;
 
 class Therapy;
 
+using ul = unsigned long;
 using Ul = uint64_t;
 
 using DoubleVector = std::vector<double>;

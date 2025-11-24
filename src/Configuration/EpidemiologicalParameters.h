@@ -258,7 +258,7 @@ struct convert<EpidemiologicalParameters::BitingLevelDistribution> {
         Node node;
         node["distribution"] = rhs.get_distribution();
         node["Gamma"] = rhs.get_gamma();
-        node["exponential"] = rhs.get_exponential();
+        node["Exponential"] = rhs.get_exponential();
         return node;
     }
 

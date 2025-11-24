@@ -320,7 +320,7 @@ void Config::validate_all_cross_field_validations() {
   if (seasonality_settings_.get_enable() && seasonality_settings_.get_mode() == "equation") {
     if (seasonality_settings_.get_seasonal_equation()->get_raster()
         && spatial_settings_.spatial_data()->get_raster(SpatialData::SpatialFileType::ECOCLIMATIC)
-               != nullptr) {
+               == nullptr) {
       throw std::invalid_argument(
           "Ecoclimatic raster should be provided for equation based seasonality.");
     }
@@ -426,7 +426,7 @@ void Config::validate_all_cross_field_validations() {
   // Check if all parameters are positive numbers
   if (immune_system_parameters.get_b1() < 0 || immune_system_parameters.get_b2() < 0
       || immune_system_parameters.get_duration_for_naive() < 0
-      || immune_system_parameters.get_duration_for_naive() < 0
+      || immune_system_parameters.get_duration_for_fully_immune() < 0
       || immune_system_parameters.get_mean_initial_condition() < 0
       || immune_system_parameters.get_sd_initial_condition() < 0
       || immune_system_parameters.get_immune_inflation_rate() < 0
@@ -445,7 +445,7 @@ void Config::validate_all_cross_field_validations() {
   GenotypeParameters genotype_parameters = genotype_parameters_;
   // Check if mask contains 13 "|" characters
   if (get_pipe_count(genotype_parameters.get_mutation_mask()) != 13) {
-    throw std::invalid_argument("Override EC50 pattern should contain 13 '|' characters");
+    throw std::invalid_argument("Mutation mask should contain 13 '|' characters");
   }
   // Check if mutation rate is in mutation_probability_per_locus [0,1]
   if (genotype_parameters.get_mutation_probability_per_locus() < 0

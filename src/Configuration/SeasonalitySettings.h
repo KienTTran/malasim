@@ -43,6 +43,14 @@ public:
 
   [[nodiscard]] SeasonalRainfall* get_seasonal_rainfall() const { return seasonal_rainfall_.get(); }
 
+  /**
+   * @brief Set the seasonal rainfall object
+   *
+   * @param value A unique pointer to a SeasonalRainfall object
+   *
+   * This function sets the seasonal rainfall object which is used to calculate
+   * the seasonal factor for a given date and location.
+   */
   void set_seasonal_rainfall(std::unique_ptr<SeasonalRainfall> value) {
     seasonal_rainfall_ = std::move(value);
   }
