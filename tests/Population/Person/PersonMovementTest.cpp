@@ -84,20 +84,16 @@ TEST_F(PersonMovementTest, TripTracking) {
 }
 
 TEST_F(PersonMovementTest, LocationStateNotification) {
-  // Set initial location first without tracking notifications
-  const int initial_location = 0;
-  person_->set_location(initial_location);
-
-  // Now expect exactly one notification for the location change
+  // Expect exactly one notification for a location change in this test
   EXPECT_CALL(*mock_population_,
-             notify_change(_, Person::Property::LOCATION, _, _))
+              notify_change(_, Person::Property::LOCATION, _, _))
       .Times(1);
 
-  // Change location and verify notification worked
   const int new_location = 5;
   person_->set_location(new_location);
   EXPECT_EQ(person_->get_location(), new_location);
 }
+
 
 TEST_F(PersonMovementTest, MovingLevelNotification) {
     // Set initial moving level first without tracking notifications
