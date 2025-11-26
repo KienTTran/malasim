@@ -3,6 +3,7 @@
 
 #include <yaml-cpp/yaml.h>
 #include <stdexcept>
+#include <numbers>
 #include <string>
 #include <spdlog/spdlog.h>
 #include "IConfigData.h"
@@ -178,10 +179,17 @@ public:
     //process config data
     void process_config() override {
       spdlog::info("Processing EpidemiologicalParameters");
-      const auto var = get_relative_biting_info().get_biting_level_distribution().get_gamma().get_sd()
-      * get_relative_biting_info().get_biting_level_distribution().get_gamma().get_sd();
-      gamma_b = var / get_relative_biting_info().get_biting_level_distribution().get_gamma().get_mean();
-      gamma_a = get_relative_biting_info().get_biting_level_distribution().get_gamma().get_mean() / gamma_b;
+      const auto var = relative_biting_info_.get_biting_level_distribution().get_gamma().get_sd()
+      * relative_biting_info_.get_biting_level_distribution().get_gamma().get_sd();
+      gamma_b = var / relative_biting_info_.get_biting_level_distribution().get_gamma().get_mean();
+      gamma_a = relative_biting_info_.get_biting_level_distribution().get_gamma().get_mean() / gamma_b;
+
+      spdlog::info("relative_biting_info gamma_a: {}, gamma_b: {}", gamma_a, gamma_b);
+
+      const auto d_star = 1.0/ get_relative_infectivity().get_blood_meal_volume();
+      relative_infectivity_.set_ro_star((log(relative_infectivity_.get_ro_star()) - log(d_star)) / relative_infectivity_.get_sigma());
+      relative_infectivity_.set_sigma(log(10) / relative_infectivity_.get_sigma());
+
     }
 
 private:
@@ -258,7 +266,7 @@ struct convert<EpidemiologicalParameters::BitingLevelDistribution> {
         Node node;
         node["distribution"] = rhs.get_distribution();
         node["Gamma"] = rhs.get_gamma();
-        node["exponential"] = rhs.get_exponential();
+        node["Exponential"] = rhs.get_exponential();
         return node;
     }
 

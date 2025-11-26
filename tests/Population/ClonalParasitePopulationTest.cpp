@@ -45,7 +45,7 @@ TEST_F(ClonalParasitePopulationTest, Initialization) {
   EXPECT_EQ(cpp->last_update_log10_parasite_density(),
             ClonalParasitePopulation::LOG_ZERO_PARASITE_DENSITY);
   EXPECT_EQ(cpp->gametocyte_level(), 0.0);
-  EXPECT_EQ(cpp->first_date_in_blood(), 0);
+  EXPECT_EQ(cpp->first_date_in_blood(), -1);
 }
 
 TEST_F(ClonalParasitePopulationTest, SetAndGetValues) {

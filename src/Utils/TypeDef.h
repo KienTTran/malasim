@@ -20,6 +20,7 @@ class IStrategy;
 
 class Therapy;
 
+using ul = unsigned long;
 using Ul = uint64_t;
 
 using DoubleVector = std::vector<double>;
@@ -32,7 +33,7 @@ using IntVectorPtrVector = std::vector<IntVector*>;
 using IntVector2Ptr = std::vector<IntVector>*;
 using UIntVector = std::vector<unsigned int>;
 
-using LongVector = std::vector<Ul>;
+using LongVector = std::vector<ul>;
 using LongVector2 = std::vector<LongVector>;
 using LongVector3 = std::vector<LongVector2>;
 

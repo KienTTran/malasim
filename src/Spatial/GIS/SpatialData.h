@@ -47,6 +47,12 @@ public:
     // Probability of treatment, over 5
     PR_TREATMENT_OVER5,
 
+    // Mosquito size
+    MOSQUITO_SIZE,
+
+    // Interrupted Feeding Rate
+    MOSQUITO_IFR,
+
     // Number of sequential items in the type
     COUNT
   };
@@ -118,6 +124,8 @@ public:
   constexpr static const std::string_view ECOCLIMATIC_RASTER = "ecoclimatic_raster";
   constexpr static const std::string_view TREATMENT_RATE_UNDER5 = "p_treatment_under_5_raster";
   constexpr static const std::string_view TREATMENT_RATE_OVER5 = "p_treatment_over_5_raster";
+  constexpr static const std::string_view MOSQUITO_SIZE_RASTER = "prmc_size_raster";
+  constexpr static const std::string_view MOSQUITO_IFR_RASTER = "interrupted_feeding_rate_raster";
 
   // Add constant for the new admin boundaries configuration section
   constexpr static const std::string_view ADMIN_BOUNDARIES = "administrative_boundaries";

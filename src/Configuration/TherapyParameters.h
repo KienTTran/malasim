@@ -112,20 +112,37 @@ struct convert<TherapyParameters::TherapyInfo> {
 // TherapyParameters YAML conversion
 template<>
 struct convert<TherapyParameters> {
-  static Node encode(const TherapyParameters& rhs) {
+  static Node encode(TherapyParameters::TherapyInfo &rhs) {
     Node node;
-    node["tf_testing_day"] = rhs.get_tf_testing_day();
-    node["tf_rate"] = rhs.get_tf_rate();
 
-    node["recurrence_therapy_id"] = rhs.get_recurrence_therapy_id();
-    // Encode therapy_db as a map
-    Node therapy_db_node;
-    for (const auto& [key, value] : rhs.get_therapy_db_raw()) {
-      therapy_db_node[key] = value;
+    // Preserve optional name
+    if (!rhs.get_name().empty()) {
+      node["name"] = rhs.get_name();
     }
-    node["therapy_db"] = therapy_db_node;
+
+    // Combination therapy via sub-therapies
+    if (!rhs.get_therapy_ids().empty()) {
+      node["therapy_ids"] = rhs.get_therapy_ids();
+    }
+
+    // Drug regimen
+    if (!rhs.get_drug_ids().empty()) {
+      node["drug_ids"] = rhs.get_drug_ids();
+    }
+
+    // Dosing schedule
+    if (!rhs.get_dosing_days().empty()) {
+      node["dosing_days"] = rhs.get_dosing_days();
+    }
+
+    // Regiment flag: e.g., "AL", "DP", "ASAQ"
+    if (!rhs.get_regiment().empty()) {
+      node["regiment"] = rhs.get_regiment();
+    }
+
     return node;
   }
+
 
   static bool decode(const Node& node, TherapyParameters& rhs) {
     if (!node["tf_testing_day"] || !node["tf_rate"] || !node["therapy_db"]) {

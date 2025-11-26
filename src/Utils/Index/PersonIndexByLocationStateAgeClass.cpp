@@ -59,8 +59,17 @@ void PersonIndexByLocationStateAgeClass::remove_without_set_index(Person *p) {
 }
 
 std::size_t PersonIndexByLocationStateAgeClass::size() const {
-  return 0;
+  std::size_t total = 0;
+  for (const auto &by_loc : vPerson_) {
+    for (const auto &by_state : by_loc) {
+      for (const auto &by_age : by_state) {
+        total += by_age.size();
+      }
+    }
+  }
+  return total;
 }
+
 
 void
 PersonIndexByLocationStateAgeClass::notify_change(Person *p, const Person::Property &property, const void *oldValue,

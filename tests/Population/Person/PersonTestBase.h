@@ -24,6 +24,10 @@ public:
     simulation_timeframe_.set_total_time(1000);
     set_simulation_timeframe(simulation_timeframe_);
 
+    ModelSettings model_settings;
+    model_settings.set_cell_level_reporting(true);
+    set_model_settings(model_settings);
+
     EpidemiologicalParameters epidemiological_parameters;
     epidemiological_parameters.set_days_to_clinical_under_five(5);
     epidemiological_parameters.set_days_to_clinical_over_five(7);

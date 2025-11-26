@@ -37,12 +37,9 @@ void Random::initialize(uint64_t initial_seed) {
   rng_.reset(gsl_rng_alloc(rng_type));
   if (!rng_) { throw std::runtime_error("Failed to allocate GSL random number generator."); }
 
-  // Use std::random_device to generate a random seed if seed is < 0
+  // Use std::random_device to generate a random seed if seed is -1 (UINT64_MAX)
   std::random_device rd;
-  seed_ = (initial_seed == -1) ? rd() : initial_seed;
-
-  // Log the seed value
-  // LOG(INFO) << fmt::format("Random initializing with seed: {}", seed_);
+  seed_ = (initial_seed == static_cast<uint64_t>(-1)) ? rd() : initial_seed;
 
   // Set the seed for the GSL RNG
   gsl_rng_set(rng_.get(), seed_);
@@ -53,9 +50,16 @@ uint64_t Random::get_seed() const noexcept { return seed_; }
 
 // Setter for seed
 void Random::set_seed(uint64_t new_seed) {
-  if (rng_) { gsl_rng_set(rng_.get(), new_seed); }
   seed_ = new_seed;
-  initialize(seed_);
+
+  // If RNG hasn't been allocated yet, do it once here
+  if (!rng_) {
+    initialize(seed_);
+    return;
+  }
+
+  // Otherwise, just reseed the existing generator
+  gsl_rng_set(rng_.get(), seed_);
 }
 
 // Generates a Poisson-distributed random number
@@ -171,9 +175,9 @@ double approx_norm_cdf(double xx) {
 
 // Computes the CDF of the standard normal distribution
 double Random::cdf_standard_normal_distribution(double value) {
-  if (!rng_) { throw std::runtime_error("Random number generator not initialized."); }
+  // No RNG needed for a pure CDF
   return gsl_cdf_ugaussian_P(value);
-  // return approx_norm_cdf(value);
+  // or: return approx_norm_cdf(value);
 }
 
 double Random::random_flat(double from, double to) { return gsl_ran_flat(rng_.get(), from, to); }

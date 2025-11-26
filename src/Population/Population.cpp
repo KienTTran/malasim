@@ -106,6 +106,7 @@ void Population::initialize() {
           generate_individual(loc, age_class);
         }
       }
+      popsize_by_location_[loc] = popsize_by_location;
       // spdlog::info("individual_relative_moving_by_location[{}] size: {} sum: {}",loc,
       //              individual_relative_moving_by_location[loc].size(),
       //              sum_relative_moving_by_location[loc]);
@@ -411,9 +412,6 @@ void Population::generate_individual(int location, int age_class) {
 
 void Population::introduce_initial_cases() {
   if (Model::get_instance() != nullptr) {
-    // Reset and calculate FOI based on the current population state (pre-infection introduction).
-    update_current_foi();
-    // std::cout << Model::CONFIG->initial_parasite_info().size() << std::endl;
     for (const auto p_info :
          Model::get_config()->get_genotype_parameters().get_initial_parasite_info()) {
       auto num_of_infections = Model::get_random()->random_poisson(
@@ -498,8 +496,9 @@ void Population::perform_birth_event() {
     const auto number_of_births = Model::get_random()->random_poisson(poisson_means);
     for (auto i = 0; i < number_of_births; i++) {
       give_1_birth(loc);
-      Model::get_mdc()->update_person_days_by_years(
-          loc, Constants::DAYS_IN_YEAR - Model::get_scheduler()->get_current_day_in_year());
+      // spdlog::info("1 birth");
+      // Model::get_mdc()->update_person_days_by_years(
+      //     loc, Constants::DAYS_IN_YEAR - Model::get_scheduler()->get_current_day_in_year());
     }
   }
   //    std::cout << "End Birth Event" << std::endl;

@@ -102,7 +102,7 @@ void SQLiteValidationReporter::create_all_reporting_tables() {
 
   for (auto age = 0; age < 80; age++) {
     age_column_definitions +=
-        fmt::format("total_immune_by_age_{} INTEGER, ", age);
+        fmt::format("total_immune_by_age_{} REAL, ", age);
   }
 
   for (auto age = 0; age < 80; age++) {
@@ -180,10 +180,13 @@ void SQLiteValidationReporter::create_reporting_tables_for_level(
           non_treatment INTEGER NOT NULL,
           under5_treatment INTEGER NOT NULL,
           over5_treatment INTEGER NOT NULL,
-          progress_to_clinical_in_7d_total INTEGER NOT NULL,
-          progress_to_clinical_in_7d_recrudescence INTEGER NOT NULL,
-          progress_to_clinical_in_7d_new_infection INTEGER NOT NULL,
-          recrudescence_treatment INTEGER NOT NULL,
+          progress_to_clinical_in_7d_total BIGINT NOT NULL,
+          progress_to_clinical_in_7d_recrudescence BIGINT NOT NULL,
+          progress_to_clinical_in_7d_new_infection BIGINT NOT NULL,
+          recrudescence_treatment BIGINT NOT NULL,
+          total_number_of_bites_by_location BIGINT NOT NULL,
+          total_number_of_bites_by_location_year BIGINT NOT NULL,
+          person_days_by_location_year BIGINT NOT NULL,
           PRIMARY KEY (monthly_data_id, {}),
           FOREIGN KEY (monthly_data_id) REFERENCES monthly_data(id)
       );
@@ -219,13 +222,19 @@ void SQLiteValidationReporter::create_reporting_tables_for_level(
 
     // Create insert query prefixes for this level
     insert_site_query_prefixes_[prefix_index] =
-      fmt::format("INSERT INTO {} (monthly_data_id, {}, "
-        "population, clinical_episodes, ", site_table_name, location_id_column)
-      + age_class_columns + age_columns +
-      "treatments, eir, pfpr_under5, pfpr_2to10, pfpr_all, infected_individuals, treatment_failures,"
-      " non_treatment, under5_treatment, over5_treatment,"
-      " progress_to_clinical_in_7d_total, progress_to_clinical_in_7d_recrudescence,"
-      " progress_to_clinical_in_7d_new_infection, recrudescence_treatment) VALUES";
+    fmt::format("INSERT INTO {} (monthly_data_id, {}, "
+                "population, clinical_episodes, ", site_table_name, location_id_column)
+    + age_class_columns + age_columns +
+    "treatments, treatment_failures, eir, pfpr_under5, pfpr_2to10, pfpr_all, "
+    "infected_individuals, non_treatment, under5_treatment, over5_treatment, "
+    "progress_to_clinical_in_7d_total, "
+    "progress_to_clinical_in_7d_recrudescence, "
+    "progress_to_clinical_in_7d_new_infection, "
+    "recrudescence_treatment, "
+    "total_number_of_bites_by_location, "
+    "total_number_of_bites_by_location_year, "
+    "person_days_by_location_year) VALUES";
+
 
     insert_genome_query_prefixes_[prefix_index] =
         fmt::format(R"""(
@@ -313,6 +322,11 @@ void SQLiteValidationReporter::calculate_and_build_up_site_data_insert_values(in
       singleRow += fmt::format(", {}", episodes);
     }
 
+    for (const auto &treatment :
+         monthly_site_data_by_level[level_id].recrudescence_treatment_by_age_class[unit_id]) {
+      singleRow += fmt::format(", {}", treatment);
+    }
+
     for (const auto &episodes :
          monthly_site_data_by_level[level_id].clinical_episodes_by_age[unit_id]) {
       singleRow += fmt::format(", {}", episodes);
@@ -329,11 +343,6 @@ void SQLiteValidationReporter::calculate_and_build_up_site_data_insert_values(in
     }
 
     for (const auto &treatment :
-         monthly_site_data_by_level[level_id].recrudescence_treatment_by_age_class[unit_id]) {
-      singleRow += fmt::format(", {}", treatment);
-    }
-
-    for (const auto &treatment :
          monthly_site_data_by_level[level_id].recrudescence_treatment_by_age[unit_id]) {
       singleRow += fmt::format(", {}", treatment);
     }
@@ -344,21 +353,24 @@ void SQLiteValidationReporter::calculate_and_build_up_site_data_insert_values(in
     }
 
     singleRow +=
-        fmt::format(", {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})",
+        fmt::format(", {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})",
                     monthly_site_data_by_level[level_id].treatments[unit_id],
+                    monthly_site_data_by_level[level_id].treatment_failures[unit_id],
                     calculatedEir,
                     calculatedPfprUnder5,
                     calculatedPfpr2to10,
                     calculatedPfprAll,
                     monthly_site_data_by_level[level_id].infections_by_unit[unit_id],
-                    monthly_site_data_by_level[level_id].treatment_failures[unit_id],
                     monthly_site_data_by_level[level_id].nontreatment[unit_id],
                     monthly_site_data_by_level[level_id].treatments_under5[unit_id],
                     monthly_site_data_by_level[level_id].treatments_over5[unit_id],
                     monthly_site_data_by_level[level_id].progress_to_clinical_in_7d_total[unit_id],
                     monthly_site_data_by_level[level_id].progress_to_clinical_in_7d_recrudescence[unit_id],
                     monthly_site_data_by_level[level_id].progress_to_clinical_in_7d_new_infection[unit_id],
-                    monthly_site_data_by_level[level_id].recrudescence_treatment[unit_id]);
+                    monthly_site_data_by_level[level_id].recrudescence_treatment[unit_id],
+                    monthly_site_data_by_level[level_id].total_number_of_bites_by_location[unit_id],
+                    monthly_site_data_by_level[level_id].total_number_of_bites_by_location_year[unit_id],
+                    monthly_site_data_by_level[level_id].person_days_by_location_year[unit_id]);
 
     insert_values.push_back(singleRow);
   }
@@ -432,6 +444,18 @@ void SQLiteValidationReporter::collect_site_data_for_location(int location_id, i
   monthly_site_data_by_level[level_id].nontreatment[unit_id] +=
       Model::get_mdc()->monthly_nontreatment_by_location()[location_id];
 
+  monthly_site_data_by_level[level_id].progress_to_clinical_in_7d_total[unit_id] +=
+      Model::get_mdc()->progress_to_clinical_in_7d_counter[location_id].total;
+
+  monthly_site_data_by_level[level_id].progress_to_clinical_in_7d_recrudescence[unit_id] +=
+      Model::get_mdc()->progress_to_clinical_in_7d_counter[location_id].recrudescence;
+
+  monthly_site_data_by_level[level_id].progress_to_clinical_in_7d_new_infection[unit_id] +=
+      Model::get_mdc()->progress_to_clinical_in_7d_counter[location_id].new_infection;
+
+  monthly_site_data_by_level[level_id].recrudescence_treatment[unit_id] +=
+      Model::get_mdc()->monthly_number_of_recrudescence_treatment_by_location()[location_id];
+
   for (auto ndx = 0; ndx < ageClasses.size(); ndx++) {
     // Collect the treatment by age class, following the 0-59 month convention
     // for under-5
@@ -442,18 +466,6 @@ void SQLiteValidationReporter::collect_site_data_for_location(int location_id, i
       monthly_site_data_by_level[level_id].treatments_over5[unit_id] +=
           Model::get_mdc()->monthly_number_of_treatment_by_location_age_class()[location_id][ndx];
     }
-
-    monthly_site_data_by_level[level_id].progress_to_clinical_in_7d_total[unit_id] +=
-        Model::get_mdc()->progress_to_clinical_in_7d_counter[location_id].total;
-
-    monthly_site_data_by_level[level_id].progress_to_clinical_in_7d_recrudescence[unit_id] +=
-        Model::get_mdc()->progress_to_clinical_in_7d_counter[location_id].recrudescence;
-
-    monthly_site_data_by_level[level_id].progress_to_clinical_in_7d_new_infection[unit_id] +=
-        Model::get_mdc()->progress_to_clinical_in_7d_counter[location_id].new_infection;
-
-    monthly_site_data_by_level[level_id].recrudescence_treatment[unit_id] +=
-        Model::get_mdc()->monthly_number_of_recrudescence_treatment_by_location()[location_id];
 
     // collect the clinical episodes by age class
     monthly_site_data_by_level[level_id].clinical_episodes_by_age_class[unit_id][ndx] +=
@@ -500,6 +512,15 @@ void SQLiteValidationReporter::collect_site_data_for_location(int location_id, i
   // early in the simulation, and when aggregating at the district level the
   // weighted mean needs to be reported instead
   if (Model::get_mdc()->recording_data()) {
+    monthly_site_data_by_level[level_id].total_number_of_bites_by_location_year[unit_id] +=
+        Model::get_mdc()->total_number_of_bites_by_location_year()[location_id];
+
+    monthly_site_data_by_level[level_id].total_number_of_bites_by_location[unit_id] +=
+        Model::get_mdc()->total_number_of_bites_by_location()[location_id];
+
+    monthly_site_data_by_level[level_id].person_days_by_location_year[unit_id] +=
+        Model::get_mdc()->person_days_by_location_year()[location_id];
+
     auto eirLocation = Model::get_mdc()->eir_by_location_year()[location_id].empty()
                            ? 0
                            : Model::get_mdc()->eir_by_location_year()[location_id].back();
@@ -509,7 +530,7 @@ void SQLiteValidationReporter::collect_site_data_for_location(int location_id, i
     monthly_site_data_by_level[level_id].pfpr2to10[unit_id] +=
         (Model::get_mdc()->get_blood_slide_prevalence(location_id, 2, 10) * locationPopulation);
     monthly_site_data_by_level[level_id].pfpr_all[unit_id] +=
-        (Model::get_mdc()->blood_slide_prevalence_by_location()[location_id] * locationPopulation);
+      (Model::get_mdc()->blood_slide_prevalence_by_location()[location_id] * locationPopulation);
   }
 }
 
@@ -550,9 +571,9 @@ void SQLiteValidationReporter::reset_site_data_structures(int level_id, int vect
   monthly_site_data_by_level[level_id].total_immune_by_age.assign(
   vector_size, std::vector<double>(80, 0));
   monthly_site_data_by_level[level_id].recrudescence_treatment_by_age_class.assign(
-  vector_size, std::vector<Ul>(numAgeClasses, 0));
+  vector_size, std::vector<ul>(numAgeClasses, 0));
   monthly_site_data_by_level[level_id].recrudescence_treatment_by_age.assign(
-  vector_size, std::vector<Ul>(80, 0));
+  vector_size, std::vector<ul>(80, 0));
   monthly_site_data_by_level[level_id].multiple_of_infection.assign(
   vector_size, std::vector<int>(ModelDataCollector::NUMBER_OF_REPORTED_MOI, 0));
   monthly_site_data_by_level[level_id].treatments.assign(vector_size, 0);
@@ -564,6 +585,9 @@ void SQLiteValidationReporter::reset_site_data_structures(int level_id, int vect
   monthly_site_data_by_level[level_id].progress_to_clinical_in_7d_recrudescence.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].progress_to_clinical_in_7d_new_infection.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].recrudescence_treatment.assign(vector_size, 0);
+  monthly_site_data_by_level[level_id].total_number_of_bites_by_location.assign(vector_size, 0);
+  monthly_site_data_by_level[level_id].total_number_of_bites_by_location_year.assign(vector_size, 0);
+  monthly_site_data_by_level[level_id].person_days_by_location_year.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].infections_by_unit.assign(vector_size, 0);
 }
 

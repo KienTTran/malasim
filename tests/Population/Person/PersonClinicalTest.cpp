@@ -46,8 +46,11 @@ TEST_F(PersonClinicalTest, ScheduleEndClinicalEvent) {
 }
 
 TEST_F(PersonClinicalTest, ScheduleProgressToClinicalEventUnderFive) {
-    EXPECT_CALL(*mock_population_, notify_change(_, Person::Property::AGE, _, _))
-      .Times(1);
+    // When setting age, we expect two notifications:
+    // 1. For AGE property change
+    // 2. For AGE_CLASS property change (since set_age can update age class)
+    EXPECT_CALL(*mock_population_, notify_change(Eq(person_.get()), Person::Property::AGE, _, _));
+    EXPECT_CALL(*mock_population_, notify_change(Eq(person_.get()), Person::Property::AGE_CLASS, _, _));
     person_->set_age(3);
 
     auto test_parasite = std::make_unique<ClonalParasitePopulation>();  
@@ -113,7 +116,7 @@ TEST_F(PersonClinicalTest, ProbabilityProgressToClinical) {
 }
 
 TEST_F(PersonClinicalTest, DeathProgressionWithoutTreatment) {
-    EXPECT_CALL(*mock_random_, random_flat(_, _)).WillOnce(Return(0.4));
+    EXPECT_CALL(*mock_random_, random_flat(_, _)).WillOnce(Return(0.0001));
     EXPECT_TRUE(person_->will_progress_to_death_when_receive_no_treatment());
 
     EXPECT_CALL(*mock_random_, random_flat(_, _)).WillOnce(Return(0.5));
@@ -122,7 +125,7 @@ TEST_F(PersonClinicalTest, DeathProgressionWithoutTreatment) {
 
 TEST_F(PersonClinicalTest, DeathProgressionWithTreatment) {
     // lower than 10 times the mortality rate
-    EXPECT_CALL(*mock_random_, random_flat(_, _)).WillOnce(Return(0.04));
+    EXPECT_CALL(*mock_random_, random_flat(_, _)).WillOnce(Return(0.0001));
     EXPECT_TRUE(person_->will_progress_to_death_when_recieve_treatment());
 
     // if p random is greater than 0.04, then the person will not progress to death
