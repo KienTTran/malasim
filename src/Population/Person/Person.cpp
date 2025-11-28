@@ -12,6 +12,7 @@
 #include "Core/Scheduler/Scheduler.h"
 #include "Events/BirthdayEvent.h"
 #include "Events/CirculateToTargetLocationNextDayEvent.h"
+#include "Events/EndClinicalByNoTreatmentEvent.h"
 #include "Events/EndClinicalEvent.h"
 #include "Events/MatureGametocyteEvent.h"
 #include "Events/MoveParasiteToBloodEvent.h"
@@ -391,10 +392,10 @@ void Person::determine_symptomatic_recrudescence(
     const auto probability_develop_symptom =
         calculate_symptomatic_recrudescence_probability(pfpr, is_young_children);
 
-    if (random_p <= probability_develop_symptom) {
+    // if (random_p <= probability_develop_symptom) {
 
     /* UNCOMMENT THE LINE BELOW TO DISABLE THE SYMPTOMATIC RECRUDESCENCE */
-    // if (random_p <= get_probability_progress_to_clinical()) {
+    if (random_p <= get_probability_progress_to_clinical()) {
 
     // The last clinical caused parasite is going to relapse
     // regardless whether the induvidual are under treatment or not
@@ -471,10 +472,10 @@ void Person::determine_clinical_or_not(ClonalParasitePopulation* clinical_caused
               ->get_parasite_parameters()
               .get_parasite_density_levels()
               .get_log_parasite_density_asymptomatic());
-      schedule_progress_to_clinical_event(clinical_caused_parasite);
+      // schedule_progress_to_clinical_event(clinical_caused_parasite);
       /* Old in V5 below (without recurence, schedule_relapse_event makes FOI match FOI in v5 */
-      // schedule_relapse_event(clinical_caused_parasite,
-      //                        Model::get_config()->get_epidemiological_parameters().get_relapse_duration());
+      schedule_relapse_event(clinical_caused_parasite,
+                             Model::get_config()->get_epidemiological_parameters().get_relapse_duration());
     } else {
       // spdlog::info("Person::determine_clinical_or_not: Person will progress to clearance");
       // progress to clearance
@@ -1004,4 +1005,15 @@ void Person::determine_relapse_or_not(ClonalParasitePopulation* clinical_caused_
       clinical_caused_parasite->set_update_function(Model::immunity_clearance_update_function());
     }
   }
+}
+
+void Person::schedule_end_clinical_by_no_treatment_event(ClonalParasitePopulation* clinical_caused_parasite) {
+  auto d_clinical = Model::get_random()->random_normal(7, 2);
+  d_clinical = std::min<int>(std::max<int>(d_clinical, 5), 14);
+
+  auto event = std::make_unique<EndClinicalByNoTreatmentEvent>(this);
+  event->set_clinical_caused_parasite(clinical_caused_parasite);
+  event->set_person(this);
+  event->set_time(Model::get_scheduler()->current_time() + d_clinical);
+  schedule_basic_event(std::move(event));
 }

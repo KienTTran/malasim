@@ -1000,7 +1000,6 @@ void ModelDataCollector::monthly_update() {
       zero_fill(monthly_number_of_recrudescence_treatment_by_location_age_class_[loc]);
       zero_fill(monthly_number_of_recrudescence_treatment_by_location_age_[loc]);
 
-      monthly_number_of_treatment_by_location_[loc] = 0;
       monthly_number_of_tf_by_location_[loc] = 0;
       monthly_number_of_new_infections_by_location_[loc] = 0;
       monthly_number_of_clinical_episode_by_location_[loc] = 0;

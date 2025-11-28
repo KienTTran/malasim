@@ -712,7 +712,9 @@ therapy_parameters:
       therapy_ids: [0, 0]
       regimen: [1, 7]
 
-recurrence_therapy_id: 7
+  # this is second line treatment for recurrence cases
+  # -1 means use the same first line treatment for second line treatment
+  recurrent_therapy_id: -1
 
 # ---------------------------------------------------------------
 # 13. Treatment Strategy Parameters
@@ -821,10 +823,6 @@ strategy_parameters:
 
   # Initial treatment strategy ID
   initial_strategy_id: 10
-
-  # this is second line treatment for recurrence cases
-  # -1 means use the same first line treatment for second line treatment
-  recurrent_therapy_id: -1
 
   mass_drug_administration:
     # NOTE: This should be set with events to schedule rounds for MDA

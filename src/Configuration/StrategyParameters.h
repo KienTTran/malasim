@@ -124,9 +124,6 @@ public:
     [[nodiscard]] int get_initial_strategy_id() const { return initial_strategy_id_; }
     void set_initial_strategy_id(const int &value) { initial_strategy_id_ = value; }
 
-    [[nodiscard]] int get_recurrent_therapy_id() const { return recurrent_therapy_id_; }
-    void set_recurrent_therapy_id(const int &value) { recurrent_therapy_id_ = value; }
-
     [[nodiscard]] MassDrugAdministration get_mda() const { return mass_drug_administration_; }
     void set_mass_drug_administration(const MassDrugAdministration& value) { mass_drug_administration_ = value; }
 
@@ -147,7 +144,6 @@ public:
 private:
     std::map<int, StrategyInfo> strategy_db_raw_;  // Changed from vector to map
     int initial_strategy_id_ = -1;
-    int recurrent_therapy_id_ = -1;
     MassDrugAdministration mass_drug_administration_;
     YAML::Node node_;
 };
@@ -267,13 +263,12 @@ struct convert<StrategyParameters> {
         node["strategy_db"] = strategy_db_node;
 
         node["initial_strategy_id"] = rhs.get_initial_strategy_id();
-        node["recurrent_therapy_id"] = rhs.get_recurrent_therapy_id();
         node["mass_drug_administration"] = rhs.get_mda();
         return node;
     }
 
     static bool decode(const Node& node, StrategyParameters& rhs) {
-        if (!node["strategy_db"] || !node["initial_strategy_id"] || !node["recurrent_therapy_id"] || !node["mass_drug_administration"]) {
+        if (!node["strategy_db"] || !node["initial_strategy_id"] || !node["mass_drug_administration"]) {
             throw std::runtime_error("Missing fields in StrategyParameters");
         }
 
@@ -287,7 +282,6 @@ struct convert<StrategyParameters> {
         rhs.set_node(node["strategy_db"]);
 
         rhs.set_initial_strategy_id(node["initial_strategy_id"].as<int>());
-        rhs.set_recurrent_therapy_id(node["recurrent_therapy_id"].as<int>());
         rhs.set_mass_drug_administration(node["mass_drug_administration"].as<StrategyParameters::MassDrugAdministration>());
         return true;
     }

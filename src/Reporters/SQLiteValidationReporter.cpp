@@ -225,7 +225,8 @@ void SQLiteValidationReporter::create_reporting_tables_for_level(
     fmt::format("INSERT INTO {} (monthly_data_id, {}, "
                 "population, clinical_episodes, ", site_table_name, location_id_column)
     + age_class_columns + age_columns +
-    "treatments, treatment_failures, eir, pfpr_under5, pfpr_2to10, pfpr_all, "
+    "treatments, treatment_failures, "
+    "eir, pfpr_under5, pfpr_2to10, pfpr_all, "
     "infected_individuals, non_treatment, under5_treatment, over5_treatment, "
     "progress_to_clinical_in_7d_total, "
     "progress_to_clinical_in_7d_recrudescence, "
