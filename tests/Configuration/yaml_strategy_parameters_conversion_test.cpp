@@ -42,7 +42,6 @@ protected:
 
         strategy_parameters.set_strategy_db_raw(strategy_db);
         strategy_parameters.set_initial_strategy_id(15);
-        strategy_parameters.set_recurrent_therapy_id(-1);
         strategy_parameters.set_mass_drug_administration(mda_info);
     }
 };
@@ -52,7 +51,6 @@ TEST_F(StrategyParametersTest, EncodeStrategyParameters) {
     YAML::Node node = YAML::convert<StrategyParameters>::encode(strategy_parameters);
 
     EXPECT_EQ(node["initial_strategy_id"].as<int>(), 15);
-    EXPECT_EQ(node["recurrent_therapy_id"].as<int>(), -1);
     EXPECT_EQ(node["strategy_db"][0]["name"].as<std::string>(), "SP-AQ-CQ-AL-MFTStrategy");
     EXPECT_EQ(node["strategy_db"][0]["therapy_ids"].as<std::vector<int>>(), std::vector<int>({5, 2, 12, 6}));
 
@@ -71,7 +69,6 @@ TEST_F(StrategyParametersTest, EncodeStrategyParameters) {
 TEST_F(StrategyParametersTest, DecodeStrategyParameters) {
     YAML::Node node;
     node["initial_strategy_id"] = 15;
-    node["recurrent_therapy_id"] = -1;
 
     node["strategy_db"]["0"]["name"] = "SP-AQ-CQ-AL-MFTStrategy";
     node["strategy_db"]["0"]["type"] = "MFT";
@@ -92,7 +89,6 @@ TEST_F(StrategyParametersTest, DecodeStrategyParameters) {
     EXPECT_NO_THROW(YAML::convert<StrategyParameters>::decode(node, decoded_parameters));
 
     EXPECT_EQ(decoded_parameters.get_initial_strategy_id(), 15);
-    EXPECT_EQ(decoded_parameters.get_recurrent_therapy_id(), -1);
     EXPECT_EQ(decoded_parameters.get_strategy_db_raw().at(0).get_name(), "SP-AQ-CQ-AL-MFTStrategy");
     EXPECT_EQ(decoded_parameters.get_strategy_db_raw().at(0).get_therapy_ids(), std::vector<int>({5, 2, 12, 6}));
 
