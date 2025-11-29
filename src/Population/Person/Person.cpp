@@ -458,30 +458,68 @@ void Person::determine_symptomatic_recrudescence(
   }
 }
 
-void Person::determine_clinical_or_not(ClonalParasitePopulation* clinical_caused_parasite) {
-  if (all_clonal_parasite_populations_->contain(clinical_caused_parasite)) {
-    // spdlog::info("Person::determine_clinical_or_not: Person has the parasite");
-    const auto prob = Model::get_random()->random_flat(0.0, 1.0);
-    if (prob <= get_probability_progress_to_clinical()) {
-      // spdlog::info("Person::determine_clinical_or_not: Person will progress to clinical");
-      // progress to clinical after several days
-      clinical_caused_parasite->set_update_function(Model::progress_to_clinical_update_function());
-      clinical_caused_parasite->set_last_update_log10_parasite_density(
-          Model::get_config()
-              ->get_parasite_parameters()
-              .get_parasite_density_levels()
-              .get_log_parasite_density_asymptomatic());
-      schedule_progress_to_clinical_event(clinical_caused_parasite);
-      /* Old in V5 below (without recurence, schedule_relapse_event makes FOI match FOI in v5 */
-      // schedule_relapse_event(clinical_caused_parasite,
-      //                        Model::get_config()->get_epidemiological_parameters().get_relapse_duration());
-    } else {
-      // spdlog::info("Person::determine_clinical_or_not: Person will progress to clearance");
-      // progress to clearance
-      clinical_caused_parasite->set_update_function(Model::immunity_clearance_update_function());
-    }
+// void Person::determine_clinical_or_not(ClonalParasitePopulation* clinical_caused_parasite) {
+//   if (all_clonal_parasite_populations_->contain(clinical_caused_parasite)) {
+//     // spdlog::info("Person::determine_clinical_or_not: Person has the parasite");
+//     const auto prob = Model::get_random()->random_flat(0.0, 1.0);
+//     if (prob <= get_probability_progress_to_clinical()) {
+//       // spdlog::info("Person::determine_clinical_or_not: Person will progress to clinical");
+//       // progress to clinical after several days
+//       clinical_caused_parasite->set_update_function(Model::progress_to_clinical_update_function());
+//       clinical_caused_parasite->set_last_update_log10_parasite_density(
+//           Model::get_config()
+//               ->get_parasite_parameters()
+//               .get_parasite_density_levels()
+//               .get_log_parasite_density_asymptomatic());
+//       schedule_progress_to_clinical_event(clinical_caused_parasite);
+//       /* Old in V5 below (without recurence, schedule_relapse_event makes FOI match FOI in v5 */
+//       // schedule_relapse_event(clinical_caused_parasite,
+//       //                        Model::get_config()->get_epidemiological_parameters().get_relapse_duration());
+//     } else {
+//       // spdlog::info("Person::determine_clinical_or_not: Person will progress to clearance");
+//       // progress to clearance
+//       clinical_caused_parasite->set_update_function(Model::immunity_clearance_update_function());
+//     }
+//   }
+// }
+
+void Person::determine_clinical_or_not(ClonalParasitePopulation* cpp) {
+  if (!all_clonal_parasite_populations_->contain(cpp)) return;
+
+  const auto prob = Model::get_random()->random_flat(0.0, 1.0);
+
+  const auto& epi = Model::get_config()->get_epidemiological_parameters();
+  const auto relapse_duration = epi.get_relapse_duration();
+  const auto extra_clin_delay = relapse_duration; // new
+
+  // 1) Always give the parasite a relapse/asymptomatic phase
+  cpp->set_update_function(Model::get_instance()->progress_to_clinical_update_function());
+  cpp->set_last_update_log10_parasite_density(
+      Model::get_config()
+          ->get_parasite_parameters()
+          .get_parasite_density_levels()
+          .get_log_parasite_density_asymptomatic());
+
+  // This keeps FOI high and similar to your "no recurrence" behaviour
+  const auto p_relapse = Model::get_config()->get_epidemiological_parameters().get_p_relapse();
+  if (Model::get_random()->random_flat(0.0, 1.0) <= p_relapse) {
+    schedule_relapse_event(cpp, relapse_duration);
+  }
+
+  if (prob <= get_probability_progress_to_clinical()) {
+    // 2) This infection is destined to become clinical,
+    //    but we *delay* the ProgressToClinicalEvent.
+    const int delay = relapse_duration + extra_clin_delay;
+
+    schedule_progress_to_clinical_event(cpp, delay);
+  } else {
+    // 3) Purely asymptomatic recurrences: long tail, then immunity clears
+    //    (you can keep or tweak this depending on how long tails you want)
+    cpp->set_update_function(
+        Model::get_instance()->immunity_clearance_update_function());
   }
 }
+
 
 void Person::update() {
   // spdlog::info("Time: {}, Person::update, person age: {}",
@@ -808,18 +846,36 @@ void Person::schedule_end_clinical_event(ClonalParasitePopulation* parasite) {
   schedule_basic_event(std::move(event));
 }
 
-void Person::schedule_progress_to_clinical_event(ClonalParasitePopulation* parasite) {
-  // Time to clinical varies by age
-  const int days_to_clinical =
-      (age_ <= 5)
-          ? Model::get_config()->get_epidemiological_parameters().get_days_to_clinical_under_five()
-          : Model::get_config()->get_epidemiological_parameters().get_days_to_clinical_over_five();
+void Person::schedule_progress_to_clinical_event(ClonalParasitePopulation* cpp, int delay_days) {
+  auto* scheduler = Model::get_scheduler();
+  if (scheduler == nullptr) return;
 
   auto event = std::make_unique<ProgressToClinicalEvent>(this);
-  event->set_time(calculate_future_time(days_to_clinical));
-  event->set_clinical_caused_parasite(parasite);
+  event->set_person(this);
+  event->set_clinical_caused_parasite(cpp);
+  event->set_time(Model::get_scheduler()->current_time() + delay_days);
   schedule_basic_event(std::move(event));
 }
+
+// Keep your original version as a convenience wrapper
+void Person::schedule_progress_to_clinical_event(ClonalParasitePopulation* cpp) {
+  const auto& epi = Model::get_config()->get_epidemiological_parameters();
+  const int default_delay = epi.get_relapse_duration(); // or 0
+  schedule_progress_to_clinical_event(cpp, default_delay);
+}
+
+// void Person::schedule_progress_to_clinical_event(ClonalParasitePopulation* parasite) {
+//   // Time to clinical varies by age
+//   const int days_to_clinical =
+//       (age_ <= 5)
+//           ? Model::get_config()->get_epidemiological_parameters().get_days_to_clinical_under_five()
+//           : Model::get_config()->get_epidemiological_parameters().get_days_to_clinical_over_five();
+//
+//   auto event = std::make_unique<ProgressToClinicalEvent>(this);
+//   event->set_time(calculate_future_time(days_to_clinical));
+//   event->set_clinical_caused_parasite(parasite);
+//   schedule_basic_event(std::move(event));
+// }
 
 // void Person::schedule_clinical_recurrence_event(ClonalParasitePopulation* parasite) {
 //   // assumming the onset of clinical symptoms is day 14 to 63 and end of

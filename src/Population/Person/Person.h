@@ -302,6 +302,7 @@ public:
   void schedule_relapse_event(ClonalParasitePopulation *clinical_caused_parasite, const int &time_until_relapse);
 
   void schedule_end_clinical_by_no_treatment_event(ClonalParasitePopulation *clinical_caused_parasite);
+  void schedule_progress_to_clinical_event(ClonalParasitePopulation* cpp, int delay_days);
 
 private:
   int age_{-1};
