@@ -148,6 +148,9 @@ public:
     [[nodiscard]] int get_relapse_duration() const { return relapse_duration_; }
     void set_relapse_duration(const int value) { relapse_duration_ = value; }
 
+    [[nodiscard]] int get_recurrent_delay_duration() const { return recurrent_delay_duration_; }
+    void set_recurrent_delay_duration(const int value) { recurrent_delay_duration_ = value; }
+
     [[nodiscard]] double get_relapse_rate() const { return relapse_rate_; }
     void set_relapse_rate(const double value) { relapse_rate_ = value; }
 
@@ -190,6 +193,7 @@ public:
       relative_infectivity_.set_ro_star((log(relative_infectivity_.get_ro_star()) - log(d_star)) / relative_infectivity_.get_sigma());
       relative_infectivity_.set_sigma(log(10) / relative_infectivity_.get_sigma());
 
+      spdlog::info("recurrence delay duration: {}", recurrent_delay_duration_);
     }
 
 private:
@@ -206,6 +210,7 @@ private:
     RelativeInfectivity relative_infectivity_{};
     double p_relapse_ = 0.01;
     int relapse_duration_ = 30;
+    int recurrent_delay_duration_ = 0;
     double relapse_rate_ = 4.4721;
     int update_frequency_ = 7;
     bool allow_new_coinfection_to_cause_symptoms_ = true;
@@ -382,6 +387,9 @@ struct convert<EpidemiologicalParameters> {
         rhs.set_relative_infectivity(node["relative_infectivity"].as<EpidemiologicalParameters::RelativeInfectivity>());
         rhs.set_p_relapse(node["p_relapse"].as<double>());
         rhs.set_relapse_duration(node["relapse_duration"].as<int>());
+        if (node["recurrent_delay_duration"]) {
+          rhs.set_recurrent_delay_duration(node["recurrent_delay_duration"].as<int>());
+        }
         rhs.set_relapse_rate(node["relapse_rate"].as<double>());
         rhs.set_update_frequency(node["update_frequency"].as<int>());
         rhs.set_allow_new_coinfection_to_cause_symptoms(node["allow_new_coinfection_to_cause_symptoms"].as<bool>());

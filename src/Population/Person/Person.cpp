@@ -490,7 +490,7 @@ void Person::determine_clinical_or_not(ClonalParasitePopulation* cpp) {
 
   const auto& epi = Model::get_config()->get_epidemiological_parameters();
   const auto relapse_duration = epi.get_relapse_duration();
-  const auto extra_clin_delay = relapse_duration; // new
+  const auto extra_clin_delay = epi.get_recurrent_delay_duration();
 
   // 1) Always give the parasite a relapse/asymptomatic phase
   cpp->set_update_function(Model::get_instance()->progress_to_clinical_update_function());
@@ -857,10 +857,10 @@ void Person::schedule_progress_to_clinical_event(ClonalParasitePopulation* cpp, 
   schedule_basic_event(std::move(event));
 }
 
-// Keep your original version as a convenience wrapper
+// Keep original version as a convenience wrapper
 void Person::schedule_progress_to_clinical_event(ClonalParasitePopulation* cpp) {
   const auto& epi = Model::get_config()->get_epidemiological_parameters();
-  const int default_delay = epi.get_relapse_duration(); // or 0
+  const int default_delay = epi.get_recurrent_delay_duration(); // or 0
   schedule_progress_to_clinical_event(cpp, default_delay);
 }
 

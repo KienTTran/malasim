@@ -7,7 +7,7 @@ if(DEFINED ENV{VCPKG_ROOT} AND NOT DEFINED CMAKE_TOOLCHAIN_FILE)
         CACHE STRING "")
 endif()
 
-project(malasim)
+project(malasim_test)
 
 option(ENABLE_COVERAGE "Enable code coverage support" OFF)
 
