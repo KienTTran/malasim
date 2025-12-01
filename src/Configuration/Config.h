@@ -47,6 +47,7 @@ public:
 
   // Getters for entire configuration structures
   [[nodiscard]] const ModelSettings &get_model_settings() const { return model_settings_; }
+  void set_model_settings(const ModelSettings &settings) { model_settings_ = settings; }
   [[nodiscard]] const SimulationTimeframe &get_simulation_timeframe() const {
     return simulation_timeframe_;
   }

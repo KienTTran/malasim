@@ -48,7 +48,16 @@ void PersonIndexByLocationMovingLevel::notify_change(Person* person,
   }
 }
 
-std::size_t PersonIndexByLocationMovingLevel::size() const { return 0; }
+std::size_t PersonIndexByLocationMovingLevel::size() const {
+  std::size_t total = 0;
+  for (const auto &by_loc : vPerson_) {
+    for (const auto &by_level : by_loc) {
+      total += by_level.size();
+    }
+  }
+  return total;
+}
+
 
 void PersonIndexByLocationMovingLevel::add(Person* person, const int &location,
                                            const int &moving_level) {

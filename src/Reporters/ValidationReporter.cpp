@@ -90,6 +90,8 @@ void ValidationReporter::before_run() {}
 void ValidationReporter::begin_time_step() {}
 
 void ValidationReporter::monthly_report() {
+      // spdlog::info("monthly_report {} {} {} {} {}",Model::get_scheduler()->current_time(), 0, Model::get_population()->size_at(0),
+      //   Constants::DAYS_IN_YEAR,Model::get_mdc()->person_days_by_location_year()[0]);
   std::stringstream ss;
 
   ss << Model::get_scheduler()->current_time() << sep;
@@ -339,7 +341,14 @@ void ValidationReporter::monthly_report() {
       ss << Model::get_mdc()->monthly_treatment_failure_by_location_age_class()[loc][ac]
         << sep;
     }
-    ss << group_sep;  // 1107
+    ss << group_sep;  // 1137
+  }
+  for (auto loc = 0; loc < Model::get_config()->number_of_locations(); loc++) {
+    ss << Model::get_mdc()->total_number_of_bites_by_location()[loc] << sep;
+    ss << Model::get_mdc()->total_number_of_bites_by_location_year()[loc] << sep;
+    ss << Model::get_mdc()->person_days_by_location_year()[loc] << sep;
+    ss << Model::get_population()->current_force_of_infection_by_location()[loc] << sep;
+    ss << group_sep;  // 1142
   }
   monthly_data_logger->info(ss.str());
 

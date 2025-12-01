@@ -328,8 +328,9 @@ TEST_F(PersonParasiteTest, ScheduleMatureGametocyteEventOver5) {
 }
 
 TEST_F(PersonParasiteTest, ScheduleMatureGametocyteEventUnder5) {
-    // change age
-    EXPECT_CALL(*mock_population_, notify_change(_, Person::Property::AGE, _, _)).Times(1);
+    // Set up expectations for age change notifications
+    EXPECT_CALL(*mock_population_, notify_change(_, Person::Property::AGE, _, _));
+    EXPECT_CALL(*mock_population_, notify_change(_, Person::Property::AGE_CLASS, _, _));
 
     auto genotype_ptr = std::make_unique<Genotype>("aaabbbccc");
     genotype_ptr->set_genotype_id(1);
@@ -338,7 +339,7 @@ TEST_F(PersonParasiteTest, ScheduleMatureGametocyteEventUnder5) {
     
     auto parasite = person_->add_new_parasite_to_blood(genotype_raw);
 
-
+    // Change age (this will trigger both AGE and AGE_CLASS notifications)
     person_->set_age(4);
     person_->schedule_mature_gametocyte_event(parasite);
     EXPECT_EQ(person_->get_events().size(), 1);

@@ -63,9 +63,9 @@ std::pair<Therapy*, bool> ProgressToClinicalEvent::determine_therapy(Person* per
     // this is public sector
     if (s_id == 0) {
       if (is_recurrence
-          && Model::get_config()->get_therapy_parameters().get_recurrence_therapy_id() != -1) {
+          && Model::get_config()->get_therapy_parameters().get_recurrent_therapy_id() != -1) {
         return {Model::get_therapy_db()
-                    [Model::get_config()->get_therapy_parameters().get_recurrence_therapy_id()]
+                    [Model::get_config()->get_therapy_parameters().get_recurrent_therapy_id()]
                         .get(),
                 false};
       }
@@ -75,10 +75,10 @@ std::pair<Therapy*, bool> ProgressToClinicalEvent::determine_therapy(Person* per
   }
   // If the strategy is not NestedMFT, then we need to handle the case when the recurrence therapy
   // id is not -1
-  auto recurrence_therapy_id =
-      Model::get_config()->get_therapy_parameters().get_recurrence_therapy_id();
-  if (recurrence_therapy_id != -1) {
-    return {Model::get_therapy_db()[recurrence_therapy_id].get(), false};
+  auto recurrent_therapy_id =
+      Model::get_config()->get_therapy_parameters().get_recurrent_therapy_id();
+  if (recurrent_therapy_id != -1) {
+    return {Model::get_therapy_db()[recurrent_therapy_id].get(), false};
   }
   // If the strategy is not NestedMFT and the recurrence therapy id is -1, then we need to return
   // the first therapy in the strategy

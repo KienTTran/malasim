@@ -65,7 +65,7 @@ public:
 private:
   double last_update_log10_parasite_density_{LOG_ZERO_PARASITE_DENSITY};
   double gametocyte_level_{0.0};
-  int first_date_in_blood_{0};
+  int first_date_in_blood_{-1};
   SingleHostClonalParasitePopulations* parasite_population_{nullptr};
   Genotype* genotype_{nullptr};
   ParasiteDensityUpdateFunction* update_function_{nullptr};

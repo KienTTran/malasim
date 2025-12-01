@@ -24,6 +24,10 @@ public:
     simulation_timeframe_.set_total_time(1000);
     set_simulation_timeframe(simulation_timeframe_);
 
+    ModelSettings model_settings;
+    model_settings.set_cell_level_reporting(true);
+    set_model_settings(model_settings);
+
     EpidemiologicalParameters epidemiological_parameters;
     epidemiological_parameters.set_days_to_clinical_under_five(5);
     epidemiological_parameters.set_days_to_clinical_over_five(7);
@@ -31,7 +35,7 @@ public:
     epidemiological_parameters.set_days_mature_gametocyte_over_five(14);
     set_epidemiological_parameters(epidemiological_parameters);
     // configure_immune_system(person_.get(), 0.5);  // Default probability
-    
+
     PopulationDemographic population_demographic;
     auto default_age_structure = std::vector<int>{5, 15, 30, 50, 70, 90};
     population_demographic.set_age_structure(default_age_structure);
@@ -91,8 +95,8 @@ protected:
     original_model_ = Model::get_instance();
     original_model_->initialize();
 
-    original_model_->set_config(std::make_unique<MockConfig>()); 
-    mock_config_ = static_cast<MockConfig*>(original_model_->get_config()); 
+    original_model_->set_config(std::make_unique<MockConfig>());
+    mock_config_ = static_cast<MockConfig*>(original_model_->get_config());
 
     original_model_->set_scheduler(std::make_unique<MockScheduler>());
     mock_scheduler_ = static_cast<MockScheduler*>(original_model_->get_scheduler());
@@ -105,8 +109,8 @@ protected:
 
     // Create person instance and initialize it (it should use the correctly configured mocks)
     person_ = std::make_unique<Person>();
-    person_->set_population(mock_population_); 
-    person_->initialize(); 
+    person_->set_population(mock_population_);
+    person_->initialize();
     person_->set_immune_system(std::make_unique<MockImmuneSystem>(person_.get()));
     mock_immune_system_ = static_cast<MockImmuneSystem*>(person_->get_immune_system());
   }

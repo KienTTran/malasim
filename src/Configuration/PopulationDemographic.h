@@ -58,6 +58,11 @@ public:
           "mortality_when_treatment_fail_by_age_class size must match "
           "number_of_age_classes");
     mortality_when_treatment_fail_by_age_class_ = value;
+    for (auto& mortality : mortality_when_treatment_fail_by_age_class_) {
+      if (mortality < 0)
+        throw std::invalid_argument("mortality_when_treatment_fail_by_age_class must be non-negative");
+      // spdlog::info("mortality_when_treatment_fail_by_age_class {}", mortality);
+    }
   }
 
   [[nodiscard]] double get_artificial_rescaling_of_population_size() const {

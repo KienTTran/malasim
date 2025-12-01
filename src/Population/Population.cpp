@@ -106,6 +106,7 @@ void Population::initialize() {
           generate_individual(loc, age_class);
         }
       }
+      popsize_by_location_[loc] = popsize_by_location;
       // spdlog::info("individual_relative_moving_by_location[{}] size: {} sum: {}",loc,
       //              individual_relative_moving_by_location[loc].size(),
       //              sum_relative_moving_by_location[loc]);
@@ -265,7 +266,9 @@ void Population::perform_infection_event() {
 
     for (auto* person : persons_bitten_today) {
       assert(person->get_host_state() != Person::DEAD);
-      person->increase_number_of_times_bitten();
+      if (!use_challenge) {
+        person->increase_number_of_times_bitten();
+      }
 
       const int genotype_id = Model::get_mosquito()->random_genotype(loc, tracking_index);
       if (genotype_id < 0) continue; // extra safety
@@ -275,20 +278,16 @@ void Population::perform_infection_event() {
 
       bool infected = false;
       if (use_challenge) {
-        // v4-style immunity curve, but safe/clamped
-        double theta = person->get_immune_system()->get_current_value();
-        theta = std::clamp(theta, 0.0, 1.0);
 
         double pr = Model::get_config()->get_transmission_settings().get_transmission_parameter();
-        double t = (theta - 0.2) / 0.6;
-        t = std::clamp(t, 0.0, 1.0); // only blend on [0.2,0.8] region
 
-        double pr_inf = pr * (1.0 - t) + 0.1 * t;
+        double theta = person->get_immune_system()->get_current_value();
+        double pr_inf = pr * (1 - (theta - 0.2) / 0.6) + 0.1 * ((theta - 0.2) / 0.6);
+
         if (theta > 0.8) pr_inf = 0.1;
         if (theta < 0.2) pr_inf = pr;
-        pr_inf = std::clamp(pr_inf, 0.0, 1.0);
 
-        infected = (draw <= pr_inf);
+        infected = (draw < pr_inf);
       } else {
         if (Model::get_config()
                 ->get_epidemiological_parameters()
@@ -306,6 +305,9 @@ void Population::perform_infection_event() {
           person->liver_parasite_type() == nullptr) {
         person->get_today_infections().push_back(genotype_id);
         today_infections.push_back(person);
+        if (use_challenge) {
+          person->increase_number_of_times_bitten();
+        }
       }
     }
   }
@@ -411,9 +413,6 @@ void Population::generate_individual(int location, int age_class) {
 
 void Population::introduce_initial_cases() {
   if (Model::get_instance() != nullptr) {
-    // Reset and calculate FOI based on the current population state (pre-infection introduction).
-    update_current_foi();
-    // std::cout << Model::CONFIG->initial_parasite_info().size() << std::endl;
     for (const auto p_info :
          Model::get_config()->get_genotype_parameters().get_initial_parasite_info()) {
       auto num_of_infections = Model::get_random()->random_poisson(
@@ -498,8 +497,9 @@ void Population::perform_birth_event() {
     const auto number_of_births = Model::get_random()->random_poisson(poisson_means);
     for (auto i = 0; i < number_of_births; i++) {
       give_1_birth(loc);
-      Model::get_mdc()->update_person_days_by_years(
-          loc, Constants::DAYS_IN_YEAR - Model::get_scheduler()->get_current_day_in_year());
+      // spdlog::info("1 birth");
+      // Model::get_mdc()->update_person_days_by_years(
+      //     loc, Constants::DAYS_IN_YEAR - Model::get_scheduler()->get_current_day_in_year());
     }
   }
   //    std::cout << "End Birth Event" << std::endl;

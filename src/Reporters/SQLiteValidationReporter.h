@@ -36,12 +36,15 @@ protected:
     std::vector<std::vector<int>> population_by_age;
     std::vector<std::vector<double>> total_immune_by_age;
     std::vector<std::vector<int>> multiple_of_infection;
-    std::vector<Ul> progress_to_clinical_in_7d_total;
-    std::vector<Ul> progress_to_clinical_in_7d_recrudescence;
-    std::vector<Ul> progress_to_clinical_in_7d_new_infection;
-    std::vector<Ul> recrudescence_treatment;
-    std::vector<std::vector<Ul>> recrudescence_treatment_by_age_class;
-    std::vector<std::vector<Ul>> recrudescence_treatment_by_age;
+    std::vector<ul> progress_to_clinical_in_7d_total;
+    std::vector<ul> progress_to_clinical_in_7d_recrudescence;
+    std::vector<ul> progress_to_clinical_in_7d_new_infection;
+    std::vector<ul> recrudescence_treatment;
+    std::vector<ul> total_number_of_bites_by_location;
+    std::vector<ul> total_number_of_bites_by_location_year;
+    std::vector<ul> person_days_by_location_year;
+    std::vector<std::vector<ul>> recrudescence_treatment_by_age_class;
+    std::vector<std::vector<ul>> recrudescence_treatment_by_age;
   };
 
   struct MonthlyGenomeData {

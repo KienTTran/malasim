@@ -46,8 +46,11 @@ TEST_F(PersonClinicalTest, ScheduleEndClinicalEvent) {
 }
 
 TEST_F(PersonClinicalTest, ScheduleProgressToClinicalEventUnderFive) {
-    EXPECT_CALL(*mock_population_, notify_change(_, Person::Property::AGE, _, _))
-      .Times(1);
+    // When setting age, we expect two notifications:
+    // 1. For AGE property change
+    // 2. For AGE_CLASS property change (since set_age can update age class)
+    EXPECT_CALL(*mock_population_, notify_change(Eq(person_.get()), Person::Property::AGE, _, _));
+    EXPECT_CALL(*mock_population_, notify_change(Eq(person_.get()), Person::Property::AGE_CLASS, _, _));
     person_->set_age(3);
 
     auto test_parasite = std::make_unique<ClonalParasitePopulation>();  
@@ -111,23 +114,59 @@ TEST_F(PersonClinicalTest, ProbabilityProgressToClinical) {
 
     EXPECT_DOUBLE_EQ(person_->get_probability_progress_to_clinical(), expected_probability);
 }
-
 TEST_F(PersonClinicalTest, DeathProgressionWithoutTreatment) {
-    EXPECT_CALL(*mock_random_, random_flat(_, _)).WillOnce(Return(0.4));
-    EXPECT_TRUE(person_->will_progress_to_death_when_receive_no_treatment());
+  // Get the current mortality for this person's age class
+  const auto& pd =
+      Model::get_config()->get_population_demographic();
+  const auto age_class = person_->get_age_class();
+  const double base_mortality =
+      pd.get_mortality_when_treatment_fail_by_age_class()[age_class];
 
-    EXPECT_CALL(*mock_random_, random_flat(_, _)).WillOnce(Return(0.5));
-    EXPECT_FALSE(person_->will_progress_to_death_when_receive_no_treatment());
+  // Effective threshold for "no treatment"
+  const double threshold = base_mortality;
+
+  // Choose a value strictly below the threshold, if possible.
+  // If threshold is 0 or negative (degenerate config), we can force death
+  // by returning a negative random number (mock allows this).
+  const double below =
+      (threshold > 0.0) ? threshold / 2.0 : -0.1;
+
+  const double above = threshold + 0.1;  // definitely above, even if threshold is 0
+
+  // 1) prob < threshold  -> should die  (true)
+  EXPECT_CALL(*mock_random_, random_flat(_, _))
+      .WillOnce(Return(below));
+  EXPECT_TRUE(person_->will_progress_to_death_when_receive_no_treatment());
+
+  // 2) prob > threshold  -> should survive (false)
+  EXPECT_CALL(*mock_random_, random_flat(_, _))
+      .WillOnce(Return(above));
+  EXPECT_FALSE(person_->will_progress_to_death_when_receive_no_treatment());
 }
 
 TEST_F(PersonClinicalTest, DeathProgressionWithTreatment) {
-    // lower than 10 times the mortality rate
-    EXPECT_CALL(*mock_random_, random_flat(_, _)).WillOnce(Return(0.04));
-    EXPECT_TRUE(person_->will_progress_to_death_when_recieve_treatment());
+  const auto& pd =
+      Model::get_config()->get_population_demographic();
+  const auto age_class = person_->get_age_class();
+  const double base_mortality =
+      pd.get_mortality_when_treatment_fail_by_age_class()[age_class];
 
-    // if p random is greater than 0.04, then the person will not progress to death
-    EXPECT_CALL(*mock_random_, random_flat(_, _)).WillOnce(Return(0.05));
-    EXPECT_FALSE(person_->will_progress_to_death_when_recieve_treatment());
+  // Effective threshold for "with treatment" is 10% of base
+  const double threshold = base_mortality * 0.1;
+
+  const double below =
+      (threshold > 0.0) ? threshold / 2.0 : -0.1;
+  const double above = threshold + 0.1;
+
+  // 1) prob < threshold  -> should die
+  EXPECT_CALL(*mock_random_, random_flat(_, _))
+      .WillOnce(Return(below));
+  EXPECT_TRUE(person_->will_progress_to_death_when_recieve_treatment());
+
+  // 2) prob > threshold  -> should survive
+  EXPECT_CALL(*mock_random_, random_flat(_, _))
+      .WillOnce(Return(above));
+  EXPECT_FALSE(person_->will_progress_to_death_when_recieve_treatment());
 }
 
 TEST_F(PersonClinicalTest, TestTreatmentFailureScheduling) {

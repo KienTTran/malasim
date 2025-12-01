@@ -125,6 +125,9 @@ public:
                         / duration_for_fully_immune);
     c_max = pow(
         10, -(log_parasite_density_asymptomatic - log_parasite_density_cured) / duration_for_naive);
+
+    spdlog::info("alpha_immune {} beta_immune {}",alpha_immune,beta_immune);
+    spdlog::info("c_min {} c_max {}",c_min,c_max);
   }
 
 private:

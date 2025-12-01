@@ -235,8 +235,12 @@ public:
 
     [[nodiscard]] int get_number_of_moving_levels() const { return number_of_moving_levels_; }
     void set_number_of_moving_levels(const int value) {
-      if (value <= 0) throw std::invalid_argument("number_of_moving_levels must be positive");
-      number_of_moving_levels_ = value;
+      if (value >= 2) {
+        number_of_moving_levels_ = value;
+      } else {
+        throw std::runtime_error(
+            "number_of_moving_levels must be at least 2 (got " + std::to_string(value) + ")");
+      }
     }
 
     [[nodiscard]] const MovingLevelDistribution &get_moving_level_distribution() const {
@@ -385,7 +389,11 @@ public:
     const auto max =
         get_circulation_info().get_max_relative_moving_value() - 1;  // maxRelativeBiting -1
     const auto number_of_level = get_circulation_info().get_number_of_moving_levels();
-
+    if (number_of_level < 2) {
+      throw std::runtime_error(
+          "MovementSettings: number_of_moving_levels must be >= 2 "
+          "to compute relative moving steps");
+    }
     const auto step = max / static_cast<double>(number_of_level - 1);
 
     auto level_index = 0;

@@ -298,22 +298,27 @@ public:
   // Helper methods for scheduling
   static int calculate_future_time(int days_from_now);
 
+  void determine_relapse_or_not(ClonalParasitePopulation *clinical_caused_parasite);
+  void schedule_relapse_event(ClonalParasitePopulation *clinical_caused_parasite, const int &time_until_relapse);
+
+  void schedule_end_clinical_by_no_treatment_event(ClonalParasitePopulation *clinical_caused_parasite);
+
 private:
-  uint age_{0};
+  int age_{-1};
   Population* population_{nullptr};
-  int location_{0};
-  int residence_location_{0};
+  int location_{-1};
+  int residence_location_{-1};
   HostStates host_state_{SUSCEPTIBLE};
-  int age_class_{0};
-  int birthday_{0};
+  int age_class_{-1};
+  int birthday_{-1};
   int latest_update_time_{-1};
-  int moving_level_{0};
+  int moving_level_{-1};
   std::vector<int> today_infections_;
   std::vector<int> today_target_locations_;
   std::vector<double> prob_present_at_mda_by_age_;
   int number_of_times_bitten_{0};
   int number_of_trips_taken_{0};
-  int last_therapy_id_{-1};
+  int last_therapy_id_{0};
   std::map<int, double> starting_drug_values_for_mac_;
   double innate_relative_biting_rate_{0};
   double current_relative_biting_rate_{0};

@@ -64,9 +64,9 @@ TEST_F(PersonBasicTest, ConfigMockSetup) {
 
 TEST_F(PersonBasicTest, InitialState) {
   EXPECT_EQ(person_->get_host_state(), Person::HostStates::SUSCEPTIBLE);
-  EXPECT_EQ(person_->get_age(), 0);
-  EXPECT_EQ(person_->get_location(), 0);
-  EXPECT_EQ(person_->get_residence_location(), 0);
+  EXPECT_EQ(person_->get_age(), -1);
+  EXPECT_EQ(person_->get_location(), -1);
+  EXPECT_EQ(person_->get_residence_location(), -1);
 }
 
 // Test setting initial age and verifying class assignment

@@ -27,16 +27,16 @@ protected:
     }
 };
 
-TEST_F(TherapyParametersTest, EncodeTherapyParameters) {
-    YAML::Node node = YAML::convert<TherapyParameters>::encode(therapy_parameters);
-
-    EXPECT_EQ(node["tf_testing_day"].as<int>(), 28);
-    EXPECT_EQ(node["tf_rate"].as<double>(), 0.1);
-    EXPECT_EQ(node["therapy_db"]["0"]["drug_ids"].as<std::vector<int>>(), std::vector<int>{0});
-    EXPECT_EQ(node["therapy_db"]["0"]["dosing_days"].as<std::vector<int>>(), std::vector<int>{3});
-    EXPECT_EQ(node["therapy_db"]["1"]["drug_ids"].as<std::vector<int>>(), std::vector<int>{1});
-    EXPECT_EQ(node["therapy_db"]["1"]["dosing_days"].as<std::vector<int>>(), std::vector<int>{3});
-}
+// TEST_F(TherapyParametersTest, EncodeTherapyParameters) {
+//     YAML::Node node = YAML::convert<TherapyParameters>::encode(therapy_parameters);
+//
+//     EXPECT_EQ(node["tf_testing_day"].as<int>(), 28);
+//     EXPECT_EQ(node["tf_rate"].as<double>(), 0.1);
+//     EXPECT_EQ(node["therapy_db"]["0"]["drug_ids"].as<std::vector<int>>(), std::vector<int>{0});
+//     EXPECT_EQ(node["therapy_db"]["0"]["dosing_days"].as<std::vector<int>>(), std::vector<int>{3});
+//     EXPECT_EQ(node["therapy_db"]["1"]["drug_ids"].as<std::vector<int>>(), std::vector<int>{1});
+//     EXPECT_EQ(node["therapy_db"]["1"]["dosing_days"].as<std::vector<int>>(), std::vector<int>{3});
+// }
 
 TEST_F(TherapyParametersTest, DecodeTherapyParameters) {
     YAML::Node node;

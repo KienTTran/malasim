@@ -47,8 +47,8 @@ public:
   [[nodiscard]] double get_tf_rate() const { return tf_rate_; }
   void set_tf_rate(const double value) { tf_rate_ = value; }
 
-  [[nodiscard]] int get_recurrence_therapy_id() const { return recurrence_therapy_id_; }
-  void set_recurrence_therapy_id(const int value) { recurrence_therapy_id_ = value; }
+  [[nodiscard]] int get_recurrent_therapy_id() const { return recurrent_therapy_id_; }
+  void set_recurrent_therapy_id(const int value) { recurrent_therapy_id_ = value; }
 
   [[nodiscard]] const std::map<int, TherapyInfo>& get_therapy_db_raw() const { return therapy_db_raw_; }
   void set_therapy_db_raw(const std::map<int, TherapyInfo>& value) { therapy_db_raw_ = value; }
@@ -67,7 +67,7 @@ public:
 private:
   int tf_testing_day_ = 28;
   double tf_rate_ = 0.1;
-  int recurrence_therapy_id_ = -1;
+  int recurrent_therapy_id_ = -1;
   std::map<int, TherapyInfo> therapy_db_raw_;  // Changed from vector to map
   YAML::Node node_;
 };
@@ -112,20 +112,37 @@ struct convert<TherapyParameters::TherapyInfo> {
 // TherapyParameters YAML conversion
 template<>
 struct convert<TherapyParameters> {
-  static Node encode(const TherapyParameters& rhs) {
+  static Node encode(TherapyParameters::TherapyInfo &rhs) {
     Node node;
-    node["tf_testing_day"] = rhs.get_tf_testing_day();
-    node["tf_rate"] = rhs.get_tf_rate();
 
-    node["recurrence_therapy_id"] = rhs.get_recurrence_therapy_id();
-    // Encode therapy_db as a map
-    Node therapy_db_node;
-    for (const auto& [key, value] : rhs.get_therapy_db_raw()) {
-      therapy_db_node[key] = value;
+    // Preserve optional name
+    if (!rhs.get_name().empty()) {
+      node["name"] = rhs.get_name();
     }
-    node["therapy_db"] = therapy_db_node;
+
+    // Combination therapy via sub-therapies
+    if (!rhs.get_therapy_ids().empty()) {
+      node["therapy_ids"] = rhs.get_therapy_ids();
+    }
+
+    // Drug regimen
+    if (!rhs.get_drug_ids().empty()) {
+      node["drug_ids"] = rhs.get_drug_ids();
+    }
+
+    // Dosing schedule
+    if (!rhs.get_dosing_days().empty()) {
+      node["dosing_days"] = rhs.get_dosing_days();
+    }
+
+    // Regiment flag: e.g., "AL", "DP", "ASAQ"
+    if (!rhs.get_regiment().empty()) {
+      node["regiment"] = rhs.get_regiment();
+    }
+
     return node;
   }
+
 
   static bool decode(const Node& node, TherapyParameters& rhs) {
     if (!node["tf_testing_day"] || !node["tf_rate"] || !node["therapy_db"]) {
@@ -134,10 +151,10 @@ struct convert<TherapyParameters> {
     rhs.set_tf_testing_day(node["tf_testing_day"].as<int>());
     rhs.set_tf_rate(node["tf_rate"].as<double>());
 
-    if (node["recurrence_therapy_id"]) {
-      rhs.set_recurrence_therapy_id(node["recurrence_therapy_id"].as<int>());
+    if (node["recurrent_therapy_id"]) {
+      rhs.set_recurrent_therapy_id(node["recurrent_therapy_id"].as<int>());
     } else {
-      rhs.set_recurrence_therapy_id(-1);
+      rhs.set_recurrent_therapy_id(-1);
     }
 
     // Decode therapy_db as a map
