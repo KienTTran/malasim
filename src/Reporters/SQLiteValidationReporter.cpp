@@ -187,6 +187,7 @@ void SQLiteValidationReporter::create_reporting_tables_for_level(
           total_number_of_bites_by_location BIGINT NOT NULL,
           total_number_of_bites_by_location_year BIGINT NOT NULL,
           person_days_by_location_year BIGINT NOT NULL,
+          current_foi_by_location BIGINT NOT NULL,
           PRIMARY KEY (monthly_data_id, {}),
           FOREIGN KEY (monthly_data_id) REFERENCES monthly_data(id)
       );
@@ -233,7 +234,8 @@ void SQLiteValidationReporter::create_reporting_tables_for_level(
     "recrudescence_treatment, "
     "total_number_of_bites_by_location, "
     "total_number_of_bites_by_location_year, "
-    "person_days_by_location_year) VALUES";
+    "person_days_by_location_year, "
+    "current_foi_by_location) VALUES";
 
 
     insert_genome_query_prefixes_[prefix_index] =
@@ -353,7 +355,7 @@ void SQLiteValidationReporter::calculate_and_build_up_site_data_insert_values(in
     }
 
     singleRow +=
-        fmt::format(", {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})",
+        fmt::format(", {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})",
                     monthly_site_data_by_level[level_id].treatments[unit_id],
                     monthly_site_data_by_level[level_id].treatment_failures[unit_id],
                     calculatedEir,
@@ -370,7 +372,8 @@ void SQLiteValidationReporter::calculate_and_build_up_site_data_insert_values(in
                     monthly_site_data_by_level[level_id].recrudescence_treatment[unit_id],
                     monthly_site_data_by_level[level_id].total_number_of_bites_by_location[unit_id],
                     monthly_site_data_by_level[level_id].total_number_of_bites_by_location_year[unit_id],
-                    monthly_site_data_by_level[level_id].person_days_by_location_year[unit_id]);
+                    monthly_site_data_by_level[level_id].person_days_by_location_year[unit_id],
+                    monthly_site_data_by_level[level_id].current_foi_by_location[unit_id]);
 
     insert_values.push_back(singleRow);
   }
@@ -521,6 +524,9 @@ void SQLiteValidationReporter::collect_site_data_for_location(int location_id, i
     monthly_site_data_by_level[level_id].person_days_by_location_year[unit_id] +=
         Model::get_mdc()->person_days_by_location_year()[location_id];
 
+    monthly_site_data_by_level[level_id].current_foi_by_location[unit_id] +=
+        Model::get_population()->current_force_of_infection_by_location()[location_id];
+
     auto eirLocation = Model::get_mdc()->eir_by_location_year()[location_id].empty()
                            ? 0
                            : Model::get_mdc()->eir_by_location_year()[location_id].back();
@@ -588,6 +594,7 @@ void SQLiteValidationReporter::reset_site_data_structures(int level_id, int vect
   monthly_site_data_by_level[level_id].total_number_of_bites_by_location.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].total_number_of_bites_by_location_year.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].person_days_by_location_year.assign(vector_size, 0);
+  monthly_site_data_by_level[level_id].current_foi_by_location.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].infections_by_unit.assign(vector_size, 0);
 }
 

@@ -82,11 +82,24 @@ void SQLiteDbReporter::create_all_reporting_tables() {
         fmt::format("clinical_episodes_by_age_class_{}_{} INTEGER, ", ag_from, ag_to);
   }
 
+  for (auto ndx = 0; ndx < Model::get_config()->age_structure().size(); ndx++) {
+    auto ag_from = ndx == 0 ? 0 : Model::get_config()->age_structure()[ndx - 1];
+    auto ag_to = Model::get_config()->age_structure()[ndx];
+    age_class_column_definitions +=
+        fmt::format("recrudescence_treatment_by_age_class_{}_{} INTEGER, ", ag_from, ag_to);
+  }
+
   std::string age_class_columns;
   for (auto ndx = 0; ndx < Model::get_config()->age_structure().size(); ndx++) {
     auto ag_from = ndx == 0 ? 0 : Model::get_config()->age_structure()[ndx - 1];
     auto ag_to = Model::get_config()->age_structure()[ndx];
     age_class_columns += fmt::format("clinical_episodes_by_age_class_{}_{}, ", ag_from, ag_to);
+  }
+
+  for (auto ndx = 0; ndx < Model::get_config()->age_structure().size(); ndx++) {
+    auto ag_from = ndx == 0 ? 0 : Model::get_config()->age_structure()[ndx - 1];
+    auto ag_to = Model::get_config()->age_structure()[ndx];
+    age_class_columns += fmt::format("recrudescence_treatment_by_age_class_{}_{}, ", ag_from, ag_to);
   }
 
   std::string age_column_definitions;
@@ -102,7 +115,16 @@ void SQLiteDbReporter::create_all_reporting_tables() {
 
   for (auto age = 0; age < 80; age++) {
     age_column_definitions +=
-        fmt::format("total_immune_by_age_{} INTEGER, ", age);
+        fmt::format("total_immune_by_age_{} REAL, ", age);
+  }
+
+  for (auto age = 0; age < 80; age++) {
+    age_column_definitions +=
+        fmt::format("recrudescence_treatment_by_age_{} INTEGER, ", age);
+  }
+
+  for (auto moi = 0; moi < ModelDataCollector::NUMBER_OF_REPORTED_MOI; moi++) {
+    age_column_definitions += fmt::format("moi_{} INTEGER, ", moi);
   }
 
   std::string age_columns;
@@ -114,6 +136,12 @@ void SQLiteDbReporter::create_all_reporting_tables() {
   }
   for (auto age = 0; age < 80; age++) {
     age_columns += fmt::format("total_immune_by_age_{}, ", age);
+  }
+  for (auto age = 0; age < 80; age++) {
+    age_columns += fmt::format("recrudescence_treatment_by_age_{}, ", age);
+  }
+  for (auto moi = 0; moi < ModelDataCollector::NUMBER_OF_REPORTED_MOI; moi++) {
+    age_columns += fmt::format("moi_{}, ", moi);
   }
 
   // // Include cell level in the number of levels
@@ -166,6 +194,14 @@ void SQLiteDbReporter::create_reporting_tables_for_level(
           non_treatment INTEGER NOT NULL,
           under5_treatment INTEGER NOT NULL,
           over5_treatment INTEGER NOT NULL,
+          progress_to_clinical_in_7d_total BIGINT NOT NULL,
+          progress_to_clinical_in_7d_recrudescence BIGINT NOT NULL,
+          progress_to_clinical_in_7d_new_infection BIGINT NOT NULL,
+          recrudescence_treatment BIGINT NOT NULL,
+          total_number_of_bites_by_location BIGINT NOT NULL,
+          total_number_of_bites_by_location_year BIGINT NOT NULL,
+          person_days_by_location_year BIGINT NOT NULL,
+          current_foi_by_location BIGINT NOT NULL,
           PRIMARY KEY (monthly_data_id, {}),
           FOREIGN KEY (monthly_data_id) REFERENCES monthly_data(id)
       );
@@ -204,8 +240,17 @@ void SQLiteDbReporter::create_reporting_tables_for_level(
       fmt::format("INSERT INTO {} (monthly_data_id, {}, "
         "population, clinical_episodes, ", site_table_name, location_id_column)
       + age_class_columns + age_columns +
-      " treatments, eir, pfpr_under5, pfpr_2to10, pfpr_all, infected_individuals, treatment_failures,"
-      " non_treatment, under5_treatment, over5_treatment) VALUES";
+      "treatments, eir, pfpr_under5, pfpr_2to10, pfpr_all, "
+      "infected_individuals, treatment_failures, "
+      "non_treatment, under5_treatment, over5_treatment, "
+      "progress_to_clinical_in_7d_total, "
+      "progress_to_clinical_in_7d_recrudescence, "
+      "progress_to_clinical_in_7d_new_infection, "
+      "recrudescence_treatment, "
+      "total_number_of_bites_by_location, "
+      "total_number_of_bites_by_location_year, "
+      "person_days_by_location_year, "
+      "current_foi_by_location) VALUES";
 
     insert_genome_query_prefixes_[prefix_index] =
         fmt::format(R"""(
