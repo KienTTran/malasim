@@ -395,7 +395,7 @@ void Person::determine_symptomatic_recrudescence(
     // if (random_p <= probability_develop_symptom) {
 
     /* UNCOMMENT THE LINE BELOW TO DISABLE THE SYMPTOMATIC RECRUDESCENCE */
-    if (random_p <= get_probability_progress_to_clinical()) {
+    if (1.1 <= get_probability_progress_to_clinical()) {
 
     // The last clinical caused parasite is going to relapse
     // regardless whether the induvidual are under treatment or not
