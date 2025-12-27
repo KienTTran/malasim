@@ -294,7 +294,6 @@ void ModelDataCollector::perform_population_statistic() {
   zero_population_statistics();
 
   auto* pi = Model::get_population()->get_person_index<PersonIndexByLocationStateAgeClass>();
-  int64_t sum_moi = 0;
 
   for (auto loc = 0; loc < Model::get_config()->number_of_locations(); loc++) {
     for (auto hs = 0; hs < Person::NUMBER_OF_STATE - 1; hs++) {
@@ -320,6 +319,7 @@ void ModelDataCollector::perform_population_statistic() {
           //                    popsize_by_location_age_class_[loc][ac] += 1;
           int ac1 = (person->get_age() > 70) ? 14 : person->get_age() / 5;
           popsize_by_location_age_class_by_5_[loc][ac1] += 1;
+          popsize_by_location_age_[loc][age_clamp] += 1;
 
           if (hs == Person::ASYMPTOMATIC) {
             number_of_positive_by_location_[loc]++;
@@ -343,44 +343,26 @@ void ModelDataCollector::perform_population_statistic() {
           }
 
           int moi = static_cast<int>(person->get_all_clonal_parasite_populations()->size());
-
-          if (moi >= NUMBER_OF_REPORTED_MOI) {
-            multiple_of_infection_by_location_[loc][NUMBER_OF_REPORTED_MOI - 1]++;
-          } else {
-            multiple_of_infection_by_location_[loc][moi]++;
-          }
-
           if (moi > 0) {
-            sum_moi += moi;
             total_parasite_population_by_location_[loc] += moi;
             total_parasite_population_by_location_age_group_[loc][person->get_age_class()] += moi;
+
+              if (moi <= NUMBER_OF_REPORTED_MOI) {
+                  multiple_of_infection_by_location_[loc][moi - 1]++;
+              }
           }
-          popsize_by_location_age_[loc][age_clamp] += 1;
         }
       }
     }
 
-    popsize_by_location_[loc] = Model::get_population()->size_at(static_cast<int>(loc));
-
-    const auto sum_popsize_by_location =
-        std::accumulate(popsize_by_location_.begin(), popsize_by_location_.end(), 0);
-    mean_moi_ = sum_moi / static_cast<double>(sum_popsize_by_location);
-
-    //        double number_of_assymptomatic_and_clinical = blood_slide_prevalence_by_location_[loc]
-    //        + popsize_by_location_hoststate_[loc][Person::CLINICAL];
-    //        number_of_positive_by_location_[loc] =
-    //        popsize_by_location_hoststate_[loc][Person::ASYMPTOMATIC] +
-    //        popsize_by_location_hoststate_[loc][Person::CLINICAL];
-
-    //        fraction_of_positive_that_are_clinical_by_location_[loc] =
-    //        (number_of_positive_by_location_[loc] == 0) ? 0 : ((double)
-    //        popsize_by_location_hoststate_[loc][Person::CLINICAL]) /
-    //        number_of_positive_by_location_[loc];
     fraction_of_positive_that_are_clinical_by_location_[loc] =
         (blood_slide_prevalence_by_location_[loc] == 0)
             ? 0
             : static_cast<double>(popsize_by_location_hoststate_[loc][Person::CLINICAL])
                   / blood_slide_prevalence_by_location_[loc];
+
+    popsize_by_location_[loc] = Model::get_population()->size_at(static_cast<int>(loc));
+
     const auto number_of_blood_slide_positive = blood_slide_prevalence_by_location_[loc];
     blood_slide_prevalence_by_location_[loc] =
         blood_slide_prevalence_by_location_[loc] / static_cast<double>(popsize_by_location_[loc]);
@@ -419,7 +401,7 @@ void ModelDataCollector::perform_population_statistic() {
           [loc][ac][report_index] = (number_of_blood_slide_positive == 0)
                                         ? 0
                                         : number_of_clinical_by_location_age_group_by_5_[loc][ac]
-                                              / static_cast<double>(blood_slide_number_by_location_age_group_by_5_[loc][ac]);
+                                              / number_of_blood_slide_positive;
       blood_slide_prevalence_by_location_age_group_[loc][ac] =
           blood_slide_number_by_location_age_group_[loc][ac]
           / static_cast<double>(popsize_by_location_age_class_[loc][ac]);
