@@ -7,6 +7,7 @@
 #include <memory>
 #include <stdexcept>
 
+#include "Agents/AdaptiveCyclingAgent.h"
 #include "Configuration/Config.h"
 #include "MDC/ModelDataCollector.h"
 #include "Mosquito/Mosquito.h"
@@ -32,6 +33,9 @@ bool Model::initialize() {
   genotype_db_ = std::make_unique<GenotypeDatabase>();
   drug_db_ = std::make_unique<DrugDatabase>();
 
+  // AdaptiveCyclingAgent will be created after configuration is loaded and
+  // only if enabled in the config (agent_parameters.adc_agent.enabled)
+
   if (utils::Cli::get_instance().get_input_path().empty()) {
     // spdlog::error("Input path is empty. Please provide a valid input path.");
     // return false;
@@ -52,14 +56,29 @@ bool Model::initialize() {
       utils::Cli::get_instance().set_output_path("./");
     }
 
+    // Create and initialize ADC agent only if enabled in configuration
+    if (config_->get_agent_parameters().get_adc_agent().is_enabled()) {
+      adaptive_cycling_agent_ = std::make_unique<AdaptiveCyclingAgent>();
+      adaptive_cycling_agent_->initialize();
+      spdlog::info("Adaptive Cycling Agent enabled and initialized.");
+    } else {
+      spdlog::info("Adaptive Cycling Agent is disabled in configuration.");
+    }
+
     spdlog::info("Model initialized with seed: " + std::to_string(random_->get_seed()));
     // add reporter here
-    if (utils::Cli::get_instance().get_reporter().empty()) {
+    const auto &cli_reporters = utils::Cli::get_instance().get_reporters();
+    if (cli_reporters.empty()) {
+      // default
       add_reporter(Reporter::MakeReport(Reporter::SQLITE_MONTHLY_REPORTER));
     } else {
-      if (Reporter::ReportTypeMap.contains(utils::Cli::get_instance().get_reporter())) {
-        add_reporter(Reporter::MakeReport(
-            Reporter::ReportTypeMap[utils::Cli::get_instance().get_reporter()]));
+      for (const auto &r : cli_reporters) {
+        auto it = Reporter::ReportTypeMap.find(r);
+        if (it != Reporter::ReportTypeMap.end()) {
+          add_reporter(Reporter::MakeReport(it->second));
+        } else {
+          spdlog::warn("Unknown reporter specified on CLI: '{}', skipping.", r);
+        }
       }
     }
 
@@ -118,6 +137,7 @@ bool Model::initialize() {
                            utils::Cli::get_instance().get_output_path());
       add_reporter(std::move(reporter));
     }
+
     is_initialized_ = true;
   } else {
     spdlog::error("Failed to load configuration file: "

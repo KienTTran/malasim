@@ -1,0 +1,71 @@
+adc_class_mapping:
+  class_to_therapy:
+    '0': 8
+    '1': 7
+    '2': 6
+  invalid_label: -1
+  therapy_cycle:
+  - 8
+  - 7
+  - 6
+dataset_stem: training_data_filtered_adc_only_h_120
+featurization:
+  alleleY_token: PRPYA|
+  header_path: /Users/ktt/plot/MaSimML/validation_reporter_monthly_headers_v5.txt
+  n_outputs: 3
+  rolling_window: 12
+input_features:
+  - current_TF_by_location
+  - monthly_number_of_TF_by_location
+  - cumulative_TF_by_location
+  - cumulative_NTF_by_location
+  - tf_total
+  - tf_by_therapy_6
+  - tf_by_therapy_7
+  - tf_by_therapy_8
+  - tf_by_therapy_total
+  - therapy_share_0
+  - therapy_share_1
+  - therapy_share_2
+  - therapy_usage_entropy
+  - freq_580Y
+  - freq_580Y_delta
+  - freq_580Y_rollmean_12
+  - adc_deployed
+  - adc_trigger_value
+  - adc_delay_days
+  - adc_turn_off_days
+masks:
+  mask_exec_next_class: 1 where y_exec_next_class != -1 (for masked CE)
+npz_path: /Volumes/WD2TB/plot/PRMC_Paper/Exercises/Run_1_TNY_100_2_beta_PfCRT_temple_2/training_data_filtered_adc_only_h_120.npz
+output_features:
+  adc_outputs:
+  - y_exec
+  - y_exec_next_class
+rare_event:
+  pos_weight_exec: 51.54913130162347
+shapes:
+  X:
+  - 82000
+  - 120
+  - 20
+  mask_exec_next_class:
+  - 82000
+  - 36
+  y_exec:
+  - 82000
+  - 36
+  y_exec_next_class:
+  - 82000
+  - 36
+split:
+  method: by_run_id
+  n_train_windows: 65600
+  n_unique_runs: 400
+  n_val_windows: 16400
+  seed: 123
+  val_frac: 0.2
+window:
+  H: 36
+  L: 120
+  step: 1

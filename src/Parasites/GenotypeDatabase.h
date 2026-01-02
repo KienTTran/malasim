@@ -44,6 +44,10 @@ public:
   // override at
   Genotype* at(int id) { return GenotypePtrVector::at(id).get(); }
 
+  bool is_matched_genotype(const Genotype* genotype, int chr_id, int gene_id, char aa);
+  bool is_matched_genotype_by_id(int genotype_id, int chr_id, int gene_id, char aa);
+
+
 private:
   std::map<std::string, Genotype*> aa_sequence_id_map_;
   std::map<int, std::map<std::string, double>> drug_id_ec50_;

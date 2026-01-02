@@ -41,6 +41,9 @@ if(ENABLE_COVERAGE)
   target_link_options(malasim_test PRIVATE -fprofile-instr-generate)
 endif()
 
+#target_compile_definitions(malasim_test PRIVATE GLOG_NO_EXPORT)
+target_compile_definitions(malasim_test PUBLIC GLOG_NO_ABBREVIATED_SEVERITIES)
+
 # Link the core library and GTest to the test executable
 target_link_libraries(malasim_test PRIVATE
   GTest::gtest_main GTest::gmock

@@ -14,12 +14,12 @@ model_settings:
   days_between_stdout_output: 30
 
   # Initial seed number for random number generator; set to -1 to use a random seed
-  initial_seed_number: 0
+  initial_seed_number: 1767293703151029
 
   # Record the genomic data (set to true for a real run)
   record_genome_db: true
 
-  cell_level_reporting: false
+  cell_level_reporting: true
 
 # ---------------------------------------------------------------
 # 2. Simulation Timeframe
@@ -32,7 +32,7 @@ simulation_timeframe:
   start_of_comparison_period: 2000/1/1
 
   # Simulation ending date
-  ending_date: 2010/1/1
+  ending_date: 2030/1/1
 
   # Day to start collecting data
   start_collect_data_day: 0
@@ -143,7 +143,7 @@ spatial_settings:
 # ---------------------------------------------------------------
 seasonality_settings:
   # Seasonality of malaria (to be updated with specific country data)
-  enable: false
+  enable: true
   mode: "pattern"
   pattern:
     admin_level: "district"
@@ -167,7 +167,7 @@ seasonality_settings:
 movement_settings:
   # Country-specific movement model and calibration
   spatial_model:
-    name: "BurkinaFaso"
+    name: "WesolowskiSurface"
     Barabasi:
       r_g_0: 5.8
       beta_r: 1.65
@@ -539,7 +539,7 @@ genotype_parameters:
       parasite_info:
         - aa_sequence: "||||YF1||TTHFIMG,x||||||FNCMYRIPRPCRA|1"
           prevalence: 0.05
-        - aa_sequence: "||||YF1||TTHFIMG,x||||||FNCMYRIPRPCRA|1"
+        - aa_sequence: "||||NF1||TTHFIMG,x||||||FNCMYRIPRPCRA|1"
           prevalence: 0.05
 
 # ---------------------------------------------------------------
@@ -818,9 +818,13 @@ strategy_parameters:
       tf_threshold: 0.1
       replacement_fraction: 0.1
       replacement_duration: 0
+    17:
+      name: DHA-PPQ-SFTStrategy
+      type: SFT
+      therapy_ids: [8]
 
   # Initial treatment strategy ID
-  initial_strategy_id: 10
+  initial_strategy_id: 15
 
   # this is second line treatment for recurrence cases
   # -1 means use the same first line treatment for second line treatment
@@ -939,17 +943,41 @@ mosquito_parameters:
 # 16. Population Events (all events are optional)
 # ---------------------------------------------------------------
 population_events:
-  - name: turn_on_mutation
+  - name: turn_off_mutation
     info:
       - date: 2000/1/1
-
   - name: change_mutation_probability_per_locus
     info:
       - date: 2000/1/1
+        mutation_probability_per_locus: 0.0
+  - name: turn_on_mutation
+    info:
+      - date: 2010/1/1
+  - name: change_mutation_probability_per_locus
+    info:
+      - date: 2010/1/1
         mutation_probability_per_locus: 0.001
+  - name: change_treatment_strategy
+    info:
+      - date: 2010/1/1
+        strategy_id: 4
+# ---------------------------------------------------------------
+# 17. Agent Parameters
+# ---------------------------------------------------------------
+agent_parameters:
+  adc_agent:
+    enabled: true
+    model_path: "../../agent_models/adc_model.pt"
+    manifest_path: "../../agent_models/adc_model.yml"
+    # Map therapy ids [6,7,8] -> strategy ids in the same order.
+    # Example: [1, 2, 17] will map therapy 6->1, 7->2, 8->17
+    strategy_cycle: [2,1,3]
+    trigger_value: 0.8
+    trigger_date: 2012/01/01
+
 
 # ---------------------------------------------------------------
-# 17. Optional settings
+# 18. Optional settings
 # ---------------------------------------------------------------
 rapt_settings:
   enabled: false
@@ -958,3 +986,4 @@ rapt_settings:
   compliance: 0.7
   age_start: 18
   start_date: 2002/08/18
+

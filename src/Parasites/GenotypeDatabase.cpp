@@ -96,3 +96,17 @@ double GenotypeDatabase::get_min_ec50(int drug_id) {
   return it->second;
 }
 
+bool GenotypeDatabase::is_matched_genotype(const Genotype* genotype, int chr_id, int gene_id, char aa){
+  if (genotype->pf_genotype_str.data()[chr_id][gene_id] == std::string(1,aa)){
+    return true;
+  }
+  return false;
+}
+
+bool GenotypeDatabase::is_matched_genotype_by_id(int genotype_id, int chr_id, int gene_id, char aa){
+  if (this->at(genotype_id)->pf_genotype_str.data()[chr_id][gene_id] == std::string(1,aa)){
+    return true;
+  }
+  return false;
+}
+

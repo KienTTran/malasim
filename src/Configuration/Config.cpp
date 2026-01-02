@@ -54,6 +54,10 @@ bool Config::load(const std::string &filename) {
 
     mosquito_parameters_ = config["mosquito_parameters"].as<MosquitoParameters>();
 
+    if (config["agent_parameters"]) {
+      agent_parameters_ = config["agent_parameters"].as<AgentParameters>();
+    }
+
     if (config["rapt_settings"]) {
       rapt_settings_ = config["rapt_settings"].as<RaptSettings>();
     }
@@ -155,6 +159,9 @@ bool Config::load(const std::string &filename) {
         get_spatial_settings().get_number_of_locations());
     epidemiological_parameters_.process_config();
     mosquito_parameters_.process_config_using_locations(location_db());
+    if (config["agent_parameters"]) {
+      agent_parameters_.process_config();
+    }
     if (config["rapt_settings"] && rapt_settings_.get_is_enabled()) {
       rapt_settings_.process_config_with_starting_date(
           get_simulation_timeframe().get_starting_date());

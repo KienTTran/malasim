@@ -1,6 +1,19 @@
 {
-  "dependencies": ["fmt", "gsl", "date", "gtest", "lua", "spdlog", "yaml-cpp", "cli11", "sqlite3"],
+  "name": "malasim",
   "version": "1.0",
-  "name": "malasim"
+  "dependencies": [
+    "fmt",
+    "gsl",
+    "date",
+    "gtest",
+    "lua",
+    "spdlog",
+    "yaml-cpp",
+    "cli11",
+    "sqlite3",
+    {
+      "name": "libtorch",
+      "default-features": false
+    }
+  ]
 }
-

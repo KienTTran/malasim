@@ -13,39 +13,73 @@
 
 // Initialize the reporter
 // Sets up the database and prepares it for data entry
-void SQLiteValidationReporter::initialize(int jobNumber, const std::string &path) {
-  spdlog::info("SQLiteValidationReporter initialize");
-  int admin_level_count =
-      Model::get_spatial_data()->get_admin_level_manager()->get_level_names().size();
+void SQLiteValidationReporter::initialize(int jobNumber, const std::string& path) {
+    spdlog::info("SQLiteValidationReporter initialize");
 
-  if (admin_level_count == 0) {
-    spdlog::info("No admin levels found, cell level reporting will be enabled.");
-    enable_cell_level_reporting = true;
-  }
+    const auto* admin_mgr = Model::get_spatial_data()->get_admin_level_manager();
+    const auto& level_names = admin_mgr->get_level_names();
+    const int admin_level_count = static_cast<int>(level_names.size());
 
-  // Inform the user of the reporter type
-  if (enable_cell_level_reporting) {
+    // Cell-level handling
+    enable_cell_level_reporting = (admin_level_count == 0) ? true : enable_cell_level_reporting;
+    if (admin_level_count == 0) {
+        spdlog::info("No admin levels found, cell level reporting will be enabled.");
+    }
+
     spdlog::info(
-        "Using SQLiteValidationReporter with aggregation at cell/pixel level AND multiple admin "
-        "levels.");
-  } else {
-    spdlog::info(
-        "Using SQLiteValidationReporter with aggregation at multiple admin levels, cell level "
-        "reporting is disabled.");
-  }
+        enable_cell_level_reporting
+            ? "Using SQLiteValidationReporter with aggregation at cell/pixel level AND multiple admin levels."
+            : "Using SQLiteValidationReporter with aggregation at multiple admin levels, cell level reporting is disabled."
+    );
 
-  SQLiteDbReporter::initialize(jobNumber, path + "validation_");
+    SQLiteDbReporter::initialize(jobNumber, path + "validation_");
 
-  // Add +1 for cell level
-  monthly_site_data_by_level.resize(admin_level_count + 1);
-  monthly_genome_data_by_level.resize(admin_level_count + 1);
+    // +1 slot reserved for cell level
+    const int n_levels_including_cell = admin_level_count + 1;
+    CELL_LEVEL_ID = admin_level_count;
 
-    // Include cell level in the number of levels
-  insert_site_query_prefixes_.resize(admin_level_count + 1);
-  insert_genome_query_prefixes_.resize(admin_level_count + 1);
+    monthly_site_data_by_level.resize(n_levels_including_cell);
+    monthly_genome_data_by_level.resize(n_levels_including_cell);
+    insert_site_query_prefixes_.resize(n_levels_including_cell);
+    insert_genome_query_prefixes_.resize(n_levels_including_cell);
 
-  CELL_LEVEL_ID = admin_level_count;
+    // -----------------------------
+    // ADC Agent init per level
+    // -----------------------------
+    auto* adc_agent = Model::get_adc_agent();
+    if (!adc_agent) {
+        spdlog::warn("ADC agent is null; skipping ADC initialization.");
+        return;
+    }
+
+    adc_agent->adc_agent_data_by_level.resize(n_levels_including_cell);
+
+    for (int level_id = 0; level_id < n_levels_including_cell; ++level_id) {
+        const bool is_cell_level = (level_id == CELL_LEVEL_ID);
+        if (is_cell_level && !enable_cell_level_reporting) {
+            continue;
+        }
+
+        int vector_size = 0;
+        if (is_cell_level) {
+            vector_size = Model::get_config()->number_of_locations();
+        } else {
+            const auto* boundary = admin_mgr->get_boundary(level_names[level_id]);
+            vector_size = boundary ? (boundary->max_unit_id + 1) : 0;
+        }
+
+        if (vector_size <= 0) {
+            spdlog::warn("ADC init: level {} has invalid vector_size={}, skipping.", level_id, vector_size);
+            continue;
+        }
+
+        auto& adc = adc_agent->adc_agent_data_by_level[level_id];
+
+        // monthly buffers
+        adc.reset_month(vector_size);
+    }
 }
+
 
 std::string SQLiteValidationReporter::get_site_table_name(int level_id) const {
   if (level_id == CELL_LEVEL_ID) { return "monthly_site_data_cell"; }
@@ -538,6 +572,22 @@ void SQLiteValidationReporter::collect_site_data_for_location(int location_id, i
     monthly_site_data_by_level[level_id].pfpr_all[unit_id] +=
       (Model::get_mdc()->blood_slide_prevalence_by_location()[location_id] * locationPopulation);
   }
+    /* Collecting data for ADC Agent */
+    if (Model::get_config()->get_agent_parameters().get_adc_agent().is_enabled()) {
+        auto adc = Model::get_adc_agent()->adc_agent_data_by_level[level_id];
+
+        adc.current_tf_by_unit[unit_id] += Model::get_mdc()->current_tf_by_location()[location_id];
+        adc.monthly_number_of_tf_by_unit[unit_id] += Model::get_mdc()->monthly_number_of_tf_by_location()[location_id];
+        adc.accumulative_tf_by_unit[unit_id] += Model::get_mdc()->cumulative_tf_by_location()[location_id];
+        adc.accumulative_ntf_by_unit[unit_id] += Model::get_mdc()->cumulative_ntf_by_location()[location_id];
+
+        adc.tf_by_therapy_6_by_unit[unit_id] =
+            Model::get_mdc()->current_tf_by_therapy()[6];
+        adc.tf_by_therapy_7_by_unit[unit_id] =
+            Model::get_mdc()->current_tf_by_therapy()[7];
+        adc.tf_by_therapy_8_by_unit[unit_id] =
+            Model::get_mdc()->current_tf_by_therapy()[8];
+    }
 }
 
 void SQLiteValidationReporter::collect_genome_data_for_location(size_t location_id, int level_id) {
@@ -610,7 +660,12 @@ void SQLiteValidationReporter::reset_genome_data_structures(int level_id, int ve
   monthly_genome_data_by_level[level_id].occurrences_2_10.assign(vector_size,
                                                                  std::vector<int>(numGenotypes, 0));
   monthly_genome_data_by_level[level_id].weighted_occurrences.assign(
-      vector_size, std::vector<double>(numGenotypes, 0));
+  vector_size, std::vector<double>(numGenotypes, 0));
+
+    /* For ADC Agent */
+    if (Model::get_config()->get_agent_parameters().get_adc_agent().is_enabled()) {
+        Model::get_adc_agent()->reset_adc_data(level_id, vector_size);
+    }
 }
 
 void SQLiteValidationReporter::collect_genome_data_for_a_person(Person* person, int unit_id,
@@ -734,8 +789,11 @@ void SQLiteValidationReporter::monthly_report_genome_data(int monthId) {
           Model::get_scheduler()->current_time());
       continue;
     }
-
     insert_monthly_genome_data(level_id, insert_values);
+
+    if (Model::get_config()->get_agent_parameters().get_adc_agent().is_enabled()) {
+      Model::get_adc_agent()->finalize_month_580Y_freq(level_id,numGenotypes,monthly_genome_data_by_level);
+    }
   }
 }
 

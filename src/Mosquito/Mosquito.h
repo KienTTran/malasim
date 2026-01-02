@@ -16,9 +16,6 @@ public:
   Mosquito& operator=(const Mosquito &) = delete;
 
 public:
-  Model *model { nullptr };
-
-public:
     std::map<int,double> drug_id_min_ec50;
     typedef std::pair<std::vector<std::string>,std::vector<int>> resistant_drug_info;
     std::vector<resistant_drug_info> resistant_drug_list = {resistant_drug_info{{"DHA-PPQ:2-2"},{0,3}},

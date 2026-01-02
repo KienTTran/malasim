@@ -21,6 +21,7 @@
 #include "StrategyParameters.h"
 #include "TherapyParameters.h"
 #include "TransmissionSettings.h"
+#include "AgentParameters.h"
 
 class Config {
 public:
@@ -104,6 +105,7 @@ public:
   [[nodiscard]] MosquitoParameters &get_mosquito_parameters() { return mosquito_parameters_; }
   [[nodiscard]] PopulationEvents &get_population_events() { return population_events_; }
   [[nodiscard]] RaptSettings &get_rapt_settings() { return rapt_settings_; }
+  [[nodiscard]] const AgentParameters &get_agent_parameters() const { return agent_parameters_; }
 
   // Make relevant getters virtual for mocking
   [[nodiscard]] size_t number_of_locations() const;
@@ -151,6 +153,7 @@ private:
   MosquitoParameters mosquito_parameters_;
   PopulationEvents population_events_;
   RaptSettings rapt_settings_;
+  AgentParameters agent_parameters_;
 };
 
 #endif  // CONFIG_H

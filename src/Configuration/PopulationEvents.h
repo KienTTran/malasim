@@ -5,10 +5,12 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <sstream>
 
 #include "Events/Environment/EnvironmentEventBuilder.h"
 #include "Events/Population/PopulationEventBuilder.h"
 #include "date/date.h"
+#include "Utils/YamlFile.h"
 
 class PopulationEvents {
 public:
@@ -58,6 +60,7 @@ private:
 
 // Conversion functions inside namespace YAML
 namespace YAML {
+
 
 template <>
 struct convert<PopulationEvents::EventInfo> {

@@ -9,7 +9,7 @@ public:
   struct MaSimAppInput {
     std::string input_path{"input.yml"};
     std::string output_path;
-    std::string reporter;
+    std::vector<std::string> reporters; // allow multiple reporters via CLI
     int verbosity{0};
     int job_number{0};
     int replicate{1};
@@ -97,7 +97,7 @@ public:
   void set_input_path(const std::string &input_path) { cli_input_.input_path = input_path; }
   [[nodiscard]] int get_job_number() const { return cli_input_.job_number; }
   [[nodiscard]] int get_replicate() const { return cli_input_.replicate; }
-  [[nodiscard]] std::string get_reporter() const { return cli_input_.reporter; }
+  [[nodiscard]] const std::vector<std::string>& get_reporters() const { return cli_input_.reporters; }
   [[nodiscard]] std::string get_output_path() const { return cli_input_.output_path; }
   void set_output_path(const std::string &output_path) { cli_input_.output_path = output_path; }
   [[nodiscard]] int get_verbosity() const { return cli_input_.verbosity; }
@@ -119,7 +119,9 @@ public:
 
     app.add_option("-o,--output", input.output_path, "Output path. Default: `./`.");
 
-    app.add_option("-r,--reporter", input.reporter, "Reporter type. Default: `MonthlyReporter`.");
+    // Allow specifying multiple reporters: -r rep1 -r rep2 ...
+    app.add_option("-r,--reporter", input.reporters, "Reporter type(s). Can be supplied multiple times or as a space-separated list.")
+        ->expected(-1);
 
     app.add_option("-v,--verbosity", input.verbosity,
                    "Sets the verbosity of the logging. Default: 0");

@@ -18,6 +18,8 @@
 #include "Treatment/Strategies/IStrategy.h"
 #include "Treatment/Therapies/DrugDatabase.h"
 
+#include "Agents/AdaptiveCyclingAgent.h"
+
 namespace Spatial {
 class Location;
 }
@@ -66,6 +68,8 @@ private:
   std::vector<std::unique_ptr<Reporter>> reporters_;
   std::vector<std::unique_ptr<IStrategy>> strategy_db_;
   std::vector<std::unique_ptr<Therapy>> therapy_db_;
+
+  std::unique_ptr<AdaptiveCyclingAgent> adaptive_cycling_agent_{nullptr};
 
   IStrategy* treatment_strategy_{nullptr};
 
@@ -163,6 +167,10 @@ public:
 
   static IStrategy* get_treatment_strategy();
   void set_treatment_strategy(const int &strategy_id);
+
+  static AdaptiveCyclingAgent* get_adc_agent() {
+    return get_instance()->adaptive_cycling_agent_.get();
+  }
 
   void build_initial_treatment_coverage();
   void monthly_report();

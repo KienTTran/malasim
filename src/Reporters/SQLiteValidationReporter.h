@@ -27,6 +27,7 @@ public:
 protected:
   bool enable_cell_level_reporting{false};
 
+public:
   struct MonthlySiteData {
     std::vector<double> eir, pfpr_under5, pfpr2to10, pfpr_all;
     std::vector<int> population, clinical_episodes, treatments, treatment_failures,
@@ -48,6 +49,7 @@ protected:
     std::vector<std::vector<ul>> recrudescence_treatment_by_age;
   };
 
+public:
   struct MonthlyGenomeData {
     std::vector<std::vector<int>> occurrences;
     std::vector<std::vector<int>> clinical_occurrences;
