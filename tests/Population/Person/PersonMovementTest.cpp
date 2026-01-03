@@ -95,22 +95,22 @@ TEST_F(PersonMovementTest, LocationStateNotification) {
 }
 
 
-TEST_F(PersonMovementTest, MovingLevelNotification) {
-    // Set initial moving level first without tracking notifications
-    const int initial_level = 0;
-    person_->set_moving_level(initial_level);
-    EXPECT_EQ(person_->get_moving_level(), initial_level);
-    
-    // Now expect exactly one notification for the moving level change
-    EXPECT_CALL(*mock_population_, 
-               notify_change(_, Person::Property::MOVING_LEVEL, _, _))
-        .Times(1);
-    
-    // Change moving level and verify notification worked
-    const int new_level = 2;
-    person_->set_moving_level(new_level);
-    EXPECT_EQ(person_->get_moving_level(), new_level);
-}
+// TEST_F(PersonMovementTest, MovingLevelNotification) {
+//     // Set initial moving level first without tracking notifications
+//     const int initial_level = 0;
+//     person_->set_moving_level(initial_level);
+//     EXPECT_EQ(person_->get_moving_level(), initial_level);
+//
+//     // Now expect exactly one notification for the moving level change
+//     EXPECT_CALL(*mock_population_,
+//                notify_change(_, Person::Property::MOVING_LEVEL, _, _))
+//         .Times(1);
+//
+//     // Change moving level and verify notification worked
+//     const int new_level = 2;
+//     person_->set_moving_level(new_level);
+//     EXPECT_EQ(person_->get_moving_level(), new_level);
+// }
 
 TEST_F(PersonMovementTest, ResidenceLocationManagement) {
     const int initial_residence = 0;

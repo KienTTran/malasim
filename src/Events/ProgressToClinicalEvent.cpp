@@ -133,21 +133,15 @@ void ProgressToClinicalEvent::do_execute() {
 }
 
 void ProgressToClinicalEvent::transition_to_clinical_state(Person* person) {
-  // const auto density =
-  //     Model::get_random()->random_uniform<double>(Model::get_config()
-  //                                                     ->get_parasite_parameters()
-  //                                                     .get_parasite_density_levels()
-  //                                                     .get_log_parasite_density_clinical_from(),
-  //                                                 Model::get_config()
-  //                                                     ->get_parasite_parameters()
-  //                                                     .get_parasite_density_levels()
-  //                                                     .get_log_parasite_density_clinical_to());
-
   const auto density =
-    Model::get_config()
-        ->get_parasite_parameters()
-        .get_parasite_density_levels()
-        .get_log_parasite_density_clinical_to();
+      Model::get_random()->random_uniform<double>(Model::get_config()
+                                                      ->get_parasite_parameters()
+                                                      .get_parasite_density_levels()
+                                                      .get_log_parasite_density_clinical_from(),
+                                                  Model::get_config()
+                                                      ->get_parasite_parameters()
+                                                      .get_parasite_density_levels()
+                                                      .get_log_parasite_density_clinical_to());
 
   clinical_caused_parasite_->set_last_update_log10_parasite_density(density);
 
@@ -198,13 +192,12 @@ void ProgressToClinicalEvent::transition_to_clinical_state(Person* person) {
 
   if (should_receive_treatment(person)) {
     if ((Model::get_scheduler()->current_time()
-         - person->get_latest_time_received_public_treatment())
+         - person->get_latest_time_received_treatment())
         < 30) {
       const auto [therapy, is_public_sector] = determine_therapy(person, true);
       // record 1 treatement for recrudescence
       Model::get_mdc()->record_1_recrudescence_treatment(person->get_location(), person->get_age(),
                                                          person->get_age_class(), therapy->get_id());
-
       apply_therapy(person, therapy, is_public_sector);
     } else {
       // this is normal routine for clinical cases

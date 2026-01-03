@@ -268,6 +268,7 @@ void Person::receive_therapy(Therapy* therapy, ClonalParasitePopulation* clinica
   }
 
   last_therapy_id_ = therapy->get_id();
+  latest_time_received_treatment_ = Model::get_scheduler()->current_time();
   if (is_public_sector) {
     latest_time_received_public_treatment_ = Model::get_scheduler()->current_time();
   }
