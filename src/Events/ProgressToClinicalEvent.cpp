@@ -133,15 +133,20 @@ void ProgressToClinicalEvent::do_execute() {
 }
 
 void ProgressToClinicalEvent::transition_to_clinical_state(Person* person) {
-  const auto density =
-      Model::get_random()->random_uniform<double>(Model::get_config()
+  // const auto density =
+  //     Model::get_random()->random_uniform<double>(Model::get_config()
+  //                                                     ->get_parasite_parameters()
+  //                                                     .get_parasite_density_levels()
+  //                                                     .get_log_parasite_density_clinical_from(),
+  //                                                 Model::get_config()
+  //                                                     ->get_parasite_parameters()
+  //                                                     .get_parasite_density_levels()
+  //                                                     .get_log_parasite_density_clinical_to());
+
+  const auto density = Model::get_config()
                                                       ->get_parasite_parameters()
                                                       .get_parasite_density_levels()
-                                                      .get_log_parasite_density_clinical_from(),
-                                                  Model::get_config()
-                                                      ->get_parasite_parameters()
-                                                      .get_parasite_density_levels()
-                                                      .get_log_parasite_density_clinical_to());
+                                                      .get_log_parasite_density_clinical_to();
 
   clinical_caused_parasite_->set_last_update_log10_parasite_density(density);
 
