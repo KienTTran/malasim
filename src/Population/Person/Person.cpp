@@ -872,6 +872,7 @@ void Person::schedule_clinical_recurrence_event(ClonalParasitePopulation* parasi
   // Schedule the new event
   auto event = std::make_unique<ProgressToClinicalEvent>(this);
   event->set_time(new_event_time);
+  event->set_is_recurrence(true);
   event->set_clinical_caused_parasite(parasite);
   schedule_basic_event(std::move(event));
 }

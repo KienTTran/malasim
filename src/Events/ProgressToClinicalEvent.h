@@ -46,6 +46,14 @@ public:
   void apply_therapy(Person* person, Therapy* therapy, bool is_public_sector = true);
 
 private:
+  bool is_recurrence_ = false;
+
+public:
+  void set_is_recurrence(bool v) { is_recurrence_ = v; }
+  bool is_recurrence() const { return is_recurrence_; }
+
+
+private:
   ClonalParasitePopulation* clinical_caused_parasite_{nullptr};
   void do_execute() override;
 };
