@@ -388,8 +388,11 @@ void Person::determine_symptomatic_recrudescence(
 
     const auto is_young_children = get_age() <= 6;
 
+    // const auto probability_develop_symptom =
+    //     calculate_symptomatic_recrudescence_probability(pfpr, is_young_children);
+
     const auto probability_develop_symptom =
-        calculate_symptomatic_recrudescence_probability(pfpr, is_young_children);
+        get_probability_progress_to_clinical();
 
     if (random_p <= probability_develop_symptom) {
 
