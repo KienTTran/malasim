@@ -133,20 +133,15 @@ void ProgressToClinicalEvent::do_execute() {
 }
 
 void ProgressToClinicalEvent::transition_to_clinical_state(Person* person) {
-  // const auto density =
-  //     Model::get_random()->random_uniform<double>(Model::get_config()
-  //                                                     ->get_parasite_parameters()
-  //                                                     .get_parasite_density_levels()
-  //                                                     .get_log_parasite_density_clinical_from(),
-  //                                                 Model::get_config()
-  //                                                     ->get_parasite_parameters()
-  //                                                     .get_parasite_density_levels()
-  //                                                     .get_log_parasite_density_clinical_to());
-
-  const auto density = Model::get_config()
+  const auto density =
+      Model::get_random()->random_uniform<double>(Model::get_config()
                                                       ->get_parasite_parameters()
                                                       .get_parasite_density_levels()
-                                                      .get_log_parasite_density_clinical_to();
+                                                      .get_log_parasite_density_clinical_from(),
+                                                  Model::get_config()
+                                                      ->get_parasite_parameters()
+                                                      .get_parasite_density_levels()
+                                                      .get_log_parasite_density_clinical_to());
 
   clinical_caused_parasite_->set_last_update_log10_parasite_density(density);
 
@@ -195,53 +190,53 @@ void ProgressToClinicalEvent::transition_to_clinical_state(Person* person) {
   Model::get_mdc()->collect_1_clinical_episode(person->get_location(), person->get_age(),
                                                person->get_age_class());
 
-  // if (should_receive_treatment(person)) {
-  //   if ((Model::get_scheduler()->current_time()
-  //        - person->get_latest_time_received_treatment())
-  //       < 30) {
-  //     const auto [therapy, is_public_sector] = determine_therapy(person, true);
-  //     // record 1 treatement for recrudescence
-  //     Model::get_mdc()->record_1_recrudescence_treatment(person->get_location(), person->get_age(),
-  //                                                        person->get_age_class(), therapy->get_id());
-  //     apply_therapy(person, therapy, is_public_sector);
-  //   } else {
-  //     // this is normal routine for clinical cases
-  //     const auto [therapy, is_public_sector] = determine_therapy(person, false);
-  //
-  //     Model::get_mdc()->record_1_treatment(person->get_location(), person->get_age(),
-  //                                          person->get_age_class(), therapy->get_id());
-  //
-  //     person->schedule_test_treatment_failure_event(
-  //         clinical_caused_parasite_,
-  //         Model::get_config()->get_therapy_parameters().get_tf_testing_day(), therapy->get_id());
-  //     apply_therapy(person, therapy, is_public_sector);
-  //   }
-  // } else {
-  //   // not recieve treatment
-  //   // Model::get_mdc()->record_1_non_treated_case(person->get_location(), person->get_age(),
-  //   // person->get_age_class());
-  //
-  //   handle_no_treatment(person);
-  // }
-
   if (should_receive_treatment(person)) {
-    const auto [therapy, is_public_sector] = determine_therapy(person, is_recurrence_);
-
-    if (is_recurrence_) {
-      Model::get_mdc()->record_1_recrudescence_treatment(
-          person->get_location(), person->get_age(), person->get_age_class(), therapy->get_id());
+    if ((Model::get_scheduler()->current_time()
+         - person->get_latest_time_received_public_treatment())
+        < 54) {
+      const auto [therapy, is_public_sector] = determine_therapy(person, true);
+      // record 1 treatement for recrudescence
+      Model::get_mdc()->record_1_recrudescence_treatment(person->get_location(), person->get_age(),
+                                                         person->get_age_class(), therapy->get_id());
       apply_therapy(person, therapy, is_public_sector);
     } else {
-      Model::get_mdc()->record_1_treatment(
-          person->get_location(), person->get_age(), person->get_age_class(), therapy->get_id());
+      // this is normal routine for clinical cases
+      const auto [therapy, is_public_sector] = determine_therapy(person, false);
+
+      Model::get_mdc()->record_1_treatment(person->get_location(), person->get_age(),
+                                           person->get_age_class(), therapy->get_id());
+
       person->schedule_test_treatment_failure_event(
           clinical_caused_parasite_,
           Model::get_config()->get_therapy_parameters().get_tf_testing_day(), therapy->get_id());
       apply_therapy(person, therapy, is_public_sector);
     }
   } else {
+    // not recieve treatment
+    // Model::get_mdc()->record_1_non_treated_case(person->get_location(), person->get_age(),
+    // person->get_age_class());
+
     handle_no_treatment(person);
   }
+
+  // if (should_receive_treatment(person)) {
+  //   const auto [therapy, is_public_sector] = determine_therapy(person, is_recurrence_);
+  //
+  //   if (is_recurrence_) {
+  //     Model::get_mdc()->record_1_recrudescence_treatment(
+  //         person->get_location(), person->get_age(), person->get_age_class(), therapy->get_id());
+  //     apply_therapy(person, therapy, is_public_sector);
+  //   } else {
+  //     Model::get_mdc()->record_1_treatment(
+  //         person->get_location(), person->get_age(), person->get_age_class(), therapy->get_id());
+  //     person->schedule_test_treatment_failure_event(
+  //         clinical_caused_parasite_,
+  //         Model::get_config()->get_therapy_parameters().get_tf_testing_day(), therapy->get_id());
+  //     apply_therapy(person, therapy, is_public_sector);
+  //   }
+  // } else {
+  //   handle_no_treatment(person);
+  // }
 
   // schedule end clinical event for both treatment and non-treatment cases
   person->schedule_end_clinical_event(clinical_caused_parasite_);

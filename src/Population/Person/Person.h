@@ -183,13 +183,6 @@ public:
     latest_time_received_public_treatment_ = latest_time_received_public_treatment;
   }
 
-  [[nodiscard]] int get_latest_time_received_treatment() const {
-    return latest_time_received_treatment_;
-  }
-  void set_latest_time_received_treatment(int latest_time_received_treatment) {
-    latest_time_received_treatment_ = latest_time_received_treatment;
-  }
-
   [[nodiscard]] RecurrenceStatus get_recurrence_status() const { return recurrence_status_; }
   void set_recurrence_status(RecurrenceStatus recurrence_status) {
     recurrence_status_ = recurrence_status;
@@ -334,7 +327,6 @@ private:
   std::unique_ptr<DrugsInBlood> drugs_in_blood_{nullptr};
   Genotype* liver_parasite_type_{nullptr};
   int latest_time_received_public_treatment_{-30};
-  int latest_time_received_treatment_ {-30};
   RecurrenceStatus recurrence_status_{RecurrenceStatus::NONE};
   EventManager<PersonEvent> event_manager_;
 
