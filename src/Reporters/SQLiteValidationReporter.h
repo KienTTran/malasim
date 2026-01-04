@@ -47,6 +47,7 @@ public:
     std::vector<ul> current_foi_by_location;
     std::vector<std::vector<ul>> recrudescence_treatment_by_age_class;
     std::vector<std::vector<ul>> recrudescence_treatment_by_age;
+    std::vector<double> tf_by_therapy;
   };
 
 public:
