@@ -43,6 +43,7 @@ protected:
     std::vector<ul> total_number_of_bites_by_location;
     std::vector<ul> total_number_of_bites_by_location_year;
     std::vector<ul> person_days_by_location_year;
+    std::vector<ul> current_foi_by_location;
     std::vector<std::vector<ul>> recrudescence_treatment_by_age_class;
     std::vector<std::vector<ul>> recrudescence_treatment_by_age;
   };

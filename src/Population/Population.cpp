@@ -498,8 +498,8 @@ void Population::perform_birth_event() {
     for (auto i = 0; i < number_of_births; i++) {
       give_1_birth(loc);
       // spdlog::info("1 birth");
-      // Model::get_mdc()->update_person_days_by_years(
-      //     loc, Constants::DAYS_IN_YEAR - Model::get_scheduler()->get_current_day_in_year());
+      Model::get_mdc()->update_person_days_by_years(
+          loc, Constants::DAYS_IN_YEAR - Model::get_scheduler()->get_current_day_in_year());
     }
   }
   //    std::cout << "End Birth Event" << std::endl;

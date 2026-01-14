@@ -191,27 +191,37 @@ void ProgressToClinicalEvent::transition_to_clinical_state(Person* person) {
                                                person->get_age_class());
 
   if (should_receive_treatment(person)) {
-    if ((Model::get_scheduler()->current_time()
-         - person->get_latest_time_received_public_treatment())
-        < 30) {
-      const auto [therapy, is_public_sector] = determine_therapy(person, true);
-      // record 1 treatement for recrudescence
-      Model::get_mdc()->record_1_recrudescence_treatment(person->get_location(), person->get_age(),
-                                                         person->get_age_class(), 0);
+    // if ((Model::get_scheduler()->current_time()
+    //      - person->get_latest_time_received_public_treatment())
+    //     < 30) {
+    //   const auto [therapy, is_public_sector] = determine_therapy(person, true);
+    //   // record 1 treatement for recrudescence
+    //   Model::get_mdc()->record_1_recrudescence_treatment(person->get_location(), person->get_age(),
+    //                                                      person->get_age_class(), 0);
+    //
+    //   apply_therapy(person, therapy, is_public_sector);
+    //     } else {
+    //       // this is normal routine for clinical cases
+    //       const auto [therapy, is_public_sector] = determine_therapy(person, false);
+    //
+    //       Model::get_mdc()->record_1_treatment(person->get_location(), person->get_age(),
+    //                                            person->get_age_class(), therapy->get_id());
+    //
+    //       person->schedule_test_treatment_failure_event(
+    //           clinical_caused_parasite_,
+    //           Model::get_config()->get_therapy_parameters().get_tf_testing_day(), therapy->get_id());
+    //       apply_therapy(person, therapy, is_public_sector);
+    // }
+    // this is normal routine for clinical cases
+    const auto [therapy, is_public_sector] = determine_therapy(person, false);
 
-      apply_therapy(person, therapy, is_public_sector);
-    } else {
-      // this is normal routine for clinical cases
-      const auto [therapy, is_public_sector] = determine_therapy(person, false);
+    Model::get_mdc()->record_1_treatment(person->get_location(), person->get_age(),
+                                         person->get_age_class(), therapy->get_id());
 
-      Model::get_mdc()->record_1_treatment(person->get_location(), person->get_age(),
-                                           person->get_age_class(), therapy->get_id());
-
-      person->schedule_test_treatment_failure_event(
-          clinical_caused_parasite_,
-          Model::get_config()->get_therapy_parameters().get_tf_testing_day(), therapy->get_id());
-      apply_therapy(person, therapy, is_public_sector);
-    }
+    person->schedule_test_treatment_failure_event(
+        clinical_caused_parasite_,
+        Model::get_config()->get_therapy_parameters().get_tf_testing_day(), therapy->get_id());
+    apply_therapy(person, therapy, is_public_sector);
   } else {
     // not recieve treatment
     // Model::get_mdc()->record_1_non_treated_case(person->get_location(), person->get_age(),
