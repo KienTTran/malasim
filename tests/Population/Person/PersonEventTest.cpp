@@ -31,7 +31,7 @@ class PersonInternalEventTest : public ::testing::Test {
 protected:
     void SetUp() override {
         // Set the input path to the config file
-        utils::Cli::get_instance().set_input_path("../../sample_inputs/input.yml");
+        utils::Cli::get_instance().set_input_path("sample_inputs/input.yml");
         
         // Initialize the model to load the config
         ASSERT_TRUE(Model::get_instance()->initialize());
