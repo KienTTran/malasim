@@ -31,11 +31,6 @@ jobs:
       - name: Setup vcpkg (no install yet)
         uses: lukka/run-vcpkg@v11
 
-      - name: Copy test input files
-        run: |
-          mkdir -p build/ci/bin/sample_inputs
-          cp -rf sample_inputs/* build/ci/bin/sample_inputs/
-
       - name: List files for debugging
         run: |
           pwd
