@@ -9,7 +9,7 @@ protected:
     PopulationEvents population_events;
 
     void SetUp() override {
-        utils::Cli::get_instance().set_input_path("../../sample_inputs/input.yml");
+        utils::Cli::get_instance().set_input_path("sample_inputs/input.yml");
         Model::get_instance()->initialize();
         // Set up default PopulationEvents
 

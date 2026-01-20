@@ -29,23 +29,23 @@ protected:
 };
 
 TEST_F(GenotypeTest, ConstructorAndGetAaSequence) {
-    std::string aa_seq = read_first_genotype_from_yaml("../../sample_inputs/input.yml");
+    std::string aa_seq = read_first_genotype_from_yaml("sample_inputs/input.yml");
     Genotype g(aa_seq);
     EXPECT_EQ(g.get_aa_sequence(), aa_seq);
 }
 
 TEST_F(GenotypeTest, SetAndGetGenotypeId) {
-    std::string aa_seq = read_first_genotype_from_yaml("../../sample_inputs/input.yml");
+    std::string aa_seq = read_first_genotype_from_yaml("sample_inputs/input.yml");
     Genotype g(aa_seq);
     g.set_genotype_id(123);
     EXPECT_EQ(g.genotype_id(), 123);
 }
 
 TEST_F(GenotypeTest, MatchPattern) {
-    std::string aa_seq = read_first_genotype_from_yaml("../../sample_inputs/input.yml");
+    std::string aa_seq = read_first_genotype_from_yaml("sample_inputs/input.yml");
     Genotype g(aa_seq);
     EXPECT_TRUE(g.match_pattern(aa_seq));
-    std::string override_pattern = read_override_pattern_from_yaml("../../sample_inputs/input.yml");
+    std::string override_pattern = read_override_pattern_from_yaml("sample_inputs/input.yml");
     EXPECT_TRUE(g.match_pattern(override_pattern));
 }
 

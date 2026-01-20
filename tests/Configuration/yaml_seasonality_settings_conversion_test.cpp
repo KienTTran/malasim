@@ -16,11 +16,11 @@ protected:
         equation->set_raster(true);
 
         auto rainfall = std::make_unique<SeasonalRainfall>();
-        rainfall->set_filename("../../sample_inputs/dev_seasonality.csv");
+        rainfall->set_filename("sample_inputs/dev_seasonality.csv");
         rainfall->set_period(365);
 
         auto pattern = std::make_unique<SeasonalPattern>();
-        pattern->set_filename("../../sample_inputs/dev_seasonality_pattern.csv");
+        pattern->set_filename("sample_inputs/dev_seasonality_pattern.csv");
         pattern->set_period(365);
 
         default_settings.set_enable(true);
@@ -70,9 +70,9 @@ TEST_F(SeasonalitySettingsTest, DecodeSeasonalitySettings) {
     node["equation"]["b"] = std::vector<double>{0.6};
     node["equation"]["phi"] = std::vector<int>{146};
     node["equation"]["raster"] = true;
-    node["rainfall"]["filename"] = "../../sample_inputs/dev_seasonality.csv";
+    node["rainfall"]["filename"] = "sample_inputs/dev_seasonality.csv";
     node["rainfall"]["period"] = 365;
-    node["pattern"]["filename"] = "../../sample_inputs/dev_seasonality_pattern.csv";
+    node["pattern"]["filename"] = "sample_inputs/dev_seasonality_pattern.csv";
     node["pattern"]["period"] = 365;
 
     SeasonalitySettings decoded_settings;
@@ -81,13 +81,13 @@ TEST_F(SeasonalitySettingsTest, DecodeSeasonalitySettings) {
 
     if (decoded_settings.get_mode() == "rainfall") {
       auto decoded_rainfall = decoded_settings.get_seasonal_rainfall();
-      EXPECT_EQ(decoded_rainfall->get_filename(), "../../sample_inputs/dev_seasonality.csv");
+      EXPECT_EQ(decoded_rainfall->get_filename(), "sample_inputs/dev_seasonality.csv");
       EXPECT_EQ(decoded_rainfall->get_period(), 365);
     }
 
     if (decoded_settings.get_mode() == "pattern") {
       auto decoded_pattern = decoded_settings.get_seasonal_pattern();
-      EXPECT_EQ(decoded_pattern->get_filename(), "../../sample_inputs/dev_seasonality_pattern.csv");
+      EXPECT_EQ(decoded_pattern->get_filename(), "sample_inputs/dev_seasonality_pattern.csv");
       EXPECT_EQ(decoded_pattern->get_period(), 365);
     }
 
