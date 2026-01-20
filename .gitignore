@@ -39,3 +39,5 @@ reporter\.txt
 /vcpkg/
 coverage.profdata
 default.profraw
+coverage-html/
+docs/Doxygen/

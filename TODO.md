@@ -1,10 +1,13 @@
-- Note: PersonEvent derived class should not have person_ member, use get_person() instead
-# Review 
+# Review
+
+- p_infection_from_infectious_bite there are 2 models and need to refactor to unify them.
+- transmission_parameter is not a clear name.
+
 - Check why Population initialize takes soo long.
--  RandomTest.random_multinomial_DistributionMatchesMultinomial_ChiSquaredTest sometimes failed????
+- RandomTest.random_multinomial_DistributionMatchesMultinomial_ChiSquaredTest sometimes failed????
 
 - Write test for approx_norm_cdf to compare with GSL version
--  Improve speed for RouletteTest.compare_with_multi_normial
+- Improve speed for RouletteTest.compare_with_multi_normial
 - location_based settings is not working yet
 - need rework on spatial data and the order of parsing method
 - review void MosquitoParameters::process_config_using_locations(std::vector<Spatial::Location>& locations)
@@ -28,6 +31,7 @@
 - add number of recurrence treatments to reporter
 
 # Unittest
+
 - ImmuneSystem
 
 - If there is an old test failed. Try Model::get_instance()->initialize()
