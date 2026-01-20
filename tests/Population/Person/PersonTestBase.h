@@ -101,8 +101,8 @@ protected:
     original_model_->set_scheduler(std::make_unique<MockScheduler>());
     mock_scheduler_ = static_cast<MockScheduler*>(original_model_->get_scheduler());
     // Initialize scheduler to prevent uninitialized calendar_date_ access
-    mock_scheduler_->initialize(date::year_month_day{date::year{2000}/1/1}, 
-                                date::year_month_day{date::year{2010}/12/31});
+    mock_scheduler_->initialize(date::year_month_day{date::year{2000}, date::month{1}, date::day{1}}, 
+                                date::year_month_day{date::year{2010}, date::month{12}, date::day{31}});
 
     // Set MDC to nullptr to avoid accessing scheduler in Person::set_location
     original_model_->set_mdc(nullptr);
