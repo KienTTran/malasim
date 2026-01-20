@@ -41,3 +41,4 @@ coverage.profdata
 default.profraw
 coverage-html/
 docs/Doxygen/
+vcpkg_installed
