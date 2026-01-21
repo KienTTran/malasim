@@ -3,13 +3,15 @@
 #include "Configuration/PopulationEvents.h"  // Assuming this is the correct include path
 #include "Simulation/Model.h"
 #include "Utils/Cli.h"
+#include "fixtures/TestFileGenerators.h"
 
 class PopulationEventsTest : public ::testing::Test {
 protected:
     PopulationEvents population_events;
 
     void SetUp() override {
-        utils::Cli::get_instance().set_input_path("sample_inputs/input.yml");
+        test_fixtures::setup_test_environment();
+        utils::Cli::get_instance().set_input_path("test_input.yml");
         Model::get_instance()->initialize();
         // Set up default PopulationEvents
 
@@ -24,6 +26,10 @@ protected:
 
         // Adding event to PopulationEvents
         population_events.set_events_raw({population_event});
+    }
+
+    void TearDown() override {
+        test_fixtures::cleanup_test_files();
     }
 };
 

@@ -26,12 +26,16 @@
 #include "Events/ReturnToResidenceEvent.h"
 #include "Events/CirculateToTargetLocationNextDayEvent.h"
 #include "Events/TestTreatmentFailureEvent.h"
+#include "fixtures/TestFileGenerators.h"
 
 class PersonInternalEventTest : public ::testing::Test {
 protected:
     void SetUp() override {
+        // Set up test environment
+        test_fixtures::setup_test_environment();
+        
         // Set the input path to the config file
-        utils::Cli::get_instance().set_input_path("sample_inputs/input.yml");
+        utils::Cli::get_instance().set_input_path("test_input.yml");
         
         // Initialize the model to load the config
         ASSERT_TRUE(Model::get_instance()->initialize());
@@ -72,6 +76,7 @@ protected:
     void TearDown() override {
         // Clean up
         person_.reset();
+        test_fixtures::cleanup_test_files();
     }
     
     // Helper method to create a parasite for testing
