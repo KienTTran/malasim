@@ -92,6 +92,45 @@ inline void create_test_district_raster(
 }
 
 /**
+ * @brief Generate a raster with only 2 locations (for tests that assume 2 locations)
+ * Creates 10x10 raster with data in only 2 cells
+ */
+inline void create_test_raster_2_locations(
+    const std::string& filename,
+    double default_value = 100.0,
+    double nodata_value = -9999.0) {
+  
+  std::ofstream file(filename);
+  if (!file.is_open()) {
+    throw std::runtime_error("Failed to create test raster file: " + filename);
+  }
+
+  file << "ncols 10\n";
+  file << "nrows 10\n";
+  file << "xllcorner 0.0\n";
+  file << "yllcorner 0.0\n";
+  file << "cellsize 5000\n";
+  file << "NODATA_value " << nodata_value << "\n";
+
+  // Create 10x10 raster with only 2 data cells (locations 0 and 1)
+  for (int row = 0; row < 10; ++row) {
+    for (int col = 0; col < 10; ++col) {
+      if (row == 1 && col == 2) {
+        file << default_value;  // Location 0
+      } else if (row == 4 && col == 5) {
+        file << default_value;  // Location 1
+      } else {
+        file << nodata_value;
+      }
+      if (col < 9) file << " ";
+    }
+    file << "\n";
+  }
+
+  file.close();
+}
+
+/**
  * @brief Generate seasonality CSV file
  */
 inline void create_test_seasonality_file(const std::string& filename) {
