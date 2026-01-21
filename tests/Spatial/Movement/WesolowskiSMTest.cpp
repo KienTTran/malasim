@@ -3,15 +3,17 @@
 
 #include "Simulation/Model.h"
 #include "Utils/Cli.h"
+#include "fixtures/TestFileGenerators.h"
 #include "Spatial/Movement/WesolowskiSM.hxx"
 #include "Utils/TypeDef.h"
 
 class WesolowskiSMTest : public ::testing::Test {
 protected:
   void SetUp() override {
+    test_fixtures::setup_test_environment();
     // Initialize Model configuration
     Model::get_instance()->release();
-    utils::Cli::get_instance().set_input_path("sample_inputs/input.yml");
+    utils::Cli::get_instance().set_input_path("test_input.yml");
     Model::get_instance()->initialize();
     
     // Create a WesolowskiSM with specific parameters
@@ -24,6 +26,7 @@ protected:
 
   void TearDown() override {
     model.reset();
+    test_fixtures::cleanup_test_files();
   }
 
   // Test parameters

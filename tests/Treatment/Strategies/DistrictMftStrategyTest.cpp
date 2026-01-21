@@ -8,12 +8,14 @@
 #include "Simulation/Model.h"
 #include "Spatial/GIS/SpatialData.h"
 #include "Utils/Cli.h"
+#include "fixtures/TestFileGenerators.h"
 
 class DistrictMftStrategyTest : public ::testing::Test {
 protected:
   void SetUp() override {
+    test_fixtures::setup_test_environment();
     Model::get_instance()->release();
-    utils::Cli::get_instance().set_input_path("sample_inputs/input.yml");
+    utils::Cli::get_instance().set_input_path("test_input.yml");
     Model::get_instance()->initialize();
     
     // Create strategy
@@ -46,6 +48,7 @@ protected:
     person2.reset();
     person1.reset();
     strategy.reset();
+    test_fixtures::cleanup_test_files();
   }
   
   // Helper to create MFT strategy for a district

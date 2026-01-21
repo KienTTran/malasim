@@ -10,13 +10,15 @@
 #include "Core/Scheduler/Scheduler.h"
 #include "Simulation/Model.h"
 #include "Utils/Cli.h"
+#include "fixtures/TestFileGenerators.h"
 #include "Utils/TypeDef.h"
 
 class NestedMFTMultiLocationStrategyTest : public ::testing::Test {
 protected:
   void SetUp() override {
+    test_fixtures::setup_test_environment();
     Model::get_instance()->release();
-    utils::Cli::get_instance().set_input_path("sample_inputs/input.yml");
+    utils::Cli::get_instance().set_input_path("test_input.yml");
     Model::get_instance()->initialize();
     
     // Create nested strategy
@@ -89,6 +91,7 @@ protected:
     mft_strategy.reset();
     sft_strategy.reset();
     nested_strategy.reset();
+    test_fixtures::cleanup_test_files();
   }
   
   // Add child strategies to the nested strategy

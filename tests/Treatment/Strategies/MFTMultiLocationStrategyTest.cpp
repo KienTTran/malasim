@@ -9,13 +9,15 @@
 #include "Simulation/Model.h"
 #include "Configuration/Config.h"
 #include "Utils/Cli.h"
+#include "fixtures/TestFileGenerators.h"
 #include "Utils/TypeDef.h"
 
 class MFTMultiLocationStrategyTest : public ::testing::Test {
 protected:
   void SetUp() override {
+    test_fixtures::setup_test_environment();
     Model::get_instance()->release();
-    utils::Cli::get_instance().set_input_path("sample_inputs/input.yml");
+    utils::Cli::get_instance().set_input_path("test_input.yml");
     Model::get_instance()->initialize();
     
     // Create strategy
@@ -70,6 +72,7 @@ protected:
     person_loc0.reset();
     therapies.clear();
     strategy.reset();
+    test_fixtures::cleanup_test_files();
   }
   
   // Add all therapies to the strategy
