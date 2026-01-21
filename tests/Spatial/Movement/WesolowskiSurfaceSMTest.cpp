@@ -3,15 +3,25 @@
 
 #include "Simulation/Model.h"
 #include "Utils/Cli.h"
+#include "fixtures/TestFileGenerators.h"
 #include "Spatial/Movement/WesolowskiSurfaceSM.h"
 #include "Utils/TypeDef.h"
 
 class WesolowskiSurfaceSMTest : public ::testing::Test {
 protected:
   void SetUp() override {
+    test_fixtures::setup_test_environment();
+    
+    // This test assumes 2 locations, recreate rasters with only 2 locations
+    test_fixtures::create_test_raster_2_locations("test_init_pop.asc", 1000.0);
+    test_fixtures::create_test_raster_2_locations("test_beta.asc", 0.5);
+    test_fixtures::create_test_raster_2_locations("test_treatment.asc", 0.6);
+    test_fixtures::create_test_raster_2_locations("test_ecozone.asc", 1.0);
+    test_fixtures::create_test_raster_2_locations("test_travel.asc", 0.2);
+    
     // Initialize Model configuration
     Model::get_instance()->release();
-    utils::Cli::get_instance().set_input_path("sample_inputs/input.yml");
+    utils::Cli::get_instance().set_input_path("test_input.yml");
     Model::get_instance()->initialize();
     
     // Create a WesolowskiSurfaceSM with specific parameters
@@ -29,6 +39,7 @@ protected:
 
   void TearDown() override {
     model.reset();
+    test_fixtures::cleanup_test_files();
   }
 
   // Test parameters

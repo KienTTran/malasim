@@ -5,12 +5,14 @@
 #include "Simulation/Model.h"
 #include "Treatment/LinearTCM.h"
 #include "Utils/Cli.h"
+#include "fixtures/TestFileGenerators.h"
 
 class LinearTCMTest : public ::testing::Test {
 protected:
   void SetUp() override {
+    test_fixtures::setup_test_environment();
     Model::get_instance()->release();
-    utils::Cli::get_instance().set_input_path("sample_inputs/input.yml");
+    utils::Cli::get_instance().set_input_path("test_input.yml");
     Model::get_instance()->initialize();
     
     tcm = std::make_unique<LinearTCM>();
@@ -31,6 +33,7 @@ protected:
 
   void TearDown() override {
     tcm.reset();
+    test_fixtures::cleanup_test_files();
   }
 
   std::unique_ptr<LinearTCM> tcm;

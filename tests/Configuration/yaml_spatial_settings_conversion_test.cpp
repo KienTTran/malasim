@@ -2,6 +2,7 @@
 #include <yaml-cpp/yaml.h>
 
 #include "Configuration/SpatialSettings/SpatialSettings.h"
+#include "fixtures/InMemoryYamlConfig.h"
 
 // Helper function to compare std::vector<double>
 template <typename T>
@@ -17,10 +18,11 @@ protected:
   void SetUp() override {
     default_settings.set_mode("grid_based");
 
-    grid.population_raster = "sample_inputs/kag_init_pop.asc";
-    grid.p_treatment_under_5_raster = "sample_inputs/kag_treatment.asc";
-    grid.p_treatment_over_5_raster = "sample_inputs/kag_treatment.asc";
-    grid.beta_raster = "sample_inputs/kag_beta_r1.asc";
+    // Use mock raster file paths instead of sample_inputs
+    grid.population_raster = "test_pop.asc";
+    grid.p_treatment_under_5_raster = "test_treatment.asc";
+    grid.p_treatment_over_5_raster = "test_treatment.asc";
+    grid.beta_raster = "test_beta.asc";
     grid.cell_size = 5.0;
     grid.age_distribution_by_location = {{0.0378, 0.0378, 0.0378, 0.0378, 0.0282, 0.0282, 0.0282,
                                           0.0282, 0.0282, 0.029,  0.029,  0.029,  0.029,  0.029,
@@ -91,15 +93,15 @@ TEST(SpatialSettingsDecodeTest, DecodeSpatialSettingsModeAndNode) {
 // Test decoding functionality for GridBased settings
 TEST(SpatialSettingsDecodeTest, DecodeGridBasedSettings) {
   YAML::Node node;
-  node["population_raster"] = "sample_inputs/kag_init_pop.asc";
+  node["population_raster"] = "test_pop.asc";
   node["administrative_boundaries"][0]["name"] = "district";
-  node["administrative_boundaries"][0]["raster"] = "sample_inputs/kag_district.asc";
+  node["administrative_boundaries"][0]["raster"] = "test_district.asc";
   node["administrative_boundaries"][1]["name"] = "region";
-  node["administrative_boundaries"][1]["raster"] = "sample_inputs/kag_region.asc";
-  node["p_treatment_under_5_raster"] = "sample_inputs/kag_treatment.asc";
-  node["p_treatment_over_5_raster"] = "sample_inputs/kag_treatment.asc";
-  node["beta_raster"] = "sample_inputs/kag_beta_r1.asc";
-  node["ecoclimatic_raster"] = "sample_inputs/eco.asc";  // Add test for this field
+  node["administrative_boundaries"][1]["raster"] = "test_region.asc";
+  node["p_treatment_under_5_raster"] = "test_treatment.asc";
+  node["p_treatment_over_5_raster"] = "test_treatment.asc";
+  node["beta_raster"] = "test_beta.asc";
+  node["ecoclimatic_raster"] = "test_eco.asc";
   node["cell_size"] = 5.0;
   std::vector<std::vector<double>> age_dist = {
       {0.0378, 0.0378, 0.0378, 0.0378, 0.0282, 0.0282, 0.0282, 0.0282, 0.0282, 0.029, 0.029,
@@ -109,18 +111,18 @@ TEST(SpatialSettingsDecodeTest, DecodeGridBasedSettings) {
   SpatialSettings::GridBased grid_settings;
   EXPECT_TRUE(YAML::convert<SpatialSettings::GridBased>::decode(node, grid_settings));
 
-  EXPECT_EQ(grid_settings.population_raster, "sample_inputs/kag_init_pop.asc");
-  EXPECT_EQ(grid_settings.p_treatment_under_5_raster, "sample_inputs/kag_treatment.asc");
-  EXPECT_EQ(grid_settings.p_treatment_over_5_raster, "sample_inputs/kag_treatment.asc");
-  EXPECT_EQ(grid_settings.beta_raster, "sample_inputs/kag_beta_r1.asc");
-  EXPECT_EQ(grid_settings.ecoclimatic_raster, "sample_inputs/eco.asc");
+  EXPECT_EQ(grid_settings.population_raster, "test_pop.asc");
+  EXPECT_EQ(grid_settings.p_treatment_under_5_raster, "test_treatment.asc");
+  EXPECT_EQ(grid_settings.p_treatment_over_5_raster, "test_treatment.asc");
+  EXPECT_EQ(grid_settings.beta_raster, "test_beta.asc");
+  EXPECT_EQ(grid_settings.ecoclimatic_raster, "test_eco.asc");
   EXPECT_EQ(grid_settings.cell_size, 5.0);
 
   ASSERT_EQ(grid_settings.administrative_boundaries.size(), 2);
   EXPECT_EQ(grid_settings.administrative_boundaries[0].name, "district");
-  EXPECT_EQ(grid_settings.administrative_boundaries[0].raster, "sample_inputs/kag_district.asc");
+  EXPECT_EQ(grid_settings.administrative_boundaries[0].raster, "test_district.asc");
   EXPECT_EQ(grid_settings.administrative_boundaries[1].name, "region");
-  EXPECT_EQ(grid_settings.administrative_boundaries[1].raster, "sample_inputs/kag_region.asc");
+  EXPECT_EQ(grid_settings.administrative_boundaries[1].raster, "test_region.asc");
 
   ASSERT_EQ(grid_settings.age_distribution_by_location.size(), 1);
   CompareVectors(grid_settings.age_distribution_by_location[0], age_dist[0], age_dist[0].size());

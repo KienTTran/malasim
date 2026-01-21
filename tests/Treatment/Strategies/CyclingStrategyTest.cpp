@@ -8,12 +8,14 @@
 #include "Core/Scheduler/Scheduler.h"
 #include "Simulation/Model.h"
 #include "Utils/Cli.h"
+#include "fixtures/TestFileGenerators.h"
 
 class CyclingStrategyTest : public ::testing::Test {
 protected:
   void SetUp() override {
+    test_fixtures::setup_test_environment();
     Model::get_instance()->release();
-    utils::Cli::get_instance().set_input_path("sample_inputs/input.yml");
+    utils::Cli::get_instance().set_input_path("test_input.yml");
     Model::get_instance()->initialize();
     
     // Create strategy
@@ -45,6 +47,7 @@ protected:
     therapy2.reset();
     therapy1.reset();
     strategy.reset();
+    test_fixtures::cleanup_test_files();
   }
 
   std::unique_ptr<CyclingStrategy> strategy;

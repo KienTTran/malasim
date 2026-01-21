@@ -21,6 +21,7 @@
 #include "Events/ReceiveTherapyEvent.h"
 #include "Events/ProgressToClinicalEvent.h"
 #include "Utils/Constants.h"
+#include "fixtures/TestFileGenerators.h"
 
 /**
  * Test class for testing the recrudescence functionality in the Person class.
@@ -29,8 +30,11 @@
 class PersonRecrudescenceTest : public ::testing::Test {
 protected:
     void SetUp() override {
+        // Set up test environment
+        test_fixtures::setup_test_environment();
+        
         // Set the input path to the config file
-        utils::Cli::get_instance().set_input_path("sample_inputs/input.yml");
+        utils::Cli::get_instance().set_input_path("test_input.yml");
         
         // Initialize the model to load the config
         ASSERT_TRUE(Model::get_instance()->initialize());
@@ -56,6 +60,8 @@ protected:
         person_.reset();
         genotype_.reset();
         clinical_parasite_.reset();
+        
+        test_fixtures::cleanup_test_files();
     }
     
     // Helper method to set up a person with specific age and drugs

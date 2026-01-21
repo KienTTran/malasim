@@ -1,12 +1,20 @@
 #include "gtest/gtest.h"
 #include "Parasites/Genotype.h"
+#include "fixtures/TestFileGenerators.h"
 #include <string>
 #include <fstream>
 #include <yaml-cpp/yaml.h>
 
 class GenotypeTest : public ::testing::Test {
 protected:
-    void SetUp() override {}
+    void SetUp() override {
+        test_fixtures::setup_test_environment();
+    }
+    
+    void TearDown() override {
+        test_fixtures::cleanup_test_files();
+    }
+    
     std::string read_first_genotype_from_yaml(const std::string& yaml_path) {
         YAML::Node config = YAML::LoadFile(yaml_path);
         const auto& initial_info = config["initial_parasite_info"];
@@ -29,23 +37,23 @@ protected:
 };
 
 TEST_F(GenotypeTest, ConstructorAndGetAaSequence) {
-    std::string aa_seq = read_first_genotype_from_yaml("sample_inputs/input.yml");
+    std::string aa_seq = read_first_genotype_from_yaml("test_input.yml");
     Genotype g(aa_seq);
     EXPECT_EQ(g.get_aa_sequence(), aa_seq);
 }
 
 TEST_F(GenotypeTest, SetAndGetGenotypeId) {
-    std::string aa_seq = read_first_genotype_from_yaml("sample_inputs/input.yml");
+    std::string aa_seq = read_first_genotype_from_yaml("test_input.yml");
     Genotype g(aa_seq);
     g.set_genotype_id(123);
     EXPECT_EQ(g.genotype_id(), 123);
 }
 
 TEST_F(GenotypeTest, MatchPattern) {
-    std::string aa_seq = read_first_genotype_from_yaml("sample_inputs/input.yml");
+    std::string aa_seq = read_first_genotype_from_yaml("test_input.yml");
     Genotype g(aa_seq);
     EXPECT_TRUE(g.match_pattern(aa_seq));
-    std::string override_pattern = read_override_pattern_from_yaml("sample_inputs/input.yml");
+    std::string override_pattern = read_override_pattern_from_yaml("test_input.yml");
     EXPECT_TRUE(g.match_pattern(override_pattern));
 }
 

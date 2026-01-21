@@ -13,12 +13,16 @@
 #include "Treatment/Therapies/Drug.h"
 #include "Utils/Cli.h"
 #include "Utils/Constants.h"
+#include "fixtures/TestFileGenerators.h"
 
 class PersonGenerateIndividualTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        // Set the input path to the config file
-        utils::Cli::get_instance().set_input_path("sample_inputs/input.yml");
+        // Generate test files from template
+        test_fixtures::create_complete_test_environment();
+        
+        // Set the input path to the generated test config file
+        utils::Cli::get_instance().set_input_path("test_input.yml");
         
         // Initialize the model to load the config
         ASSERT_TRUE(Model::get_instance()->initialize());
@@ -30,6 +34,7 @@ protected:
     void TearDown() override {
         // Clean up
         person_.reset();
+        test_fixtures::cleanup_test_files();
     }
 
     std::unique_ptr<Person> person_;

@@ -10,12 +10,14 @@
 #include "Treatment/Therapies/Drug.h"
 #include "Treatment/Therapies/DrugType.h"
 #include "Utils/Cli.h"
+#include "fixtures/TestFileGenerators.h"
 
 class DrugsInBloodTest : public ::testing::Test {
 protected:
   void SetUp() override {
+    test_fixtures::setup_test_environment();
     Model::get_instance()->release();
-    utils::Cli::get_instance().set_input_path("sample_inputs/input.yml");
+    utils::Cli::get_instance().set_input_path("test_input.yml");
     Model::get_instance()->initialize();
     person_ = std::make_unique<Person>();
     drugs_in_blood_ = std::make_unique<DrugsInBlood>(person_.get());
@@ -26,6 +28,7 @@ protected:
     drugs_in_blood_.reset();
     person_.reset();
     drug_types_.clear();
+    test_fixtures::cleanup_test_files();
   }
 
   std::unique_ptr<Person> person_;

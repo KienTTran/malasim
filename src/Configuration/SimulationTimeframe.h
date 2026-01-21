@@ -1,3 +1,6 @@
+#ifndef SIMULATION_TIMEFRAME_H
+#define SIMULATION_TIMEFRAME_H
+
 #include <Utils/Helpers/TimeHelpers.h>
 #include <yaml-cpp/yaml.h>
 #include <date/date.h>
@@ -122,3 +125,5 @@ struct YAML::convert<SimulationTimeframe> {
     return true;
   }
 };
+
+#endif  // SIMULATION_TIMEFRAME_H
