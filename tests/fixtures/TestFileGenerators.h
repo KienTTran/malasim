@@ -47,6 +47,51 @@ inline void create_test_raster_file(
 }
 
 /**
+ * @brief Generate a district raster with multiple district IDs
+ * Creates 3 districts (IDs 1, 2, 3) for proper testing
+ */
+inline void create_test_district_raster(
+    const std::string& filename,
+    int ncols = 10,
+    int nrows = 10,
+    double nodata_value = -9999.0) {
+  
+  std::ofstream file(filename);
+  if (!file.is_open()) {
+    throw std::runtime_error("Failed to create test district raster: " + filename);
+  }
+
+  file << "ncols " << ncols << "\n";
+  file << "nrows " << nrows << "\n";
+  file << "xllcorner 0.0\n";
+  file << "yllcorner 0.0\n";
+  file << "cellsize 5000\n";
+  file << "NODATA_value " << nodata_value << "\n";
+
+  // Create 3 districts in different areas
+  // District 1: top-left corner
+  // District 2: bottom-left corner  
+  // District 3: bottom-right corner
+  for (int row = 0; row < nrows; ++row) {
+    for (int col = 0; col < ncols; ++col) {
+      if (row < 2 && col < 2) {
+        file << "1";  // District 1
+      } else if (row >= nrows - 2 && col < 2) {
+        file << "2";  // District 2
+      } else if (row >= nrows - 2 && col >= ncols - 2) {
+        file << "3";  // District 3
+      } else {
+        file << nodata_value;
+      }
+      if (col < ncols - 1) file << " ";
+    }
+    file << "\n";
+  }
+
+  file.close();
+}
+
+/**
  * @brief Generate seasonality CSV file
  */
 inline void create_test_seasonality_file(const std::string& filename) {
@@ -92,11 +137,17 @@ inline void create_raster_files_from_yaml(const YAML::Node& config) {
       create_test_raster_file(grid["travel_raster"].as<std::string>(), 10, 10, 0.1);
     }
     
-    // Administrative boundaries
+    // Administrative boundaries - use special district raster generator
     if (grid["administrative_boundaries"]) {
       for (const auto& boundary : grid["administrative_boundaries"]) {
         if (boundary["raster"]) {
-          create_test_raster_file(boundary["raster"].as<std::string>(), 10, 10, 1.0);
+          std::string raster_path = boundary["raster"].as<std::string>();
+          // Check if it's a district raster and use special generator
+          if (raster_path.find("district") != std::string::npos) {
+            create_test_district_raster(raster_path, 10, 10);
+          } else {
+            create_test_raster_file(raster_path, 10, 10, 1.0);
+          }
         }
       }
     }
@@ -128,6 +179,45 @@ inline void create_raster_files_from_yaml(const YAML::Node& config) {
 }
 
 /**
+ * @brief Clean up all generated test files
+ * Removes all test_* files to ensure clean state
+ */
+inline void cleanup_test_files() {
+  // Remove common test files explicitly
+  std::vector<std::string> files = {
+    "test_input.yml",
+    "test_init_pop.asc",
+    "test_district.asc",
+    "test_treatment.asc",
+    "test_beta.asc",
+    "test_beta_r1.asc",
+    "test_ecozone.asc",
+    "test_travel.asc",
+    "test_mosquito_ifr.asc",
+    "test_mosquito_size.asc",
+    "test_seasonality.csv",
+    "test_seasonality_pattern.csv",
+    "test_pop.asc",
+    "test_population.asc"
+  };
+
+  for (const auto& file : files) {
+    std::filesystem::remove(file);
+  }
+  
+  // Also remove any .db files
+  std::error_code ec;
+  for (const auto& entry : std::filesystem::directory_iterator(".", ec)) {
+    if (entry.is_regular_file()) {
+      std::string filename = entry.path().filename().string();
+      if (filename.ends_with(".db")) {
+        std::filesystem::remove(entry.path(), ec);
+      }
+    }
+  }
+}
+
+/**
  * @brief Setup test environment from template
  * @param output_filename Output YAML filename (default: "test_input.yml")
  * @param modify_callback Optional callback to modify config before writing
@@ -136,6 +226,9 @@ inline void create_raster_files_from_yaml(const YAML::Node& config) {
 inline YAML::Node setup_test_environment(
     const std::string& output_filename = "test_input.yml",
     std::function<void(YAML::Node&)> modify_callback = nullptr) {
+  
+  // Clean up any leftover test files from previous runs
+  cleanup_test_files();
   
   // Find and load template
   std::vector<std::string> template_paths = {
@@ -179,31 +272,6 @@ inline YAML::Node setup_test_environment(
   create_raster_files_from_yaml(config);
   
   return config;
-}
-
-/**
- * @brief Clean up all generated test files
- */
-inline void cleanup_test_files() {
-  // Remove common test files
-  std::vector<std::string> files = {
-    "test_input.yml",
-    "test_init_pop.asc",
-    "test_district.asc",
-    "test_treatment.asc",
-    "test_beta.asc",
-    "test_beta_r1.asc",
-    "test_ecozone.asc",
-    "test_travel.asc",
-    "test_mosquito_ifr.asc",
-    "test_mosquito_size.asc",
-    "test_seasonality.csv",
-    "test_seasonality_pattern.csv"
-  };
-
-  for (const auto& file : files) {
-    std::filesystem::remove(file);
-  }
 }
 
 /**

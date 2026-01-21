@@ -49,12 +49,6 @@ target_link_libraries(malasim_test PRIVATE
 
 set_property(TARGET malasim_test PROPERTY CXX_STANDARD 20)
 
-# Copy sample_inputs folder to binary dir for tests needing input files
-add_custom_command(TARGET malasim_test POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${PROJECT_SOURCE_DIR}/sample_inputs
-        $<TARGET_FILE_DIR:malasim_test>/sample_inputs)
-
 # Copy test_input_template.yml to binary dir for programmatic test generation
 add_custom_command(TARGET malasim_test POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy
