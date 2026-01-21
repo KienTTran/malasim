@@ -1,12 +1,13 @@
 #include <gtest/gtest.h>
+
 #include <memory>
 #include <vector>
 
 #include "Simulation/Model.h"
-#include "Utils/Cli.h"
-#include "fixtures/TestFileGenerators.h"
 #include "Spatial/Movement/BurkinaFasoSM.h"
+#include "Utils/Cli.h"
 #include "Utils/TypeDef.h"
+#include "fixtures/TestFileGenerators.h"
 
 class BurkinaFasoSMTest : public ::testing::Test {
 protected:
@@ -16,7 +17,7 @@ protected:
     Model::get_instance()->release();
     utils::Cli::get_instance().set_input_path("test_input.yml");
     Model::get_instance()->initialize();
-    
+
     // Set up test parameters
     tau = 0.5;
     alpha = 0.3;
@@ -24,24 +25,21 @@ protected:
     capital = 0.4;
     penalty = 0.6;
     number_of_locations = 3;
-    
+
     // Create a simple distance matrix for testing
-    spatial_distance_matrix = {
-      {0.0, 10.0, 20.0},
-      {10.0, 0.0, 15.0},
-      {20.0, 15.0, 0.0}
-    };
-    
+    spatial_distance_matrix = {{0.0, 10.0, 20.0}, {10.0, 0.0, 15.0}, {20.0, 15.0, 0.0}};
+
     // Create the model
-    model = std::make_unique<Spatial::BurkinaFasoSM>(
-        tau, alpha, rho, capital, penalty, number_of_locations, spatial_distance_matrix);
-    
+    model = std::make_unique<Spatial::BurkinaFasoSM>(tau, alpha, rho, capital, penalty,
+                                                     number_of_locations, spatial_distance_matrix);
+
     // Prepare the model
     model->prepare();
   }
 
   void TearDown() override {
     model.reset();
+    Model::get_instance()->release();
     test_fixtures::cleanup_test_files();
   }
 
@@ -75,10 +73,10 @@ TEST_F(BurkinaFasoSMTest, CalculateMovementToSameLocation) {
   const int from_location = 0;
   const std::vector<double> relative_distance_vector = {0.0, 10.0, 20.0};
   const std::vector<int> residents_by_location = {1000, 2000, 3000};
-  
+
   auto movement = model->get_v_relative_out_movement_to_destination(
       from_location, number_of_locations, relative_distance_vector, residents_by_location);
-  
+
   // Movement to same location should be 0
   EXPECT_DOUBLE_EQ(movement[0], 0.0);
 }
@@ -88,17 +86,15 @@ TEST_F(BurkinaFasoSMTest, CalculateMovementPattern) {
   const int from_location = 0;
   const std::vector<double> relative_distance_vector = {0.0, 10.0, 20.0};
   const std::vector<int> residents_by_location = {1000, 2000, 3000};
-  
+
   auto movement = model->get_v_relative_out_movement_to_destination(
       from_location, number_of_locations, relative_distance_vector, residents_by_location);
-  
+
   // Movement vector should have correct size
   EXPECT_EQ(movement.size(), number_of_locations);
-  
+
   // Movement values should be non-negative
-  for (const auto &value : movement) {
-    EXPECT_GE(value, 0.0);
-  }
+  for (const auto &value : movement) { EXPECT_GE(value, 0.0); }
 }
 
 TEST_F(BurkinaFasoSMTest, UpdateParameters) {
@@ -108,19 +104,19 @@ TEST_F(BurkinaFasoSMTest, UpdateParameters) {
   const double new_rho = 1.2;
   const double new_capital = 1.4;
   const double new_penalty = 1.6;
-  
+
   model->set_tau(new_tau);
   model->set_alpha(new_alpha);
   model->set_rho(new_rho);
   model->set_capital(new_capital);
   model->set_penalty(new_penalty);
-  
+
   EXPECT_DOUBLE_EQ(model->get_tau(), new_tau);
   EXPECT_DOUBLE_EQ(model->get_alpha(), new_alpha);
   EXPECT_DOUBLE_EQ(model->get_rho(), new_rho);
   EXPECT_DOUBLE_EQ(model->get_capital(), new_capital);
   EXPECT_DOUBLE_EQ(model->get_penalty(), new_penalty);
-  
+
   // After parameter updates, prepare needs to be called again
   EXPECT_NO_THROW(model->prepare());
 }
