@@ -7,12 +7,14 @@
 #include "Treatment/Therapies/DrugDatabase.h"
 #include "Simulation/Model.h"
 #include "Utils/Cli.h"
+#include "fixtures/TestFileGenerators.h"
 
 class TherapyTest : public ::testing::Test {
 protected:
   void SetUp() override {
+    test_fixtures::setup_test_environment();
     Model::get_instance()->release();
-    utils::Cli::get_instance().set_input_path("sample_inputs/input.yml");
+    utils::Cli::get_instance().set_input_path("test_input.yml");
     Model::get_instance()->initialize();
     
     // Create a therapy
@@ -29,6 +31,7 @@ protected:
     therapy.reset();
     
     // Model cleanup will handle drug_db cleanup
+    test_fixtures::cleanup_test_files();
   }
   
   void setup_drug_database() {
