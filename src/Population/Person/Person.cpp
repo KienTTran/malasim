@@ -142,15 +142,23 @@ ClonalParasitePopulation* Person::add_new_parasite_to_blood(Genotype* parasite_t
   return raw_ptr;
 }
 
-double Person::relative_infectivity(const double& log10_parasite_density) {
+double Person::relative_infectivity(const double &log10_parasite_density) {
   if (log10_parasite_density == ClonalParasitePopulation::LOG_ZERO_PARASITE_DENSITY) return 0.0;
 
   // this sigma has already taken 'ln' and 'log10' into account
-  const auto d_n = (log10_parasite_density * Model::get_config()->get_epidemiological_parameters().get_relative_infectivity().get_sigma())
-                   + Model::get_config()->get_epidemiological_parameters().get_relative_infectivity().get_ro_star();
+  const auto d_n = (log10_parasite_density
+                    * Model::get_config()
+                          ->get_epidemiological_parameters()
+                          .get_relative_infectivity()
+                          .get_sigma())
+                   + Model::get_config()
+                         ->get_epidemiological_parameters()
+                         .get_relative_infectivity()
+                         .get_ro_star();
   const auto p = Model::get_random()->cdf_standard_normal_distribution(d_n);
 
-  return (p * p) + 0.01;
+  const auto return_value = (p * p) + 0.01;
+  return return_value > 1.0 ? 1.0 : return_value;
 }
 
 double Person::get_probability_progress_to_clinical() {
@@ -381,18 +389,17 @@ void Person::determine_symptomatic_recrudescence(
     ClonalParasitePopulation* clinical_caused_parasite) {
   const auto random_p = Model::get_random()->random_flat(0.0, 1.0);
 
-    /* Instead of getting prob. from the calculate_symptomatic_recrudescence_probability
-     * which is depends on pfpr, use the one from immunity.
-    */
-    const auto pfpr = Model::get_mdc()->blood_slide_prevalence_by_location()[location_] * 100;
+  /* Instead of getting prob. from the calculate_symptomatic_recrudescence_probability
+   * which is depends on pfpr, use the one from immunity.
+   */
+  const auto pfpr = Model::get_mdc()->blood_slide_prevalence_by_location()[location_] * 100;
 
-    const auto is_young_children = get_age() <= 6;
+  const auto is_young_children = get_age() <= 6;
 
-    const auto probability_develop_symptom =
-        calculate_symptomatic_recrudescence_probability(pfpr, is_young_children);
+  const auto probability_develop_symptom =
+      calculate_symptomatic_recrudescence_probability(pfpr, is_young_children);
 
-    if (random_p <= probability_develop_symptom) {
-
+  if (random_p <= probability_develop_symptom) {
     /* UNCOMMENT THE LINE BELOW TO DISABLE THE SYMPTOMATIC RECRUDESCENCE */
     // if (1.1 <= get_probability_progress_to_clinical()) {
 
@@ -770,8 +777,8 @@ void Person::increase_age_by_1_year() { set_age(age_ + 1); }
 PersonEvent* Person::schedule_basic_event(std::unique_ptr<PersonEvent> event) {
   event->set_person(this);
   if (event->get_time() < Model::get_scheduler()->current_time()) {
-    spdlog::error("Event time is less than current time {} < {}",
-      event->get_time(), Model::get_scheduler()->current_time());
+    spdlog::error("Event time is less than current time {} < {}", event->get_time(),
+                  Model::get_scheduler()->current_time());
     throw std::invalid_argument("Event time is less than current time");
   }
 
@@ -842,27 +849,25 @@ void Person::schedule_clinical_recurrence_event(ClonalParasitePopulation* parasi
   int new_event_time = calculate_future_time(days_to_clinical);
 
   // Log if similar event is already scheduled within ±7 days
-  for (const auto& [time, existing_event] : get_events()) {
+  for (const auto &[time, existing_event] : get_events()) {
     auto* end_clinical_event = dynamic_cast<EndClinicalEvent*>(existing_event.get());
     if (end_clinical_event != nullptr) {
       int end_clinical_existing_time = end_clinical_event->get_time();
       if (new_event_time <= end_clinical_existing_time) {
         spdlog::info(
             "Model time {}, schedule recurrence event at time {}, clinical end event at time {}",
-            Model::get_scheduler()->current_time(),new_event_time,end_clinical_existing_time);
+            Model::get_scheduler()->current_time(), new_event_time, end_clinical_existing_time);
       }
     }
     auto* existing_progress_event = dynamic_cast<ProgressToClinicalEvent*>(existing_event.get());
     if (existing_progress_event != nullptr) {
       int existing_time = existing_progress_event->get_time();
-      if (std::abs(existing_time - new_event_time) <= 7
-        && (new_event_time != existing_time)
-        && existing_progress_event->is_executable()) {
+      if (std::abs(existing_time - new_event_time) <= 7 && (new_event_time != existing_time)
+          && existing_progress_event->is_executable()) {
         Model::get_mdc()->progress_to_clinical_in_7d_counter[location_].total++;
         if (existing_progress_event->clinical_caused_parasite() == parasite) {
           Model::get_mdc()->progress_to_clinical_in_7d_counter[location_].recrudescence++;
-        }
-        else {
+        } else {
           Model::get_mdc()->progress_to_clinical_in_7d_counter[location_].new_infection++;
         }
       }
@@ -874,7 +879,6 @@ void Person::schedule_clinical_recurrence_event(ClonalParasitePopulation* parasi
   event->set_clinical_caused_parasite(parasite);
   schedule_basic_event(std::move(event));
 }
-
 
 void Person::schedule_test_treatment_failure_event(ClonalParasitePopulation* parasite,
                                                    int testing_day, int therapy_id) {
@@ -972,9 +976,11 @@ int Person::calculate_future_time(int days_from_now) {
   return Model::get_scheduler()->current_time() + days_from_now;
 }
 
-void Person::schedule_relapse_event(ClonalParasitePopulation* clinical_caused_parasite, const int& time_until_relapse) {
+void Person::schedule_relapse_event(ClonalParasitePopulation* clinical_caused_parasite,
+                                    const int &time_until_relapse) {
   int duration = Model::get_random()->random_normal(time_until_relapse, 15);
-  duration = std::min<int>(std::max<int>(duration, time_until_relapse - 15), time_until_relapse + 15);
+  duration =
+      std::min<int>(std::max<int>(duration, time_until_relapse - 15), time_until_relapse + 15);
   auto event = std::make_unique<ProgressToClinicalEvent>(this);
   event->set_clinical_caused_parasite(clinical_caused_parasite);
   event->set_time(Model::get_scheduler()->current_time() + duration);
@@ -991,16 +997,27 @@ void Person::determine_relapse_or_not(ClonalParasitePopulation* clinical_caused_
       clinical_caused_parasite->set_update_function(Model::progress_to_clinical_update_function());
       // std::cout<<"\t\tPerson::determine_relapse_or_not relapse" << std::endl;
       clinical_caused_parasite->set_last_update_log10_parasite_density(
-          Model::get_config()->get_parasite_parameters().get_parasite_density_levels().get_log_parasite_density_asymptomatic());
-      schedule_relapse_event(clinical_caused_parasite, Model::get_config()->get_epidemiological_parameters().get_relapse_duration());
+          Model::get_config()
+              ->get_parasite_parameters()
+              .get_parasite_density_levels()
+              .get_log_parasite_density_asymptomatic());
+      schedule_relapse_event(
+          clinical_caused_parasite,
+          Model::get_config()->get_epidemiological_parameters().get_relapse_duration());
 
     } else {
       // progress to clearance
       if (clinical_caused_parasite->last_update_log10_parasite_density()
-          > Model::get_config()->get_parasite_parameters().get_parasite_density_levels().get_log_parasite_density_asymptomatic()) {
+          > Model::get_config()
+                ->get_parasite_parameters()
+                .get_parasite_density_levels()
+                .get_log_parasite_density_asymptomatic()) {
         clinical_caused_parasite->set_last_update_log10_parasite_density(
-            Model::get_config()->get_parasite_parameters().get_parasite_density_levels().get_log_parasite_density_asymptomatic());
-          }
+            Model::get_config()
+                ->get_parasite_parameters()
+                .get_parasite_density_levels()
+                .get_log_parasite_density_asymptomatic());
+      }
       clinical_caused_parasite->set_update_function(Model::immunity_clearance_update_function());
     }
   }

@@ -65,33 +65,29 @@ target_link_libraries(MalaSimCore PRIVATE
 
 set_property(TARGET MalaSimCore PROPERTY CXX_STANDARD 20)
 
-# Add the main executable
-add_executable(MalaSim
-    malasim/main.cpp
-)
+# Only build main executable if coverage is disabled
+if(NOT ENABLE_COVERAGE)
+  # Add the main executable
+  add_executable(MalaSim
+      malasim/main.cpp
+  )
 
-add_dependencies(MalaSim MalaSimCore)
+  add_dependencies(MalaSim MalaSimCore)
 
-if(ENABLE_COVERAGE)
-  message(STATUS "LLVM Code coverage enabled for malasim_test")
-  # Add flags for compiling the test executable itself
-  target_compile_options(MalaSim PRIVATE -fprofile-instr-generate -fcoverage-mapping)
-  # Add flags needed during linking
-  target_link_options(MalaSim PRIVATE -fprofile-instr-generate)
+  # Link the core library and fmt to the main executable
+  target_link_libraries(MalaSim PRIVATE
+    MalaSimCore
+    fmt::fmt-header-only
+    GSL::gsl GSL::gslcblas
+    yaml-cpp::yaml-cpp
+    spdlog::spdlog
+    date::date date::date-tz
+    CLI11::CLI11
+    unofficial::sqlite3::sqlite3
+  )
+
+  set_property(TARGET MalaSim PROPERTY CXX_STANDARD 20)
 endif()
-# Link the core library and fmt to the main executable
-target_link_libraries(MalaSim PRIVATE
-  MalaSimCore
-  fmt::fmt-header-only
-  GSL::gsl GSL::gslcblas
-  yaml-cpp::yaml-cpp
-  spdlog::spdlog
-  date::date date::date-tz
-  CLI11::CLI11
-  unofficial::sqlite3::sqlite3
-)
-
-set_property(TARGET MalaSim PROPERTY CXX_STANDARD 20)
 
 # Get full GitHub repository path (e.g., username/repo-name)
 execute_process(

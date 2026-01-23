@@ -23,5 +23,9 @@ enable_testing()
 # Add subdirectories
 add_subdirectory(src)
 add_subdirectory(tests)
-add_subdirectory(EfficacyEstimator)
+
+# Only build EfficacyEstimator if coverage is disabled
+if(NOT ENABLE_COVERAGE)
+  add_subdirectory(EfficacyEstimator)
+endif()
 
