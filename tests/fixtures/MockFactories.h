@@ -97,6 +97,7 @@ public:
   MOCK_METHOD(int, random_normal_int, (int mean, double standard_deviation), (override));
   MOCK_METHOD(double, random_flat, (double, double), (override));
   MOCK_METHOD(uint64_t, random_uniform, (uint64_t), (override));
+  MOCK_METHOD(double, cdf_standard_normal_distribution, (double value), (override));
 };
 
 // ============================================================================

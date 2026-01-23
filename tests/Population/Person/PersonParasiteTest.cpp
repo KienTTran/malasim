@@ -153,40 +153,50 @@ TEST_F(PersonParasiteTest, RelativeInfectivity) {
 }
 
 TEST_F(PersonParasiteTest, RelativeInfectivityWithLowDensity) {
-    // Test with low parasite density
+    // Test with low parasite density - mock CDF to return a low value
+    EXPECT_CALL(*mock_random_, cdf_standard_normal_distribution(::testing::_))
+        .WillOnce(::testing::Return(0.4));
+    
     const double log10_parasite_density = 1.0;  // 10 parasites
     double infectivity = Person::relative_infectivity(log10_parasite_density);
     
-    // The result is p^2 + 0.01 where p is CDF of standard normal distribution
-    // p is in [0, 1], so result is in [0.01, 1.01]
-    EXPECT_GE(infectivity, 0.01);
-    EXPECT_LE(infectivity, 1.01);
+    // Expected: (0.4 * 0.4) + 0.01 = 0.17
+    EXPECT_DOUBLE_EQ(infectivity, 0.17);
 }
 
 TEST_F(PersonParasiteTest, RelativeInfectivityWithMediumDensity) {
-    // Test with medium parasite density
+    // Test with medium parasite density - mock CDF to return a medium value
+    EXPECT_CALL(*mock_random_, cdf_standard_normal_distribution(::testing::_))
+        .WillOnce(::testing::Return(0.7));
+    
     const double log10_parasite_density = 3.0;  // 1000 parasites
     double infectivity = Person::relative_infectivity(log10_parasite_density);
     
-    // Result should be within valid range
-    EXPECT_GE(infectivity, 0.01);
-    EXPECT_LE(infectivity, 1.01);
+    // Expected: (0.7 * 0.7) + 0.01 = 0.5
+    EXPECT_DOUBLE_EQ(infectivity, 0.5);
 }
 
 TEST_F(PersonParasiteTest, RelativeInfectivityWithHighDensity) {
-    // Test with high parasite density
+    // Test with high parasite density - mock CDF to return a high value
+    EXPECT_CALL(*mock_random_, cdf_standard_normal_distribution(::testing::_))
+        .WillOnce(::testing::Return(0.95));
+    
     const double log10_parasite_density = 5.0;  // 100,000 parasites
     double infectivity = Person::relative_infectivity(log10_parasite_density);
     
-    // Result should be within valid range and approach maximum
-    EXPECT_GE(infectivity, 0.01);
-    EXPECT_LE(infectivity, 1.01);
-    // High density should give high infectivity (close to 1.01)
+    // Expected: (0.95 * 0.95) + 0.01 = 0.9125
+    EXPECT_DOUBLE_EQ(infectivity, 0.9125);
+    // High density should give high infectivity
     EXPECT_GT(infectivity, 0.9);
 }
 
 TEST_F(PersonParasiteTest, RelativeInfectivityMonotonicIncreasing) {
-    // Test that infectivity increases with parasite density
+    // Test that infectivity increases with parasite density using mocked CDF values
+    EXPECT_CALL(*mock_random_, cdf_standard_normal_distribution(::testing::_))
+        .WillOnce(::testing::Return(0.3))   // Low density
+        .WillOnce(::testing::Return(0.6))   // Medium density
+        .WillOnce(::testing::Return(0.9));  // High density
+    
     double density1 = -2.0;
     double density2 = 0.0;
     double density3 = 2.0;
@@ -199,13 +209,115 @@ TEST_F(PersonParasiteTest, RelativeInfectivityMonotonicIncreasing) {
     EXPECT_LT(infectivity1, infectivity2);
     EXPECT_LT(infectivity2, infectivity3);
     
-    // All should be in valid range
-    EXPECT_GE(infectivity1, 0.01);
-    EXPECT_GE(infectivity2, 0.01);
-    EXPECT_GE(infectivity3, 0.01);
-    EXPECT_LE(infectivity1, 1.01);
-    EXPECT_LE(infectivity2, 1.01);
-    EXPECT_LE(infectivity3, 1.01);
+    // Verify exact values based on mocked CDF
+    EXPECT_DOUBLE_EQ(infectivity1, (0.3 * 0.3) + 0.01);  // 0.1
+    EXPECT_DOUBLE_EQ(infectivity2, (0.6 * 0.6) + 0.01);  // 0.37
+    EXPECT_DOUBLE_EQ(infectivity3, (0.9 * 0.9) + 0.01);  // 0.82
+}
+
+TEST_F(PersonParasiteTest, RelativeInfectivityFormulaVerification) {
+    // Test exact formula: infectivity = p^2 + 0.01
+    // Mock CDF to return specific value
+    const double cdf_value = 0.5;
+    EXPECT_CALL(*mock_random_, cdf_standard_normal_distribution(::testing::_))
+        .WillOnce(::testing::Return(cdf_value));
+    
+    double infectivity = Person::relative_infectivity(1.0);
+    double expected = (cdf_value * cdf_value) + 0.01;
+    
+    EXPECT_DOUBLE_EQ(infectivity, expected);
+}
+
+TEST_F(PersonParasiteTest, RelativeInfectivityFormulaWithDifferentCDFValues) {
+    // Test formula with various CDF values
+    std::vector<double> cdf_values = {0.1, 0.3, 0.5, 0.7, 0.9, 0.99};
+    
+    for (double cdf : cdf_values) {
+        EXPECT_CALL(*mock_random_, cdf_standard_normal_distribution(::testing::_))
+            .WillOnce(::testing::Return(cdf));
+        
+        double infectivity = Person::relative_infectivity(2.0);
+        double expected = (cdf * cdf) + 0.01;
+        
+        EXPECT_DOUBLE_EQ(infectivity, expected) 
+            << "Failed for CDF value: " << cdf;
+    }
+}
+
+TEST_F(PersonParasiteTest, RelativeInfectivityDnCalculation) {
+    // Verify d_n calculation: d_n = log10_density * sigma + ro_star
+    // With default config: sigma = 3.91, ro_star = 0.00031
+    const double log10_density = 2.0;
+    const double expected_d_n = (log10_density * 3.91) + 0.00031;
+    
+    // We'll check that the CDF is called with the correct d_n value
+    EXPECT_CALL(*mock_random_, cdf_standard_normal_distribution(::testing::DoubleEq(expected_d_n)))
+        .WillOnce(::testing::Return(0.8));
+    
+    double infectivity = Person::relative_infectivity(log10_density);
+    EXPECT_DOUBLE_EQ(infectivity, (0.8 * 0.8) + 0.01);
+}
+
+TEST_F(PersonParasiteTest, RelativeInfectivityWithCustomRoStar) {
+    // Test with modified ro_star value
+    EpidemiologicalParameters epi_params = mock_config_->get_epidemiological_parameters();
+    EpidemiologicalParameters::RelativeInfectivity rel_inf = epi_params.get_relative_infectivity();
+    
+    // Change ro_star
+    rel_inf.set_ro_star(1.0);  // Set to 1.0 instead of 0.00031
+    epi_params.set_relative_infectivity(rel_inf);
+    mock_config_->set_epidemiological_parameters(epi_params);
+    
+    const double log10_density = 1.0;
+    const double sigma = 3.91;
+    const double ro_star = 1.0;
+    const double expected_d_n = (log10_density * sigma) + ro_star;  // 3.91 + 1.0 = 4.91
+    
+    EXPECT_CALL(*mock_random_, cdf_standard_normal_distribution(::testing::DoubleEq(expected_d_n)))
+        .WillOnce(::testing::Return(0.6));
+    
+    double infectivity = Person::relative_infectivity(log10_density);
+    EXPECT_DOUBLE_EQ(infectivity, (0.6 * 0.6) + 0.01);  // 0.36 + 0.01 = 0.37
+}
+
+TEST_F(PersonParasiteTest, RelativeInfectivityWithCustomSigma) {
+    // Test with modified sigma value
+    EpidemiologicalParameters epi_params = mock_config_->get_epidemiological_parameters();
+    EpidemiologicalParameters::RelativeInfectivity rel_inf = epi_params.get_relative_infectivity();
+    
+    // Change sigma
+    rel_inf.set_sigma(2.0);  // Set to 2.0 instead of 3.91
+    epi_params.set_relative_infectivity(rel_inf);
+    mock_config_->set_epidemiological_parameters(epi_params);
+    
+    const double log10_density = 3.0;
+    const double sigma = 2.0;
+    const double ro_star = 0.00031;
+    const double expected_d_n = (log10_density * sigma) + ro_star;  // 6.0 + 0.00031 = 6.00031
+    
+    EXPECT_CALL(*mock_random_, cdf_standard_normal_distribution(::testing::DoubleEq(expected_d_n)))
+        .WillOnce(::testing::Return(0.95));
+    
+    double infectivity = Person::relative_infectivity(log10_density);
+    EXPECT_DOUBLE_EQ(infectivity, (0.95 * 0.95) + 0.01);  // 0.9025 + 0.01 = 0.9125
+}
+
+TEST_F(PersonParasiteTest, RelativeInfectivityMinimumValue) {
+    // Test that minimum infectivity is 0.01 when CDF returns 0
+    EXPECT_CALL(*mock_random_, cdf_standard_normal_distribution(::testing::_))
+        .WillOnce(::testing::Return(0.0));
+    
+    double infectivity = Person::relative_infectivity(1.0);
+    EXPECT_DOUBLE_EQ(infectivity, 0.01);
+}
+
+TEST_F(PersonParasiteTest, RelativeInfectivityMaximumValue) {
+    // Test that maximum infectivity is 1.01 when CDF returns 1
+    EXPECT_CALL(*mock_random_, cdf_standard_normal_distribution(::testing::_))
+        .WillOnce(::testing::Return(1.0));
+    
+    double infectivity = Person::relative_infectivity(1.0);
+    EXPECT_DOUBLE_EQ(infectivity, 1.01);
 }
 
 TEST_F(PersonParasiteTest, ChangeStateWhenNoParasiteInBloodWhenNoParasiteInLiver) {
