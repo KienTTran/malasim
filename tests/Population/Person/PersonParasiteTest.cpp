@@ -146,17 +146,66 @@ TEST_F(PersonParasiteTest, NotGametocytaemicWhenParasiteInBloodButNoGametocytes)
     EXPECT_FALSE(person_->is_gametocytaemic());
 }
 
-// TODO: Implement this test later
 TEST_F(PersonParasiteTest, RelativeInfectivity) {
-    GTEST_SKIP() << "This test is marked for improvement later.";
-    // Test relative infectivity calculation
+    // Test relative infectivity returns 0.0 for LOG_ZERO_PARASITE_DENSITY
+    double infectivity = Person::relative_infectivity(ClonalParasitePopulation::LOG_ZERO_PARASITE_DENSITY);
+    EXPECT_DOUBLE_EQ(infectivity, 0.0);
+}
+
+TEST_F(PersonParasiteTest, RelativeInfectivityWithLowDensity) {
+    // Test with low parasite density
+    const double log10_parasite_density = 1.0;  // 10 parasites
+    double infectivity = Person::relative_infectivity(log10_parasite_density);
+    
+    // The result is p^2 + 0.01 where p is CDF of standard normal distribution
+    // p is in [0, 1], so result is in [0.01, 1.01]
+    EXPECT_GE(infectivity, 0.01);
+    EXPECT_LE(infectivity, 1.01);
+}
+
+TEST_F(PersonParasiteTest, RelativeInfectivityWithMediumDensity) {
+    // Test with medium parasite density
     const double log10_parasite_density = 3.0;  // 1000 parasites
     double infectivity = Person::relative_infectivity(log10_parasite_density);
     
-    EXPECT_GE(infectivity, 0.0);
-    EXPECT_LE(infectivity, 1.0);
-    /// make it fail
-    EXPECT_FALSE(true);
+    // Result should be within valid range
+    EXPECT_GE(infectivity, 0.01);
+    EXPECT_LE(infectivity, 1.01);
+}
+
+TEST_F(PersonParasiteTest, RelativeInfectivityWithHighDensity) {
+    // Test with high parasite density
+    const double log10_parasite_density = 5.0;  // 100,000 parasites
+    double infectivity = Person::relative_infectivity(log10_parasite_density);
+    
+    // Result should be within valid range and approach maximum
+    EXPECT_GE(infectivity, 0.01);
+    EXPECT_LE(infectivity, 1.01);
+    // High density should give high infectivity (close to 1.01)
+    EXPECT_GT(infectivity, 0.9);
+}
+
+TEST_F(PersonParasiteTest, RelativeInfectivityMonotonicIncreasing) {
+    // Test that infectivity increases with parasite density
+    double density1 = -2.0;
+    double density2 = 0.0;
+    double density3 = 2.0;
+    
+    double infectivity1 = Person::relative_infectivity(density1);
+    double infectivity2 = Person::relative_infectivity(density2);
+    double infectivity3 = Person::relative_infectivity(density3);
+    
+    // Higher density should lead to higher infectivity
+    EXPECT_LT(infectivity1, infectivity2);
+    EXPECT_LT(infectivity2, infectivity3);
+    
+    // All should be in valid range
+    EXPECT_GE(infectivity1, 0.01);
+    EXPECT_GE(infectivity2, 0.01);
+    EXPECT_GE(infectivity3, 0.01);
+    EXPECT_LE(infectivity1, 1.01);
+    EXPECT_LE(infectivity2, 1.01);
+    EXPECT_LE(infectivity3, 1.01);
 }
 
 TEST_F(PersonParasiteTest, ChangeStateWhenNoParasiteInBloodWhenNoParasiteInLiver) {

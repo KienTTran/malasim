@@ -41,6 +41,14 @@ public:
     epidemiological_parameters.set_days_to_clinical_over_five(7);
     epidemiological_parameters.set_days_mature_gametocyte_under_five(10);
     epidemiological_parameters.set_days_mature_gametocyte_over_five(14);
+    
+    // Set up relative infectivity with default values
+    EpidemiologicalParameters::RelativeInfectivity relative_infectivity;
+    relative_infectivity.set_sigma(3.91);
+    relative_infectivity.set_ro_star(0.00031);
+    relative_infectivity.set_blood_meal_volume(3.0);
+    epidemiological_parameters.set_relative_infectivity(relative_infectivity);
+    
     set_epidemiological_parameters(epidemiological_parameters);
 
     PopulationDemographic population_demographic;

@@ -24,7 +24,7 @@ test t: build
 	cd build && GTEST_COLOR=1 ctest -V $(ARGS)
 
 gtest: build
-	./build/bin/malasim_test --gtest_filter=$(filter)
+	cd build/bin && ./malasim_test --gtest_filter=$(filter)
 
 run r: build 
 	./$(APP_EXECUTABLE)
@@ -62,8 +62,8 @@ generate-gcc-12-owlsnest gog12:
 
 coverage:
 	rm -rf coverage-html
-	./build/bin/malasim_test
-	xcrun llvm-profdata merge -sparse default.profraw -o coverage.profdata
+	$(MAKE) test
+	xcrun llvm-profdata merge -sparse build/bin/default.profraw -o coverage.profdata
 	xcrun llvm-cov show ./build/bin/malasim_test -instr-profile=coverage.profdata -format=html -output-dir=coverage-html --path-equivalence=/Users/neo/Projects/temple/malasim,.
 	xcrun llvm-cov report  ./build/bin/malasim_test -instr-profile=coverage.profdata
 
