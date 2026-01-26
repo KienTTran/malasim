@@ -5,6 +5,7 @@
 #include <Utils/Helpers/TimeHelpers.h>
 #include <Utils/Random.h>
 #include <spdlog/spdlog.h>
+#include <fmt/format.h>
 
 #include <algorithm>
 #include <memory>
@@ -770,8 +771,8 @@ void Person::increase_age_by_1_year() { set_age(age_ + 1); }
 PersonEvent* Person::schedule_basic_event(std::unique_ptr<PersonEvent> event) {
   event->set_person(this);
   if (event->get_time() < Model::get_scheduler()->current_time()) {
-    spdlog::error("Event time is less than current time {} < {}",
-      event->get_time(), Model::get_scheduler()->current_time());
+    spdlog::error(fmt::format("Event time is less than current time {} < {}",
+      event->get_time(), Model::get_scheduler()->current_time()));
     throw std::invalid_argument("Event time is less than current time");
   }
 
@@ -847,9 +848,9 @@ void Person::schedule_clinical_recurrence_event(ClonalParasitePopulation* parasi
     if (end_clinical_event != nullptr) {
       int end_clinical_existing_time = end_clinical_event->get_time();
       if (new_event_time <= end_clinical_existing_time) {
-        spdlog::info(
+        spdlog::info(fmt::format(
             "Model time {}, schedule recurrence event at time {}, clinical end event at time {}",
-            Model::get_scheduler()->current_time(),new_event_time,end_clinical_existing_time);
+            Model::get_scheduler()->current_time(),new_event_time,end_clinical_existing_time));
       }
     }
     auto* existing_progress_event = dynamic_cast<ProgressToClinicalEvent*>(existing_event.get());
