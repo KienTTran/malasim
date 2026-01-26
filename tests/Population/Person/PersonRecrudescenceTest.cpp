@@ -201,6 +201,9 @@ TEST_F(PersonRecrudescenceTest, RecrudescenceWithDrugs) {
         // Setup
         setupPerson(30, true); // 30 year old with drugs
         
+        // Set parasite density above recrudescence threshold (>2, e.g., 100-1000 parasites/uL)
+        clinical_parasite_->set_last_update_log10_parasite_density(3.0); // 1000 parasites/uL
+        
         // Execute
         person_->determine_symptomatic_recrudescence(clinical_parasite_.get());
         

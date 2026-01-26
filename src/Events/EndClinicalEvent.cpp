@@ -12,14 +12,12 @@
 #include "Population/ImmuneSystem/ImmuneSystem.h"
 #include "Population/Person/Person.h"
 
-//OBJECTPOOL_IMPL(EndClinicalEvent)
+// OBJECTPOOL_IMPL(EndClinicalEvent)
 
 void EndClinicalEvent::do_execute() {
   auto* person = get_person();
 
-  if (person == nullptr) {
-    throw std::runtime_error("Person is nullptr");
-  }
+  if (person == nullptr) { throw std::runtime_error("Person is nullptr"); }
 
   if (person->get_all_clonal_parasite_populations()->size() == 0) {
     person->change_state_when_no_parasite_in_blood();
@@ -29,18 +27,8 @@ void EndClinicalEvent::do_execute() {
     person->get_immune_system()->set_increase(true);
     person->set_host_state(Person::ASYMPTOMATIC);
 
-    if (person->get_all_clonal_parasite_populations()->contain(
-            clinical_caused_parasite_)) {
-      auto log_parasite_density =
-          clinical_caused_parasite_->last_update_log10_parasite_density();
-
-      // becase the current model does not have within host dynamics, so we
-      // assume that the threshold for the parasite density to re-appear in
-      // blood is 100 per uL
-      const bool isHigherThanRecrudescenceThreshold = log_parasite_density > 2;
-      if (isHigherThanRecrudescenceThreshold) {
-        person->determine_symptomatic_recrudescence(clinical_caused_parasite_);
-      }
+    if (person->get_all_clonal_parasite_populations()->contain(clinical_caused_parasite_)) {
+      person->determine_symptomatic_recrudescence(clinical_caused_parasite_);
     }
   }
 }
