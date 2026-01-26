@@ -387,22 +387,29 @@ double calculate_symptomatic_recrudescence_probability(double pfpr,
 
 void Person::determine_symptomatic_recrudescence(
     ClonalParasitePopulation* clinical_caused_parasite) {
+  // there are 2 methods to calculate the probability to develop symptom
+  // One from the papaer, another from the immune system in the simulation.
+  //
+  // const auto pfpr = Model::get_mdc()->blood_slide_prevalence_by_location()[location_] * 100;
+  //
+  // const auto is_young_children = get_age() <= 6;
+  //
+  // const auto probability_develop_symptom =
+  //     calculate_symptomatic_recrudescence_probability(pfpr, is_young_children);
+
+  const auto probability_develop_symptom = get_probability_progress_to_clinical();
+
+  // becase the current model does not have within host dynamics, so we
+  // assume that the threshold for the parasite density to re-appear in
+  // blood is 100 per uL
+  const bool is_higher_than_recrudescence_threshold =
+      clinical_caused_parasite->last_update_log10_parasite_density() > 2;
+
   const auto random_p = Model::get_random()->random_flat(0.0, 1.0);
+  auto enable_recrudescence = Model::get_config()->get_model_settings().get_enable_recrudescence();
 
-  /* Instead of getting prob. from the calculate_symptomatic_recrudescence_probability
-   * which is depends on pfpr, use the one from immunity.
-   */
-  const auto pfpr = Model::get_mdc()->blood_slide_prevalence_by_location()[location_] * 100;
-
-  const auto is_young_children = get_age() <= 6;
-
-  const auto probability_develop_symptom =
-      calculate_symptomatic_recrudescence_probability(pfpr, is_young_children);
-
-  if (random_p <= probability_develop_symptom) {
-    /* UNCOMMENT THE LINE BELOW TO DISABLE THE SYMPTOMATIC RECRUDESCENCE */
-    // if (1.1 <= get_probability_progress_to_clinical()) {
-
+  if (is_higher_than_recrudescence_threshold && random_p <= probability_develop_symptom
+      && enable_recrudescence) {
     // The last clinical caused parasite is going to relapse
     // regardless whether the induvidual are under treatment or not
     // Set the update function to progress to clinical

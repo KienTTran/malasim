@@ -21,6 +21,10 @@ model_settings:
 
   cell_level_reporting: false
 
+  # Enable symptomatic recrudescence after treatment
+  # When enabled, parasites above threshold can cause symptomatic recurrence
+  enable_recrudescence: true
+
 # ---------------------------------------------------------------
 # 2. Simulation Timeframe
 # ---------------------------------------------------------------
