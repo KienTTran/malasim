@@ -833,6 +833,17 @@ public:
   }
 
 private:
+  IntVector2 monthly_number_of_not_progress_to_clinical_by_location_threshold_;
+
+public:
+  IntVector2 &monthly_number_of_not_progress_to_clinical_by_location_threshold() {
+    return monthly_number_of_not_progress_to_clinical_by_location_threshold_;
+  }
+  void set_monthly_number_of_not_progress_to_clinical_by_location_threshold(const IntVector2 &value) {
+    monthly_number_of_not_progress_to_clinical_by_location_threshold_ = value;
+  }
+
+private:
   IntVector2 popsize_by_location_age_;
 
 public:

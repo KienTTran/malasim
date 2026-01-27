@@ -244,6 +244,9 @@ void ModelDataCollector::initialize() {
         IntVector(Model::get_config()->number_of_locations(), 0);
     monthly_number_of_clinical_episode_by_location_age_ =
         IntVector2(Model::get_config()->number_of_locations(), IntVector(100, 0));
+    monthly_number_of_not_progress_to_clinical_by_location_threshold_ =
+        IntVector2(Model::get_config()->number_of_locations(),
+                   IntVector(Model::get_config()->get_epidemiological_parameters().get_not_progress_to_clinical().size(), 0));
     monthly_number_of_mutation_events_by_location_ =
         IntVector(Model::get_config()->number_of_locations(), 0);
 
@@ -989,6 +992,7 @@ void ModelDataCollector::monthly_update() {
       for (int age = 0; age < 100; age++) {
         monthly_number_of_clinical_episode_by_location_age_[loc][age] = 0;
       }
+      zero_fill(monthly_number_of_not_progress_to_clinical_by_location_threshold_[loc]);
     }
   }
 }

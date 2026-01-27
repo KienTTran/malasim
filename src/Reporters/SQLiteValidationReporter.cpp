@@ -114,6 +114,10 @@ void SQLiteValidationReporter::create_all_reporting_tables() {
     age_column_definitions += fmt::format("moi_{} INTEGER, ", moi);
   }
 
+  for (size_t i = 0; i < Model::get_config()->get_epidemiological_parameters().get_not_progress_to_clinical().size(); ++i) {
+    age_column_definitions += fmt::format("number_of_not_progress_to_clinical_threshold_{} INTEGER, ", i);
+  }
+
   std::string age_columns;
   for (auto age = 0; age < 80; age++) {
     age_columns += fmt::format("clinical_episodes_by_age_{}, ", age);
@@ -129,6 +133,10 @@ void SQLiteValidationReporter::create_all_reporting_tables() {
   }
   for (auto moi = 0; moi < ModelDataCollector::NUMBER_OF_REPORTED_MOI; moi++) {
     age_columns += fmt::format("moi_{}, ", moi);
+  }
+
+  for (size_t i = 0; i < Model::get_config()->get_epidemiological_parameters().get_not_progress_to_clinical().size(); ++i) {
+    age_columns += fmt::format("number_of_not_progress_to_clinical_threshold_{}, ", i);
   }
 
   // // Include cell level in the number of levels
@@ -354,6 +362,11 @@ void SQLiteValidationReporter::calculate_and_build_up_site_data_insert_values(in
       singleRow += fmt::format(", {}", moi);
     }
 
+    for (const auto &count :
+         monthly_site_data_by_level[level_id].number_of_not_progress_to_clinical_by_threshold[unit_id]) {
+      singleRow += fmt::format(", {}", count);
+    }
+
     singleRow +=
         fmt::format(", {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})",
                     monthly_site_data_by_level[level_id].treatments[unit_id],
@@ -511,6 +524,11 @@ void SQLiteValidationReporter::collect_site_data_for_location(int location_id, i
         Model::get_mdc()->multiple_of_infection_by_location()[location_id][moi];
   }
 
+  for (size_t threshold = 0; threshold < Model::get_config()->get_epidemiological_parameters().get_not_progress_to_clinical().size(); ++threshold) {
+    monthly_site_data_by_level[level_id].number_of_not_progress_to_clinical_by_threshold[unit_id][threshold] +=
+        Model::get_mdc()->monthly_number_of_not_progress_to_clinical_by_location_threshold()[location_id][threshold];
+  }
+
   // EIR and PfPR is a bit more complicated since it could be an invalid value
   // early in the simulation, and when aggregating at the district level the
   // weighted mean needs to be reported instead
@@ -582,6 +600,8 @@ void SQLiteValidationReporter::reset_site_data_structures(int level_id, int vect
   vector_size, std::vector<ul>(80, 0));
   monthly_site_data_by_level[level_id].multiple_of_infection.assign(
   vector_size, std::vector<int>(ModelDataCollector::NUMBER_OF_REPORTED_MOI, 0));
+  monthly_site_data_by_level[level_id].number_of_not_progress_to_clinical_by_threshold.assign(
+  vector_size, std::vector<int>(Model::get_config()->get_epidemiological_parameters().get_not_progress_to_clinical().size(), 0));
   monthly_site_data_by_level[level_id].treatments.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].treatment_failures.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].nontreatment.assign(vector_size, 0);

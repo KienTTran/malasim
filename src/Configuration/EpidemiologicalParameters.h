@@ -85,6 +85,7 @@ public:
         double scale_ = 0.0;
         double mean_ = 0.0;
         double sd_ = 0.0;
+        double percent_mature_immunity_dont_seek_treatment = 0.0;
 
         BitingLevelDistribution biting_level_distribution_;
     };
@@ -217,6 +218,23 @@ private:
 public:
     double gamma_a = 0.0;
     double gamma_b = 0.0;
+    class NotProgressToClinical {
+    public:
+        // Getters and Setters
+        [[nodiscard]] int get_age() const { return age_; }
+        void set_age(const int value) { age_ = value; }
+
+        [[nodiscard]] double get_percentage() const { return percentage_; }
+        void set_percentage(const double value) { percentage_ = value; }
+
+    private:
+        int age_ = 0;
+        double percentage_ = 0.0;
+    };
+    [[nodiscard]] const std::vector<NotProgressToClinical>& get_not_progress_to_clinical() const { return not_progress_to_clinical_; }
+    void set_not_progress_to_clinical(const std::vector<NotProgressToClinical>& value) { not_progress_to_clinical_ = value; }
+
+    std::vector<NotProgressToClinical> not_progress_to_clinical_;
 };
 
 namespace YAML {
@@ -328,6 +346,26 @@ struct convert<EpidemiologicalParameters::RelativeInfectivity> {
     }
 };
 
+// NotProgressToClinical YAML conversion
+template<>
+struct convert<EpidemiologicalParameters::NotProgressToClinical> {
+    static Node encode(const EpidemiologicalParameters::NotProgressToClinical& rhs) {
+        Node node;
+        node["age"] = rhs.get_age();
+        node["percentage"] = rhs.get_percentage();
+        return node;
+    }
+
+    static bool decode(const Node& node, EpidemiologicalParameters::NotProgressToClinical& rhs) {
+        if (!node["age"] || !node["percentage"]) {
+            throw std::runtime_error("Missing fields in NotProgressToClinical");
+        }
+        rhs.set_age(node["age"].as<int>());
+        rhs.set_percentage(node["percentage"].as<double>());
+        return true;
+    }
+};
+
 // EpidemiologicalParameters YAML conversion
 template<>
 struct convert<EpidemiologicalParameters> {
@@ -354,6 +392,7 @@ struct convert<EpidemiologicalParameters> {
         node["inflation_factor"] = rhs.get_inflation_factor();
         node["using_age_dependent_biting_level"] = rhs.get_using_age_dependent_biting_level();
         node["using_variable_probability_infectious_bites_cause_infection"] = rhs.get_using_variable_probability_infectious_bites_cause_infection();
+        node["not_progress_to_clinical"] = rhs.get_not_progress_to_clinical();
         return node;
     }
 
@@ -390,6 +429,9 @@ struct convert<EpidemiologicalParameters> {
         rhs.set_inflation_factor(node["inflation_factor"].as<double>());
         rhs.set_using_age_dependent_biting_level(node["using_age_dependent_biting_level"].as<bool>());
         rhs.set_using_variable_probability_infectious_bites_cause_infection(node["using_variable_probability_infectious_bites_cause_infection"].as<bool>());
+        if (node["not_progress_to_clinical"]) {
+            rhs.set_not_progress_to_clinical(node["not_progress_to_clinical"].as<std::vector<EpidemiologicalParameters::NotProgressToClinical>>());
+        }
         return true;
     }
 };

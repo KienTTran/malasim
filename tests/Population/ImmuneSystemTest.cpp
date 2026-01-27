@@ -4,6 +4,9 @@
 #include "Population/ImmuneSystem/InfantImmuneComponent.h"
 #include "Population/Person/Person.h"
 #include <memory>
+#include "Simulation/Model.h"
+#include "Utils/Cli.h"
+#include "MDC/ModelDataCollector.h"
 
 // Dummy ImmuneComponent for full control
 class DummyImmuneComponent : public ImmuneComponent {
@@ -74,6 +77,55 @@ TEST(ImmuneSystemTest, UpdateCallsComponentUpdate) {
     immune.set_immune_component(std::move(component));
     immune.update();
     EXPECT_TRUE(ptr->updated);
+}
+
+// Test that not_progress_to_clinical logic works correctly
+TEST(ImmuneSystemTest, NotProgressToClinicalPercentage) {
+    // Set up model with config
+    utils::Cli::get_instance().set_input_path("/Users/ktt/CLionProjects/malasim_test_rec_fix/sample_inputs/input.yml");
+    ASSERT_TRUE(Model::get_instance()->initialize());
+
+    // Create a person with age >= 25 (the threshold in config)
+    Person person;
+    person.set_age(30);  // Age 30 > 25
+    person.set_location(0);
+
+    // Create immune system
+    ImmuneSystem immune;
+    immune.set_person(&person);
+
+    // Set up immune component
+    auto component = std::make_unique<DummyImmuneComponent>(&immune);
+    component->value = 0.5;  // Set immune value
+    immune.set_immune_component(std::move(component));
+
+    // Enable MDC recording
+    Model::get_mdc()->set_recording(true);
+
+    // Run the test multiple times to check statistics
+    const int num_trials = 100;
+    int not_progress_count = 0;
+
+    for (int i = 0; i < num_trials; ++i) {
+        double prob = immune.get_clinical_progression_probability();
+        if (prob == 0.0) {
+            not_progress_count++;
+        }
+    }
+
+    // Check that the count is approximately 50% (with some tolerance for randomness)
+    // The config has percentage: 0.5, so we expect around 50 out of 100
+    const double expected_percentage = 0.5;
+    const int expected_count = static_cast<int>(num_trials * expected_percentage);
+    const int tolerance = 20;  // Allow some variance due to randomness
+
+    EXPECT_NEAR(not_progress_count, expected_count, tolerance);
+
+    // Also check that MDC recorded the events
+    EXPECT_EQ(Model::get_mdc()->monthly_number_of_not_progress_to_clinical_by_location_threshold()[0][0], not_progress_count);
+
+    // Clean up
+    Model::get_instance()->release();
 }
 
 // get_parasite_size_after_t_days and get_clinical_progression_probability require more mocks or integration

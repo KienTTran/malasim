@@ -57,6 +57,22 @@ double ImmuneSystem::get_clinical_progression_probability() const {
 
   const auto isf = Model::get_config()->get_immune_system_parameters();
 
+  // Check not_progress_to_clinical
+  const auto& not_progress_list = Model::get_config()->get_epidemiological_parameters().get_not_progress_to_clinical();
+  for (size_t i = 0; i < not_progress_list.size(); ++i) {
+    const auto& entry = not_progress_list[i];
+    if (person_->get_age() >= entry.get_age()) {
+      const auto prob = Model::get_random()->random_flat(0.0, 1.0);
+      if (prob < entry.get_percentage()) {
+        // Record the count
+        if (Model::get_mdc()->recording_data()) {
+          Model::get_mdc()->monthly_number_of_not_progress_to_clinical_by_location_threshold()[person_->get_location()][i]++;
+        }
+        return 0.0;  // Don't progress to clinical
+      }
+    }
+  }
+
   //    double PClinical = (isf.min_clinical_probability - isf.max_clinical_probability) *
   //    pow(immune, isf.immune_effect_on_progression_to_clinical) + isf.max_clinical_probability;
 

@@ -341,3 +341,4 @@ TEST_F(ModelDataCollectorTest, IntegratedStatisticsTest) {
     EXPECT_EQ(mdc_->total_number_of_bites_by_location()[location], 100);
     EXPECT_EQ(mdc_->person_days_by_location_year()[location], 30);
 }
+

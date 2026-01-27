@@ -914,6 +914,11 @@ epidemiological_parameters:
   # from an infectious mosquito bite) age-dependent
   using_variable_probability_infectious_bites_cause_infection: false
 
+  # percentage of 25 year olds with mature immunity don't seek treatment
+  not_progress_to_clinical:
+    - age: 25
+      percentage: 0.5
+
 # ---------------------------------------------------------------
 # 15. Mosquito Parameters (default is location based)
 # ---------------------------------------------------------------
