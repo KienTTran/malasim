@@ -127,6 +127,10 @@ void SQLiteDbReporter::create_all_reporting_tables() {
     age_column_definitions += fmt::format("moi_{} INTEGER, ", moi);
   }
 
+  for (size_t i = 0; i < Model::get_config()->get_epidemiological_parameters().get_not_progress_to_clinical().size(); ++i) {
+    age_column_definitions += fmt::format("number_of_not_progress_to_clinical_threshold_{} INTEGER, ", i);
+  }
+
   std::string age_columns;
   for (auto age = 0; age < 80; age++) {
     age_columns += fmt::format("clinical_episodes_by_age_{}, ", age);
@@ -142,6 +146,9 @@ void SQLiteDbReporter::create_all_reporting_tables() {
   }
   for (auto moi = 0; moi < ModelDataCollector::NUMBER_OF_REPORTED_MOI; moi++) {
     age_columns += fmt::format("moi_{}, ", moi);
+  }
+  for (size_t i = 0; i < Model::get_config()->get_epidemiological_parameters().get_not_progress_to_clinical().size(); ++i) {
+    age_columns += fmt::format("number_of_not_progress_to_clinical_threshold_{}, ", i);
   }
 
   // // Include cell level in the number of levels
@@ -174,8 +181,11 @@ void SQLiteDbReporter::create_reporting_tables_for_level(
   std::string location_id_column = (level_id == CELL_LEVEL_ID) ? "location_id" : "unit_id";
 
   // Create site data table for this level
+  std::string drop_site_data_table = fmt::format("DROP TABLE IF EXISTS {}", site_table_name);
+  db->execute(drop_site_data_table);
+
   std::string create_site_data_table = fmt::format(R""""(
-      CREATE TABLE IF NOT EXISTS {} (
+      CREATE TABLE {} (
           monthly_data_id INTEGER NOT NULL,
           {} INTEGER NOT NULL,
           population INTEGER NOT NULL,
@@ -209,9 +219,12 @@ void SQLiteDbReporter::create_reporting_tables_for_level(
                                                   location_id_column);
 
   // Create genome data table for this level
+  std::string drop_genome_data_table = fmt::format("DROP TABLE IF EXISTS {}", genome_table_name);
+  db->execute(drop_genome_data_table);
+
   std::string create_genome_data_table =
       fmt::format(R""""(
-      CREATE TABLE IF NOT EXISTS {} (
+      CREATE TABLE {} (
           monthly_data_id INTEGER NOT NULL,
           {} INTEGER NOT NULL,
           genome_id INTEGER NOT NULL,

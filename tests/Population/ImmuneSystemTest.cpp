@@ -82,7 +82,7 @@ TEST(ImmuneSystemTest, UpdateCallsComponentUpdate) {
 // Test that not_progress_to_clinical logic works correctly
 TEST(ImmuneSystemTest, NotProgressToClinicalPercentage) {
     // Set up model with config
-    utils::Cli::get_instance().set_input_path("/Users/ktt/CLionProjects/malasim_test_rec_fix/sample_inputs/input.yml");
+    utils::Cli::get_instance().set_input_path("sample_inputs/input.yml");
     ASSERT_TRUE(Model::get_instance()->initialize());
 
     // Create a person with age >= 25 (the threshold in config)
