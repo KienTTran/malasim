@@ -174,7 +174,7 @@ void ProgressToClinicalEvent::transition_to_clinical_state(Person* person) {
   count = 0;
   std::string event_time = "";
   for (const auto& pair : person->get_events()) {
-    if ( typeid(pair.second).name() == typeid(ProgressToClinicalEvent).name()
+    if ( typeid(*pair.second).name() == typeid(ProgressToClinicalEvent).name()
      && pair.second->is_executable()) {
       event_time += std::to_string(pair.first) + " ";
       count++;

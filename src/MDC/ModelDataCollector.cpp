@@ -1089,12 +1089,15 @@ void ModelDataCollector::record_1_person_seeking_treatment_by_location_age_index
   if (!recording_) { return; }
   if (location < 0 || location >= Model::get_config()->number_of_locations()) { return; }
   if (age_index < 0) { return; }
-  const auto ages_count = static_cast<int>(Model::get_config()->get_epidemiological_parameters().get_age_based_probability_of_seeking_treatment().get_ages().size());
-  if (ages_count == 0) { return; }
+  const auto &ages_vec = Model::get_config()->get_epidemiological_parameters().get_age_based_probability_of_seeking_treatment().get_ages();
+  const auto ages_count = static_cast<int>(ages_vec.size());
+  const int ages_count_as_buckets = std::max(1, ages_count);
   int idx = age_index;
-  if (idx >= ages_count) idx = ages_count - 1;
+  if (idx >= ages_count_as_buckets) idx = ages_count_as_buckets - 1;
   monthly_number_of_people_seeking_treatment_by_location_age_index_[location][idx] += 1;
 }
+
+
 
 
 

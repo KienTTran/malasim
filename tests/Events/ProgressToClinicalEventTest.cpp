@@ -14,7 +14,7 @@ using namespace ::testing;
 class TestRandomFixed : public utils::Random {
 public:
     explicit TestRandomFixed(double fixed_value) : utils::Random(nullptr, 42), fixed_(fixed_value) {}
-    double random_flat(double from, double to) override { (void)from; (void)to; return fixed_; }
+    double random_flat(double from, double to) override { (void)from; (void)to; return fixed_; }  // NOLINT(bugprone-easily-swappable-parameters)
 private:
     double fixed_;
 };
