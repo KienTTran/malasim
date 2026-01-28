@@ -16,6 +16,7 @@
 #include "Treatment/Therapies/SCTherapy.h"
 #include "Utils/Constants.h"
 #include "Utils/Index/PersonIndexByLocationStateAgeClass.h"
+#include <spdlog/spdlog.h>
 
 // Fill the vector indicated with zeros, this should compile into a memset call
 // which is faster than a loop
@@ -287,6 +288,12 @@ void ModelDataCollector::initialize() {
         Model::get_config()->number_of_locations(), IntVector(Model::get_therapy_db().size(), 0));
     current_number_of_mutation_events_ = 0;
     number_of_mutation_events_by_year_ = LongVector();
+
+    // Initialize new monthly_number_of_people_seeking_treatment_by_location_age_index_
+    const auto ages_count = static_cast<int>(Model::get_config()->get_epidemiological_parameters().get_age_based_probability_of_seeking_treatment().get_ages().size());
+    monthly_number_of_people_seeking_treatment_by_location_age_index_ =
+        IntVector2(Model::get_config()->number_of_locations(),
+                   IntVector((ages_count>0)?ages_count:1, 0));
 }
 
 void ModelDataCollector::perform_population_statistic() {
@@ -636,6 +643,30 @@ void ModelDataCollector::record_1_treatment(const int &location, const int &age,
   cumulative_number_treatments_by_location_[location] += 1;
   monthly_number_of_treatment_by_location_age_class_[location][age_class] += 1;
   monthly_number_of_treatment_by_location_therapy_[location][therapy_id] += 1;
+
+  // Also count this as a person seeking treatment in the age-indexed monthly counter.
+  // Compute age index using age breakpoints from config: find largest i such that ages[i] <= age.
+  const auto &ages_vec = Model::get_config()->get_epidemiological_parameters().get_age_based_probability_of_seeking_treatment().get_ages();
+  if (!monthly_number_of_people_seeking_treatment_by_location_age_index_.empty()) {
+    int age_index = 0;
+    if (!ages_vec.empty()) {
+      // find largest index i where ages_vec[i] <= age
+      age_index = 0;
+      for (size_t i = 0; i < ages_vec.size(); ++i) {
+        if (age >= ages_vec[i]) { age_index = static_cast<int>(i); }
+        else { break; }
+      }
+      // ensure age_index within bounds
+      if (age_index >= static_cast<int>(monthly_number_of_people_seeking_treatment_by_location_age_index_[location].size())) {
+        age_index = static_cast<int>(monthly_number_of_people_seeking_treatment_by_location_age_index_[location].size()) - 1;
+      }
+    } else {
+      age_index = 0;
+    }
+    if (age_index >= 0) {
+      monthly_number_of_people_seeking_treatment_by_location_age_index_[location][age_index] += 1;
+    }
+  }
 }
 
 void ModelDataCollector::record_1_recrudescence_treatment(const int &location, const int &age,
@@ -958,7 +989,7 @@ void ModelDataCollector::monthly_update() {
   zero_fill(deaths_by_location_);
 
   if (Model::get_scheduler()->current_time()
-      > Model::get_config()->get_simulation_timeframe().get_start_collect_data_day()) {
+      >= Model::get_config()->get_simulation_timeframe().get_start_collect_data_day()) {
     zero_fill(monthly_number_of_treatment_by_location_);
     zero_fill(monthly_number_of_recrudescence_treatment_by_location_);
     zero_fill(monthly_number_of_new_infections_by_location_);
@@ -988,6 +1019,10 @@ void ModelDataCollector::monthly_update() {
       monthly_number_of_mutation_events_by_location_[loc] = 0;
       for (int age = 0; age < 100; age++) {
         monthly_number_of_clinical_episode_by_location_age_[loc][age] = 0;
+      }
+      // zero the new age-indexed seeking treatment counters
+      if (!monthly_number_of_people_seeking_treatment_by_location_age_index_.empty()) {
+        zero_fill(monthly_number_of_people_seeking_treatment_by_location_age_index_[loc]);
       }
     }
   }
@@ -1048,4 +1083,18 @@ void ModelDataCollector::zero_population_statistics() {
   zero_fill_matrix_2d(popsize_by_location_age_);
   zero_fill_matrix_2d(multiple_of_infection_by_location_);
 }
+
+
+void ModelDataCollector::record_1_person_seeking_treatment_by_location_age_index(const int &location, const int &age_index) {
+  if (!recording_) { return; }
+  if (location < 0 || location >= Model::get_config()->number_of_locations()) { return; }
+  if (age_index < 0) { return; }
+  const auto ages_count = static_cast<int>(Model::get_config()->get_epidemiological_parameters().get_age_based_probability_of_seeking_treatment().get_ages().size());
+  if (ages_count == 0) { return; }
+  int idx = age_index;
+  if (idx >= ages_count) idx = ages_count - 1;
+  monthly_number_of_people_seeking_treatment_by_location_age_index_[location][idx] += 1;
+}
+
+
 

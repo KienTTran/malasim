@@ -273,6 +273,8 @@ inline YAML::Node setup_test_environment(
   std::vector<std::string> template_paths = {
     "test_input_template.yml",
     "fixtures/test_input_template.yml",
+    "tests/fixtures/test_input_template.yml",
+    "./tests/fixtures/test_input_template.yml",
     "../tests/fixtures/test_input_template.yml",
     "../../tests/fixtures/test_input_template.yml"
   };

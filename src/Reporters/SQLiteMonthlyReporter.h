@@ -39,6 +39,7 @@ protected:
     std::vector<std::vector<int>> population_by_age;
     std::vector<std::vector<double>> total_immune_by_age;
     std::vector<std::vector<int>> multiple_of_infection;
+    std::vector<std::vector<int>> number_of_people_seeking_treatment_by_location_age_index;
     std::vector<ul> progress_to_clinical_in_7d_total;
     std::vector<ul> progress_to_clinical_in_7d_recrudescence;
     std::vector<ul> progress_to_clinical_in_7d_new_infection;

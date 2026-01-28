@@ -144,6 +144,11 @@ void SQLiteMonthlyReporter::calculate_and_build_up_site_data_insert_values(int m
       singleRow += fmt::format(", {}", moi);
     }
 
+    // Append age-indexed seeking-treatment counts (if present)
+    for (const auto &count : monthly_site_data_by_level[level_id].number_of_people_seeking_treatment_by_location_age_index[unit_id]) {
+      singleRow += fmt::format(", {}", count);
+    }
+
     singleRow +=
         fmt::format(", {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})",
                     monthly_site_data_by_level[level_id].treatments[unit_id], calculatedEir,
@@ -326,6 +331,15 @@ void SQLiteMonthlyReporter::collect_site_data_for_location(int location_id, int 
     monthly_site_data_by_level[level_id].pfpr_all[unit_id] +=
         (Model::get_mdc()->blood_slide_prevalence_by_location()[location_id] * locationPopulation);
   }
+
+  const auto &mdc_age_index = Model::get_mdc()->monthly_number_of_people_seeking_treatment_by_location_age_index();
+  if (!mdc_age_index.empty() && location_id < static_cast<int>(mdc_age_index.size())) {
+    const auto &vec = mdc_age_index[location_id];
+    // Ensure target vector is large enough
+    for (size_t idx = 0; idx < vec.size() && idx < monthly_site_data_by_level[level_id].number_of_people_seeking_treatment_by_location_age_index[unit_id].size(); ++idx) {
+      monthly_site_data_by_level[level_id].number_of_people_seeking_treatment_by_location_age_index[unit_id][idx] += vec[idx];
+    }
+  }
 }
 
 void SQLiteMonthlyReporter::collect_genome_data_for_location(size_t location_id, int level_id) {
@@ -370,6 +384,11 @@ void SQLiteMonthlyReporter::reset_site_data_structures(int level_id, int vector_
   vector_size, std::vector<ul>(80, 0));
   monthly_site_data_by_level[level_id].multiple_of_infection.assign(
   vector_size, std::vector<int>(ModelDataCollector::NUMBER_OF_REPORTED_MOI, 0));
+  const auto age_index_count = static_cast<int>(Model::get_config()
+      ->get_epidemiological_parameters().get_age_based_probability_of_seeking_treatment()
+      .get_ages().size());
+  monthly_site_data_by_level[level_id].number_of_people_seeking_treatment_by_location_age_index.assign(
+      vector_size, std::vector<int>((age_index_count>0)?age_index_count:1, 0));
   monthly_site_data_by_level[level_id].treatments.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].treatment_failures.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].nontreatment.assign(vector_size, 0);

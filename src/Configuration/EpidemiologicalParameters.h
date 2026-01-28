@@ -6,6 +6,8 @@
 #include <numbers>
 #include <string>
 #include <spdlog/spdlog.h>
+#include <vector>
+#include <cmath>
 #include "IConfigData.h"
 
 class EpidemiologicalParameters: public IConfigData {
@@ -106,6 +108,61 @@ public:
         double ro_star_ = 0.00031;
         double blood_meal_volume_ = 3.0;
     };
+    // New: Age-based probability of seeking treatment
+    class AgeBasedProbabilityOfSeekingTreatment {
+    public:
+        struct PowerConfig {
+            double base = 1.0; // multiplicative base
+            std::string exponent_source = "index"; // how to derive exponent
+        };
+
+        [[nodiscard]] const std::string& get_type() const { return type_; }
+        void set_type(const std::string& value) { type_ = value; }
+
+        [[nodiscard]] const PowerConfig& get_power() const { return power_; }
+        void set_power(const PowerConfig& value) { power_ = value; }
+
+        [[nodiscard]] const std::vector<int>& get_ages() const { return ages_; }
+        void set_ages(const std::vector<int>& value) { ages_ = value; }
+
+        // Enabled/disabled flag
+        [[nodiscard]] bool is_enabled() const { return enabled_; }
+        void set_enabled(bool v) { enabled_ = v; }
+
+        // Returns a multiplicative modifier to apply to base treatment probability
+        double evaluate_for_age(const int age) const {
+            if (!enabled_) return 1.0; // when disabled, no age-based modification
+            if (type_.empty()) return 1.0;
+            if (type_ == "power") {
+                if (ages_.empty()) return 1.0;
+                // exponent_source == index: find bin index based on ages vector
+                if (power_.exponent_source == "index") {
+                    // ages defines boundaries: ages[i] is start of bin i
+                    // find largest i such that age >= ages[i]
+                    int idx = 0;
+                    for (size_t i = 0; i < ages_.size(); ++i) {
+                        if (age >= ages_[i]) idx = static_cast<int>(i);
+                        else break;
+                    }
+                    // exponent = idx
+                    return std::pow(power_.base, idx);
+                }
+                // unknown exponent_source -> treat as no-op
+                return 1.0;
+            }
+            // unknown type -> no-op
+            return 1.0;
+        }
+
+        // Note: is_enabled() above returns the explicit enabled flag
+
+     private:
+         std::string type_;
+         PowerConfig power_;
+         std::vector<int> ages_;
+         bool enabled_ = false; // default disabled when no config node is provided
+     };
+
     // Getters and Setters
     [[nodiscard]] int get_number_of_tracking_days() const { return number_of_tracking_days_; }
     void set_number_of_tracking_days(const int value) { number_of_tracking_days_ = value; }
@@ -176,6 +233,10 @@ public:
         using_variable_probability_infectious_bites_cause_infection_ = value;
     }
 
+    // Accessor for new config
+    [[nodiscard]] const AgeBasedProbabilityOfSeekingTreatment& get_age_based_probability_of_seeking_treatment() const { return age_based_probability_of_seeking_treatment_; }
+    void set_age_based_probability_of_seeking_treatment(const AgeBasedProbabilityOfSeekingTreatment& v) { age_based_probability_of_seeking_treatment_ = v; }
+
     //process config data
     void process_config() override {
       spdlog::info("Processing EpidemiologicalParameters");
@@ -189,7 +250,6 @@ public:
       const auto d_star = 1.0/ get_relative_infectivity().get_blood_meal_volume();
       relative_infectivity_.set_ro_star((log(relative_infectivity_.get_ro_star()) - log(d_star)) / relative_infectivity_.get_sigma());
       relative_infectivity_.set_sigma(log(10) / relative_infectivity_.get_sigma());
-
     }
 
 private:
@@ -214,6 +274,8 @@ private:
     double inflation_factor_ = 0.01;
     bool using_age_dependent_biting_level_ = false;
     bool using_variable_probability_infectious_bites_cause_infection_ = false;
+    // new member
+    AgeBasedProbabilityOfSeekingTreatment age_based_probability_of_seeking_treatment_{};
 public:
     double gamma_a = 0.0;
     double gamma_b = 0.0;
@@ -354,6 +416,18 @@ struct convert<EpidemiologicalParameters> {
         node["inflation_factor"] = rhs.get_inflation_factor();
         node["using_age_dependent_biting_level"] = rhs.get_using_age_dependent_biting_level();
         node["using_variable_probability_infectious_bites_cause_infection"] = rhs.get_using_variable_probability_infectious_bites_cause_infection();
+        // optional: age_based_probability_of_seeking_treatment
+        if (rhs.get_age_based_probability_of_seeking_treatment().is_enabled()) {
+            Node n;
+            n["type"] = rhs.get_age_based_probability_of_seeking_treatment().get_type();
+            const auto &p = rhs.get_age_based_probability_of_seeking_treatment().get_power();
+            Node pnode;
+            pnode["base"] = p.base;
+            pnode["exponent_source"] = p.exponent_source;
+            n["power"] = pnode;
+            n["ages"] = rhs.get_age_based_probability_of_seeking_treatment().get_ages();
+            node["age_based_probability_of_seeking_treatment"] = n;
+        }
         return node;
     }
 
@@ -390,6 +464,24 @@ struct convert<EpidemiologicalParameters> {
         rhs.set_inflation_factor(node["inflation_factor"].as<double>());
         rhs.set_using_age_dependent_biting_level(node["using_age_dependent_biting_level"].as<bool>());
         rhs.set_using_variable_probability_infectious_bites_cause_infection(node["using_variable_probability_infectious_bites_cause_infection"].as<bool>());
+        // optional age_based_probability_of_seeking_treatment
+        if (node["age_based_probability_of_seeking_treatment"]) {
+            const auto n = node["age_based_probability_of_seeking_treatment"];
+            EpidemiologicalParameters::AgeBasedProbabilityOfSeekingTreatment cfg;
+            if (n["type"]) cfg.set_type(n["type"].as<std::string>());
+            if (n["power"]) {
+                 const auto p = n["power"];
+                 EpidemiologicalParameters::AgeBasedProbabilityOfSeekingTreatment::PowerConfig pc;
+                 if (p["base"]) pc.base = p["base"].as<double>();
+                 if (p["exponent_source"]) pc.exponent_source = p["exponent_source"].as<std::string>();
+                 cfg.set_power(pc);
+             }
+            if (n["ages"]) cfg.set_ages(n["ages"].as<std::vector<int>>());
+            // If the node exists but the 'enable' key is missing, default to enabled=true
+            if (n["enable"]) cfg.set_enabled(n["enable"].as<bool>());
+            else cfg.set_enabled(true);
+             rhs.set_age_based_probability_of_seeking_treatment(cfg);
+         }
         return true;
     }
 };

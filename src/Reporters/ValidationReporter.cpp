@@ -350,6 +350,16 @@ void ValidationReporter::monthly_report() {
     ss << Model::get_population()->current_force_of_infection_by_location()[loc] << sep;
     ss << group_sep;  // 1142
   }
+  const auto age_index_count = static_cast<int>(Model::get_config()
+      ->get_epidemiological_parameters().get_age_based_probability_of_seeking_treatment()
+      .get_ages().size());
+  for (auto loc = 0; loc < Model::get_config()->number_of_locations(); loc++) {
+    for (auto idx = 0; idx < (age_index_count > 0 ? age_index_count : 1); ++idx) {
+      ss << Model::get_mdc()->monthly_number_of_people_seeking_treatment_by_location_age_index()[loc][idx]
+         << sep;
+    }
+    ss << group_sep;  // 1158
+  }
   monthly_data_logger->info(ss.str());
 
   std::stringstream gene_freq_ss;

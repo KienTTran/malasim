@@ -146,6 +146,48 @@ TEST_F(ModelDataCollectorTest, RecordTreatmentIncrementsCounts) {
     EXPECT_EQ(mdc_->monthly_number_of_treatment_by_location_therapy()[location][therapy_id], 1);
 }
 
+// New test: record_1_treatment should increment age-indexed seeking-treatment counters
+TEST_F(ModelDataCollectorTest, RecordTreatmentIncrementsAgeIndex) {
+    // Release current model and create a modified test_input.yml that includes the age-based config
+    Model::get_instance()->release();
+
+    test_fixtures::setup_test_environment("test_input.yml", [](YAML::Node &cfg){
+        if (!cfg["epidemiological_parameters"]) cfg["epidemiological_parameters"] = YAML::Node(YAML::NodeType::Map);
+        cfg["epidemiological_parameters"]["age_based_probability_of_seeking_treatment"] = YAML::Node(YAML::NodeType::Map);
+        auto n = cfg["epidemiological_parameters"]["age_based_probability_of_seeking_treatment"];
+        n["enable"] = true;
+        n["type"] = "power";
+        n["power"]["base"] = 0.9;
+        n["power"]["exponent_source"] = "index";
+        n["ages"] = std::vector<int>{0,5,10,15};
+    });
+
+    // Re-initialize model with modified config
+    ASSERT_TRUE(Model::get_instance()->initialize());
+    mdc_ = Model::get_mdc();
+    mdc_->initialize();
+
+    const int locations = Model::get_config()->number_of_locations();
+    const int ages_count = 4; // as provided above
+
+    // Check dimensions
+    ASSERT_EQ(static_cast<int>(mdc_->monthly_number_of_people_seeking_treatment_by_location_age_index().size()), locations);
+    ASSERT_EQ(static_cast<int>(mdc_->monthly_number_of_people_seeking_treatment_by_location_age_index()[0].size()), ages_count);
+
+    // Record a treatment at age 7 (should map to ages index 1 since ages = [0,5,10,15])
+    mdc_->set_recording(true);
+    mdc_->record_1_treatment(0, 7, 1, 0);
+    mdc_->set_recording(false);
+
+    EXPECT_EQ(mdc_->monthly_number_of_people_seeking_treatment_by_location_age_index()[0][0], 0);
+    EXPECT_EQ(mdc_->monthly_number_of_people_seeking_treatment_by_location_age_index()[0][1], 1);
+    EXPECT_EQ(mdc_->monthly_number_of_people_seeking_treatment_by_location_age_index()[0][2], 0);
+
+    // Monthly update should zero monthly counters
+    mdc_->monthly_update();
+    EXPECT_EQ(mdc_->monthly_number_of_people_seeking_treatment_by_location_age_index()[0][1], 0);
+}
+
 // Test record_1_tf function (treatment failure)
 TEST_F(ModelDataCollectorTest, RecordTreatmentFailureIncrementsCounts) {
     setupInitialState();
@@ -345,4 +387,93 @@ TEST_F(ModelDataCollectorTest, IntegratedStatisticsTest) {
     EXPECT_EQ(mdc_->cumulative_mutants_by_location()[location], 1);
     EXPECT_EQ(mdc_->total_number_of_bites_by_location()[location], 100);
     EXPECT_EQ(mdc_->person_days_by_location_year()[location], 30);
+}
+
+// New test: Age-based probability of seeking treatment counters
+TEST_F(ModelDataCollectorTest, AgeBasedSeekingInitializeRecordZero) {
+    // Release current model and create a modified test_input.yml that includes the age-based config
+    Model::get_instance()->release();
+
+    test_fixtures::setup_test_environment("test_input.yml", [](YAML::Node &cfg){
+        if (!cfg["epidemiological_parameters"]) cfg["epidemiological_parameters"] = YAML::Node(YAML::NodeType::Map);
+        cfg["epidemiological_parameters"]["age_based_probability_of_seeking_treatment"] = YAML::Node(YAML::NodeType::Map);
+        auto n = cfg["epidemiological_parameters"]["age_based_probability_of_seeking_treatment"];
+        n["enable"] = true;
+        n["type"] = "power";
+        n["power"]["base"] = 0.9;
+        n["power"]["exponent_source"] = "index";
+        n["ages"] = std::vector<int>{0,5,10,15};
+    });
+
+    // Re-initialize model with modified config
+    ASSERT_TRUE(Model::get_instance()->initialize());
+    mdc_ = Model::get_mdc();
+    mdc_->initialize();
+
+    const int locations = Model::get_config()->number_of_locations();
+    const int ages_count = 4; // as provided above
+
+    // Check dimensions
+    ASSERT_EQ(static_cast<int>(mdc_->monthly_number_of_people_seeking_treatment_by_location_age_index().size()), locations);
+    ASSERT_EQ(static_cast<int>(mdc_->monthly_number_of_people_seeking_treatment_by_location_age_index()[0].size()), ages_count);
+
+    // Record some events
+    mdc_->set_recording(true);
+    mdc_->record_1_person_seeking_treatment_by_location_age_index(0, 0);
+    mdc_->record_1_person_seeking_treatment_by_location_age_index(0, 2);
+    mdc_->record_1_person_seeking_treatment_by_location_age_index(0, 2);
+    mdc_->set_recording(false);
+
+    EXPECT_EQ(mdc_->monthly_number_of_people_seeking_treatment_by_location_age_index()[0][0], 1);
+    EXPECT_EQ(mdc_->monthly_number_of_people_seeking_treatment_by_location_age_index()[0][1], 0);
+    EXPECT_EQ(mdc_->monthly_number_of_people_seeking_treatment_by_location_age_index()[0][2], 2);
+
+    // Monthly update should zero monthly counters
+    mdc_->monthly_update();
+    EXPECT_EQ(mdc_->monthly_number_of_people_seeking_treatment_by_location_age_index()[0][0], 0);
+    EXPECT_EQ(mdc_->monthly_number_of_people_seeking_treatment_by_location_age_index()[0][2], 0);
+}
+
+// Test for AgeBasedProbabilityOfSeekingTreatment evaluation helper
+TEST_F(ModelDataCollectorTest, AgeBasedSeekingEvaluationEnabledDisabled) {
+    // Release and prepare a config with specific ages
+    Model::get_instance()->release();
+
+    test_fixtures::setup_test_environment("test_input.yml", [](YAML::Node &cfg){
+        if (!cfg["epidemiological_parameters"]) cfg["epidemiological_parameters"] = YAML::Node(YAML::NodeType::Map);
+        cfg["epidemiological_parameters"]["age_based_probability_of_seeking_treatment"] = YAML::Node(YAML::NodeType::Map);
+        auto n = cfg["epidemiological_parameters"]["age_based_probability_of_seeking_treatment"];
+        n["enable"] = true;
+        n["type"] = "power";
+        n["power"]["base"] = 0.9;
+        n["power"]["exponent_source"] = "index";
+        n["ages"] = std::vector<int>{0,5,10,15,20,30,40};
+    });
+
+    ASSERT_TRUE(Model::get_instance()->initialize());
+    const auto &ep = Model::get_config()->get_epidemiological_parameters();
+    const auto &agecfg = ep.get_age_based_probability_of_seeking_treatment();
+
+    // Enabled: age 2 -> idx 0 -> modifier 0.9^0 = 1.0
+    EXPECT_DOUBLE_EQ(agecfg.evaluate_for_age(2), 1.0);
+    // Enabled: age 12 -> idx 2 (ages[2] == 10) -> modifier 0.9^2 = 0.81
+    EXPECT_NEAR(agecfg.evaluate_for_age(12), 0.81, 1e-12);
+
+    // Now set disabled and re-check (should return 1.0 regardless)
+    Model::get_instance()->release();
+    test_fixtures::setup_test_environment("test_input.yml", [](YAML::Node &cfg){
+        if (!cfg["epidemiological_parameters"]) cfg["epidemiological_parameters"] = YAML::Node(YAML::NodeType::Map);
+        cfg["epidemiological_parameters"]["age_based_probability_of_seeking_treatment"] = YAML::Node(YAML::NodeType::Map);
+        auto n = cfg["epidemiological_parameters"]["age_based_probability_of_seeking_treatment"];
+        n["enable"] = false;
+        n["type"] = "power";
+        n["power"]["base"] = 0.9;
+        n["power"]["exponent_source"] = "index";
+        n["ages"] = std::vector<int>{0,5,10,15,20,30,40};
+    });
+    ASSERT_TRUE(Model::get_instance()->initialize());
+    const auto &ep2 = Model::get_config()->get_epidemiological_parameters();
+    const auto &agecfg2 = ep2.get_age_based_probability_of_seeking_treatment();
+    EXPECT_DOUBLE_EQ(agecfg2.evaluate_for_age(2), 1.0);
+    EXPECT_DOUBLE_EQ(agecfg2.evaluate_for_age(12), 1.0);
 }
