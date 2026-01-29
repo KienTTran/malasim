@@ -54,11 +54,11 @@ TEST(ProgressToClinicalEventDeterministicTest, ShouldReceiveTreatmentRespectsAge
     person->initialize();
     person->set_location(0);
 
-    // Age 2 -> modifier = 0.9^0 = 1.0 -> effective_p = 0.6 -> random 0.55 <= 0.6 -> expect true
+    // Age 2 -> modifier = 0.9^(0+1) = 0.9 -> effective_p = 0.6 * 0.9 = 0.54 -> random 0.55 > 0.54 -> expect false
     person->set_age(2);
-    EXPECT_TRUE(ProgressToClinicalEvent::should_receive_treatment(person.get()));
+    EXPECT_FALSE(ProgressToClinicalEvent::should_receive_treatment(person.get()));
 
-    // Age 12 -> modifier = 0.9^2 = 0.81 -> effective_p = 0.6 * 0.81 = 0.486 -> random 0.55 > 0.486 -> expect false
+    // Age 12 -> modifier = 0.9^(2+1) = 0.729 -> effective_p = 0.6 * 0.729 = 0.4374 -> random 0.55 > 0.4374 -> expect false
     person->set_age(12);
     EXPECT_FALSE(ProgressToClinicalEvent::should_receive_treatment(person.get()));
 
