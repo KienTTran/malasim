@@ -144,7 +144,7 @@ public:
                         if (age >= ages_[i]) idx = static_cast<int>(i);
                         else break;
                     }
-                    // exponent = idx
+                    // exponent = idx + 1
                     return std::pow(power_.base, idx + 1);
                 }
                 // unknown exponent_source -> treat as no-op
@@ -477,9 +477,9 @@ struct convert<EpidemiologicalParameters> {
                  cfg.set_power(pc);
              }
             if (n["ages"]) cfg.set_ages(n["ages"].as<std::vector<int>>());
-            // If the node exists but the 'enable' key is missing, default to enabled=true
+            // If the node exists but the 'enable' key is missing, default to enabled=false
             if (n["enable"]) cfg.set_enabled(n["enable"].as<bool>());
-            else cfg.set_enabled(true);
+            else cfg.set_enabled(false);
              rhs.set_age_based_probability_of_seeking_treatment(cfg);
          }
         return true;
