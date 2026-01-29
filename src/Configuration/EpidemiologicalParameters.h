@@ -144,7 +144,7 @@ public:
                         if (age >= ages_[i]) idx = static_cast<int>(i);
                         else break;
                     }
-                    // exponent = idx
+                    // exponent = idx + 1
                     return std::pow(power_.base, idx + 1);
                 }
                 // unknown exponent_source -> treat as no-op
