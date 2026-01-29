@@ -20,6 +20,14 @@ protected:
         immune_parameters.set_age_mature_immunity(10);
         immune_parameters.set_factor_effect_age_mature_immunity(0.7);
         immune_parameters.set_midpoint(0.3);
+
+        TreatmentImmunityConfig ti;
+        ti.enable = true;
+        ti.boost_on_treatment = 0.05;
+        ti.boost_on_untreated_clinical = 0.02;
+        ti.max_extra_boost = 0.3;
+        ti.half_life_days = 365.0;
+        immune_parameters.set_treatment_immunity(ti);
     }
 };
 
@@ -41,6 +49,13 @@ TEST_F(ImmuneSystemParametersYAMLTest, EncodeImmuneSystemParameters) {
     EXPECT_EQ(node["age_mature_immunity"].as<int>(), 10);
     EXPECT_EQ(node["factor_effect_age_mature_immunity"].as<double>(), 0.7);
     EXPECT_EQ(node["midpoint"].as<double>(), 0.3);
+
+    // Validate treatment immunity config
+    EXPECT_TRUE(node["treatment_immunity"]["enable"].as<bool>());
+    EXPECT_EQ(node["treatment_immunity"]["boost_on_treatment"].as<double>(), 0.05);
+    EXPECT_EQ(node["treatment_immunity"]["boost_on_untreated_clinical"].as<double>(), 0.02);
+    EXPECT_EQ(node["treatment_immunity"]["max_extra_boost"].as<double>(), 0.3);
+    EXPECT_EQ(node["treatment_immunity"]["half_life_days"].as<double>(), 365.0);
 }
 
 // Test decoding functionality for ImmuneSystemParameters
@@ -60,6 +75,12 @@ TEST_F(ImmuneSystemParametersYAMLTest, DecodeImmuneSystemParameters) {
     node["factor_effect_age_mature_immunity"] = 0.7;
     node["midpoint"] = 0.3;
 
+    node["treatment_immunity"]["enable"] = true;
+    node["treatment_immunity"]["boost_on_treatment"] = 0.05;
+    node["treatment_immunity"]["boost_on_untreated_clinical"] = 0.02;
+    node["treatment_immunity"]["max_extra_boost"] = 0.3;
+    node["treatment_immunity"]["half_life_days"] = 365.0;
+
     ImmuneSystemParameters decoded_parameters;
     EXPECT_NO_THROW(YAML::convert<ImmuneSystemParameters>::decode(node, decoded_parameters));
 
@@ -77,6 +98,13 @@ TEST_F(ImmuneSystemParametersYAMLTest, DecodeImmuneSystemParameters) {
     EXPECT_EQ(decoded_parameters.get_age_mature_immunity(), 10);
     EXPECT_EQ(decoded_parameters.get_factor_effect_age_mature_immunity(), 0.7);
     EXPECT_EQ(decoded_parameters.get_midpoint(), 0.3);
+
+    // Validate treatment immunity config
+    EXPECT_TRUE(decoded_parameters.get_treatment_immunity().enable);
+    EXPECT_EQ(decoded_parameters.get_treatment_immunity().boost_on_treatment, 0.05);
+    EXPECT_EQ(decoded_parameters.get_treatment_immunity().boost_on_untreated_clinical, 0.02);
+    EXPECT_EQ(decoded_parameters.get_treatment_immunity().max_extra_boost, 0.3);
+    EXPECT_EQ(decoded_parameters.get_treatment_immunity().half_life_days, 365.0);
 }
 
 // Test for decoding with missing fields

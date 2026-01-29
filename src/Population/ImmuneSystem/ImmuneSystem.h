@@ -52,10 +52,20 @@ public:
 
   [[nodiscard]] virtual double get_clinical_progression_probability() const;
 
+  // Treatment-linked immunity memory methods
+  void update_treatment_memory() const;
+  void on_treated_clinical_episode();
+  void on_untreated_clinical_episode();
+  [[nodiscard]] double get_effective_immune_value() const;
+
 private:
   Person* person_{nullptr};
   std::unique_ptr<ImmuneComponent> immune_component_{nullptr};
   bool increase_{false};
+
+  // Treatment-linked immunity memory
+  mutable double treatment_memory_I_ = 0.0;
+  mutable int last_memory_update_day_ = -1;
 
   //    virtual void clear();
 };
