@@ -945,7 +945,7 @@ epidemiological_parameters:
   #   10–14 → 0.9^2
   #   >=15  → 0.9^3
   age_based_probability_of_seeking_treatment:
-    enable: true
+    enable: false
     type: power
     power:
       base: 0.5
