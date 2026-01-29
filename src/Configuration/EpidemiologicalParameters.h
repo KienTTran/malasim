@@ -145,7 +145,7 @@ public:
                         else break;
                     }
                     // exponent = idx
-                    return std::pow(power_.base, idx);
+                    return std::pow(power_.base, idx + 1);
                 }
                 // unknown exponent_source -> treat as no-op
                 return 1.0;
