@@ -114,6 +114,14 @@ void SQLiteValidationReporter::create_all_reporting_tables() {
     age_column_definitions += fmt::format("moi_{} INTEGER, ", moi);
   }
 
+  // Add columns for age-indexed number of people seeking treatment
+  const auto age_index_count = static_cast<int>(Model::get_config()
+      ->get_epidemiological_parameters().get_age_based_probability_of_seeking_treatment()
+      .get_ages().size());
+  for (auto idx = 0; idx < (age_index_count > 0 ? age_index_count : 1); ++idx) {
+    age_column_definitions += fmt::format("number_of_people_seeking_treatment_by_location_age_index_{} INTEGER, ", idx);
+  }
+
   std::string age_columns;
   for (auto age = 0; age < 80; age++) {
     age_columns += fmt::format("clinical_episodes_by_age_{}, ", age);
@@ -130,6 +138,9 @@ void SQLiteValidationReporter::create_all_reporting_tables() {
   for (auto moi = 0; moi < ModelDataCollector::NUMBER_OF_REPORTED_MOI; moi++) {
     age_columns += fmt::format("moi_{}, ", moi);
   }
+    for (auto idx = 0; idx < (age_index_count > 0 ? age_index_count : 1); ++idx) {
+        age_columns += fmt::format("number_of_people_seeking_treatment_by_location_age_index_{}, ", idx);
+    }
 
   // // Include cell level in the number of levels
   // int number_of_levels = admin_levels.size() + 1;
@@ -354,6 +365,11 @@ void SQLiteValidationReporter::calculate_and_build_up_site_data_insert_values(in
       singleRow += fmt::format(", {}", moi);
     }
 
+    // Append age-indexed seeking-treatment counts (if present)
+    for (const auto &count : monthly_site_data_by_level[level_id].number_of_people_seeking_treatment_by_location_age_index[unit_id]) {
+      singleRow += fmt::format(", {}", count);
+    }
+
     singleRow +=
         fmt::format(", {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})",
                     monthly_site_data_by_level[level_id].treatments[unit_id],
@@ -511,6 +527,16 @@ void SQLiteValidationReporter::collect_site_data_for_location(int location_id, i
         Model::get_mdc()->multiple_of_infection_by_location()[location_id][moi];
   }
 
+  // Copy age-indexed seeking-treatment counters from ModelDataCollector if available
+  const auto &mdc_age_index = Model::get_mdc()->monthly_number_of_people_seeking_treatment_by_location_age_index();
+  if (!mdc_age_index.empty() && location_id < static_cast<int>(mdc_age_index.size())) {
+    const auto &vec = mdc_age_index[location_id];
+    // Ensure target vector is large enough
+    for (size_t idx = 0; idx < vec.size() && idx < monthly_site_data_by_level[level_id].number_of_people_seeking_treatment_by_location_age_index[unit_id].size(); ++idx) {
+      monthly_site_data_by_level[level_id].number_of_people_seeking_treatment_by_location_age_index[unit_id][idx] += vec[idx];
+    }
+  }
+
   // EIR and PfPR is a bit more complicated since it could be an invalid value
   // early in the simulation, and when aggregating at the district level the
   // weighted mean needs to be reported instead
@@ -596,6 +622,11 @@ void SQLiteValidationReporter::reset_site_data_structures(int level_id, int vect
   monthly_site_data_by_level[level_id].person_days_by_location_year.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].current_foi_by_location.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].infections_by_unit.assign(vector_size, 0);
+  const auto age_index_count = static_cast<int>(Model::get_config()
+      ->get_epidemiological_parameters().get_age_based_probability_of_seeking_treatment()
+      .get_ages().size());
+  monthly_site_data_by_level[level_id].number_of_people_seeking_treatment_by_location_age_index.assign(
+      vector_size, std::vector<int>((age_index_count>0)?age_index_count:1, 0));
 }
 
 void SQLiteValidationReporter::reset_genome_data_structures(int level_id, int vector_size,

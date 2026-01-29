@@ -1289,6 +1289,23 @@ public:
     Ul recrudescence{0};
   };
   std::vector<ProgressToClinicalCounter> progress_to_clinical_in_7d_counter;
+
+private:
+  // New counter: monthly_number_of_people_seeking_treatment_by_location_age_index_
+  IntVector2 monthly_number_of_people_seeking_treatment_by_location_age_index_;
+
+public:
+  // Public accessors for the new counter
+  [[nodiscard]] IntVector2 &monthly_number_of_people_seeking_treatment_by_location_age_index() {
+    return monthly_number_of_people_seeking_treatment_by_location_age_index_;
+  }
+  void set_monthly_number_of_people_seeking_treatment_by_location_age_index(const IntVector2 &value) {
+    monthly_number_of_people_seeking_treatment_by_location_age_index_ = value;
+  }
+
+  // Record one person seeking treatment at a location for a given age-index (index into ages vector from config)
+  void record_1_person_seeking_treatment_by_location_age_index(const int &location, const int &age_index);
+
 };
 
 #endif /* MODELDATACOLLECTOR_H */

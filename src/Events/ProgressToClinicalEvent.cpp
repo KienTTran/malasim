@@ -7,6 +7,8 @@
 
 #include "ProgressToClinicalEvent.h"
 
+#include <algorithm>
+
 #include "Configuration/Config.h"
 #include "Core/Scheduler/Scheduler.h"
 #include "Events/ReportTreatmentFailureDeathEvent.h"
@@ -25,9 +27,12 @@
 // OBJECTPOOL_IMPL(ProgressToClinicalEvent)
 
 bool ProgressToClinicalEvent::should_receive_treatment(Person* person) {
-  return Model::get_random()->random_flat(0.0, 1.0)
-         <= Model::get_treatment_coverage()->get_probability_to_be_treated(person->get_location(),
-                                                                           person->get_age());
+  const double base_p = Model::get_treatment_coverage()->get_probability_to_be_treated(person->get_location(),
+                                                                                       person->get_age());
+  const auto &ep = Model::get_config()->get_epidemiological_parameters();
+  const double modifier = ep.get_age_based_probability_of_seeking_treatment().evaluate_for_age(person->get_age());
+  const double effective_p = std::clamp(base_p * modifier, 0.0, 1.0);
+  return Model::get_random()->random_flat(0.0, 1.0) <= effective_p;
 }
 
 void ProgressToClinicalEvent::handle_no_treatment(Person* person) {
@@ -169,7 +174,7 @@ void ProgressToClinicalEvent::transition_to_clinical_state(Person* person) {
   count = 0;
   std::string event_time = "";
   for (const auto& pair : person->get_events()) {
-    if ( typeid(*(pair.second)).name() == typeid(ProgressToClinicalEvent).name()
+    if ( typeid(*pair.second).name() == typeid(ProgressToClinicalEvent).name()
      && pair.second->is_executable()) {
       event_time += std::to_string(pair.first) + " ";
       count++;

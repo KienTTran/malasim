@@ -127,6 +127,14 @@ void SQLiteDbReporter::create_all_reporting_tables() {
     age_column_definitions += fmt::format("moi_{} INTEGER, ", moi);
   }
 
+  // Add columns for age-indexed number of people seeking treatment
+  const auto age_index_count = static_cast<int>(Model::get_config()
+      ->get_epidemiological_parameters().get_age_based_probability_of_seeking_treatment()
+      .get_ages().size());
+  for (auto idx = 0; idx < (age_index_count > 0 ? age_index_count : 1); ++idx) {
+    age_column_definitions += fmt::format("number_of_people_seeking_treatment_by_location_age_index_{} INTEGER, ", idx);
+  }
+
   std::string age_columns;
   for (auto age = 0; age < 80; age++) {
     age_columns += fmt::format("clinical_episodes_by_age_{}, ", age);
@@ -142,6 +150,9 @@ void SQLiteDbReporter::create_all_reporting_tables() {
   }
   for (auto moi = 0; moi < ModelDataCollector::NUMBER_OF_REPORTED_MOI; moi++) {
     age_columns += fmt::format("moi_{}, ", moi);
+  }
+  for (auto idx = 0; idx < (age_index_count > 0 ? age_index_count : 1); ++idx) {
+    age_columns += fmt::format("number_of_people_seeking_treatment_by_location_age_index_{}, ", idx);
   }
 
   // // Include cell level in the number of levels
