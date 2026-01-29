@@ -261,6 +261,17 @@ immune_system_parameters:
   factor_effect_age_mature_immunity: 0.3 # Adjusts the inflection point in the curve (kappa)
   midpoint: 0.4 # Midpoint for the immunity curve
 
+  # Treatment-linked immunity memory: models anti-disease immunity boost after treated malaria episodes
+  # Reduces probability of future clinical symptoms by adding temporary memory to base immunity
+  # Implementation: ImmuneSystem::get_effective_immune_value() in src/Population/ImmuneSystem/ImmuneSystem.cpp
+  # Boost applied in ProgressToClinicalEvent::apply_therapy() and handle_no_treatment()
+  treatment_immunity:
+    enable: true  # Enable/disable the feature (default false if not present)
+    boost_on_treatment: 0.05  # Immunity boost added after successful treatment (0.0 to 1.0)
+    boost_on_untreated_clinical: 0.02   # Optional boost for untreated clinical episodes
+    max_extra_boost: 0.30  # Maximum additional immunity from memory (capped to prevent >1.0 total)
+    half_life_days: 365  # Exponential decay half-life of memory boost (days)
+
 # ---------------------------------------------------------------
 # 10. Mutation and Genotype Parameters
 # ---------------------------------------------------------------
@@ -937,7 +948,7 @@ epidemiological_parameters:
     enable: true
     type: power
     power:
-      base: 0.9
+      base: 0.5
       exponent_source: index
     ages: [0, 5, 10, 15, 20, 30, 40]
 

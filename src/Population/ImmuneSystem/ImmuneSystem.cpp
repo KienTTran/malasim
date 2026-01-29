@@ -53,7 +53,7 @@ double ImmuneSystem::get_parasite_size_after_t_days(const int &duration,
 }
 
 double ImmuneSystem::get_clinical_progression_probability() const {
-  const auto immune = get_current_value();
+  const auto immune = get_effective_immune_value();
 
   const auto isf = Model::get_config()->get_immune_system_parameters();
 
@@ -74,4 +74,49 @@ double ImmuneSystem::get_clinical_progression_probability() const {
   return p_clinical;
 }
 
-void ImmuneSystem::update() { immune_component_->update(); }
+void ImmuneSystem::update() {
+  immune_component_->update();
+  update_treatment_memory();
+}
+
+void ImmuneSystem::update_treatment_memory() const {
+  const auto& cfg = Model::get_config()->get_immune_system_parameters().get_treatment_immunity();
+  if (!cfg.enable) return;
+
+  int today = Model::get_scheduler()->current_time();
+  if (last_memory_update_day_ < 0) {
+    last_memory_update_day_ = today;
+    return;
+  }
+
+  int dt = today - last_memory_update_day_;
+  if (dt <= 0) return;
+
+  const double lambda = std::log(2.0) / cfg.half_life_days;
+  treatment_memory_I_ *= std::exp(-lambda * dt);
+  last_memory_update_day_ = today;
+}
+
+void ImmuneSystem::on_treated_clinical_episode() {
+  const auto& cfg = Model::get_config()->get_immune_system_parameters().get_treatment_immunity();
+  if (!cfg.enable) return;
+
+  update_treatment_memory();
+  treatment_memory_I_ = std::min(cfg.max_extra_boost, treatment_memory_I_ + cfg.boost_on_treatment);
+}
+
+void ImmuneSystem::on_untreated_clinical_episode() {
+  const auto& cfg = Model::get_config()->get_immune_system_parameters().get_treatment_immunity();
+  if (!cfg.enable) return;
+
+  update_treatment_memory();
+  treatment_memory_I_ = std::min(cfg.max_extra_boost, treatment_memory_I_ + cfg.boost_on_untreated_clinical);
+}
+
+double ImmuneSystem::get_effective_immune_value() const {
+  const auto& cfg = Model::get_config()->get_immune_system_parameters().get_treatment_immunity();
+  if (!cfg.enable) return get_current_value();
+
+  update_treatment_memory();
+  return std::clamp(get_current_value() + treatment_memory_I_, 0.0, 1.0);
+}

@@ -15,6 +15,7 @@
 #include "MDC/ModelDataCollector.h"
 #include "Population/ClinicalUpdateFunction.h"
 #include "Population/ClonalParasitePopulation.h"
+#include "Population/ImmuneSystem/ImmuneSystem.h"
 #include "Population/Person/Person.h"
 #include "Population/Population.h"
 #include "Population/SingleHostClonalParasitePopulations.h"
@@ -47,6 +48,9 @@ void ProgressToClinicalEvent::handle_no_treatment(Person* person) {
     Model::get_mdc()->record_1_malaria_death(person->get_location(), person->get_age(), false);
     return;
   }
+
+  // Boost treatment-linked immunity memory for untreated clinical episode
+  person->get_immune_system()->on_untreated_clinical_episode();
 }
 
 std::pair<Therapy*, bool> ProgressToClinicalEvent::determine_therapy(Person* person,
@@ -109,6 +113,9 @@ void ProgressToClinicalEvent::apply_therapy(Person* person, Therapy* therapy,
         therapy->get_id(), Model::get_config()->get_therapy_parameters().get_tf_testing_day());
     return;
   }
+
+  // Boost treatment-linked immunity memory
+  person->get_immune_system()->on_treated_clinical_episode();
 }
 
 void ProgressToClinicalEvent::do_execute() {

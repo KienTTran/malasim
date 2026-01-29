@@ -91,6 +91,9 @@ public:
   [[nodiscard]] const ImmuneSystemParameters &get_immune_system_parameters() const {
     return immune_system_parameters_;
   }
+  [[nodiscard]] ImmuneSystemParameters &get_immune_system_parameters() {
+    return immune_system_parameters_;
+  }
   void set_immune_system_parameters(const ImmuneSystemParameters &parameters) {
     immune_system_parameters_ = parameters;
   }

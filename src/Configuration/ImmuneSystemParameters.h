@@ -5,6 +5,14 @@
 #include "IConfigData.h"
 #include "Utils/Helpers/NumberHelpers.h"
 
+struct TreatmentImmunityConfig {
+  bool enable = false;
+  double boost_on_treatment = 0.0;
+  double boost_on_untreated_clinical = 0.0;
+  double max_extra_boost = 0.0;
+  double half_life_days = 0.0;
+};
+
 class ImmuneSystemParameters : public IConfigData {
 public:
   // Getters and Setters
@@ -71,6 +79,9 @@ public:
 
   [[nodiscard]] double get_midpoint() const { return midpoint_; }
   void set_midpoint(const double value) { midpoint_ = value; }
+
+  [[nodiscard]] const TreatmentImmunityConfig& get_treatment_immunity() const { return treatment_immunity_; }
+  void set_treatment_immunity(const TreatmentImmunityConfig& value) { treatment_immunity_ = value; }
 
   void process_config() override {}
 
@@ -174,6 +185,8 @@ public:
 
   // Parameter kappa in supplement of 2015 LGH paper
   double factor_effect_age_mature_immunity{-1};
+
+  TreatmentImmunityConfig treatment_immunity_;
 };
 
 // ImmuneSystemParameters YAML conversion
@@ -195,6 +208,15 @@ struct YAML::convert<ImmuneSystemParameters> {
     node["age_mature_immunity"] = rhs.get_age_mature_immunity();
     node["factor_effect_age_mature_immunity"] = rhs.get_factor_effect_age_mature_immunity();
     node["midpoint"] = rhs.get_midpoint();
+    // Encode treatment_immunity if enabled
+    const auto& ti = rhs.get_treatment_immunity();
+    if (ti.enable) {
+      node["treatment_immunity"]["enable"] = ti.enable;
+      node["treatment_immunity"]["boost_on_treatment"] = ti.boost_on_treatment;
+      node["treatment_immunity"]["boost_on_untreated_clinical"] = ti.boost_on_untreated_clinical;
+      node["treatment_immunity"]["max_extra_boost"] = ti.max_extra_boost;
+      node["treatment_immunity"]["half_life_days"] = ti.half_life_days;
+    }
     return node;
   }
 
@@ -223,6 +245,19 @@ struct YAML::convert<ImmuneSystemParameters> {
     rhs.set_factor_effect_age_mature_immunity(
         node["factor_effect_age_mature_immunity"].as<double>());
     rhs.set_midpoint(node["midpoint"].as<double>());
+
+    // Decode treatment_immunity if present
+    if (node["treatment_immunity"]) {
+      const auto& ti_node = node["treatment_immunity"];
+      TreatmentImmunityConfig ti;
+      if (ti_node["enable"]) ti.enable = ti_node["enable"].as<bool>();
+      if (ti_node["boost_on_treatment"]) ti.boost_on_treatment = ti_node["boost_on_treatment"].as<double>();
+      if (ti_node["boost_on_untreated_clinical"]) ti.boost_on_untreated_clinical = ti_node["boost_on_untreated_clinical"].as<double>();
+      if (ti_node["max_extra_boost"]) ti.max_extra_boost = ti_node["max_extra_boost"].as<double>();
+      if (ti_node["half_life_days"]) ti.half_life_days = ti_node["half_life_days"].as<double>();
+      rhs.set_treatment_immunity(ti);
+    }
+
     return true;
   }
 };
