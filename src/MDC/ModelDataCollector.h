@@ -41,16 +41,80 @@ public:
     total_immune_by_location_age_class_ = value;
   }
 
+ private:
+   DoubleVector2 total_immune_by_location_age_;
+
+ public:
+   DoubleVector2 &total_immune_by_location_age() {
+     return total_immune_by_location_age_;
+   }
+   void set_total_immune_by_location_age(const DoubleVector2 &value) {
+     total_immune_by_location_age_ = value;
+   }
+
+  // ----- Effective immunity / learned boost aggregates -----
 private:
-  DoubleVector2 total_immune_by_location_age_;
+  DoubleVector total_effective_boost_immune_by_location_;
 
 public:
-  DoubleVector2 &total_immune_by_location_age() {
-    return total_immune_by_location_age_;
-  }
-  void set_total_immune_by_location_age(const DoubleVector2 &value) {
-    total_immune_by_location_age_ = value;
-  }
+  DoubleVector &total_effective_boost_immune_by_location() { return total_effective_boost_immune_by_location_; }
+  void set_total_effective_boost_immune_by_location(const DoubleVector &value) { total_effective_boost_immune_by_location_ = value; }
+
+private:
+  DoubleVector2 total_effective_boost_immune_by_location_age_class_;
+
+public:
+  DoubleVector2 &total_effective_boost_immune_by_location_age_class() { return total_effective_boost_immune_by_location_age_class_; }
+  void set_total_effective_boost_immune_by_location_age_class(const DoubleVector2 &value) { total_effective_boost_immune_by_location_age_class_ = value; }
+
+private:
+  DoubleVector2 total_effective_boost_immune_by_location_age_;
+
+public:
+  DoubleVector2 &total_effective_boost_immune_by_location_age() { return total_effective_boost_immune_by_location_age_; }
+  void set_total_effective_boost_immune_by_location_age(const DoubleVector2 &value) { total_effective_boost_immune_by_location_age_ = value; }
+
+private:
+  DoubleVector total_effective_clinical_immune_by_location_;
+
+public:
+  DoubleVector &total_effective_clinical_immune_by_location() { return total_effective_clinical_immune_by_location_; }
+  void set_total_effective_clinical_immune_by_location(const DoubleVector &value) { total_effective_clinical_immune_by_location_ = value; }
+
+private:
+  DoubleVector2 total_effective_clinical_immune_by_location_age_class_;
+
+public:
+  DoubleVector2 &total_effective_clinical_immune_by_location_age_class() { return total_effective_clinical_immune_by_location_age_class_; }
+  void set_total_effective_clinical_immune_by_location_age_class(const DoubleVector2 &value) { total_effective_clinical_immune_by_location_age_class_ = value; }
+
+private:
+  DoubleVector2 total_effective_clinical_immune_by_location_age_;
+
+public:
+  DoubleVector2 &total_effective_clinical_immune_by_location_age() { return total_effective_clinical_immune_by_location_age_; }
+  void set_total_effective_clinical_immune_by_location_age(const DoubleVector2 &value) { total_effective_clinical_immune_by_location_age_ = value; }
+
+private:
+  DoubleVector total_effective_clearance_immune_by_location_;
+
+public:
+  DoubleVector &total_effective_clearance_immune_by_location() { return total_effective_clearance_immune_by_location_; }
+  void set_total_effective_clearance_immune_by_location(const DoubleVector &value) { total_effective_clearance_immune_by_location_ = value; }
+
+private:
+  DoubleVector2 total_effective_clearance_immune_by_location_age_class_;
+
+public:
+  DoubleVector2 &total_effective_clearance_immune_by_location_age_class() { return total_effective_clearance_immune_by_location_age_class_; }
+  void set_total_effective_clearance_immune_by_location_age_class(const DoubleVector2 &value) { total_effective_clearance_immune_by_location_age_class_ = value; }
+
+private:
+  DoubleVector2 total_effective_clearance_immune_by_location_age_;
+
+public:
+  DoubleVector2 &total_effective_clearance_immune_by_location_age() { return total_effective_clearance_immune_by_location_age_; }
+  void set_total_effective_clearance_immune_by_location_age(const DoubleVector2 &value) { total_effective_clearance_immune_by_location_age_ = value; }
 
 private:
   IntVector popsize_by_location_;

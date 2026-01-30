@@ -84,6 +84,25 @@ void ModelDataCollector::initialize() {
         DoubleVector2(Model::get_config()->number_of_locations(),
                       DoubleVector(100, 0.0));
 
+    // Effective immunity / learned boost aggregates
+    total_effective_boost_immune_by_location_ = DoubleVector(Model::get_config()->number_of_locations(), 0.0);
+    total_effective_boost_immune_by_location_age_class_ =
+        DoubleVector2(Model::get_config()->number_of_locations(), DoubleVector(Model::get_config()->number_of_age_classes(), 0.0));
+    total_effective_boost_immune_by_location_age_ =
+        DoubleVector2(Model::get_config()->number_of_locations(), DoubleVector(100, 0.0));
+
+    total_effective_clinical_immune_by_location_ = DoubleVector(Model::get_config()->number_of_locations(), 0.0);
+    total_effective_clinical_immune_by_location_age_class_ =
+        DoubleVector2(Model::get_config()->number_of_locations(), DoubleVector(Model::get_config()->number_of_age_classes(), 0.0));
+    total_effective_clinical_immune_by_location_age_ =
+        DoubleVector2(Model::get_config()->number_of_locations(), DoubleVector(100, 0.0));
+
+    total_effective_clearance_immune_by_location_ = DoubleVector(Model::get_config()->number_of_locations(), 0.0);
+    total_effective_clearance_immune_by_location_age_class_ =
+        DoubleVector2(Model::get_config()->number_of_locations(), DoubleVector(Model::get_config()->number_of_age_classes(), 0.0));
+    total_effective_clearance_immune_by_location_age_ =
+        DoubleVector2(Model::get_config()->number_of_locations(), DoubleVector(100, 0.0));
+
     total_number_of_bites_by_location_ = LongVector(Model::get_config()->number_of_locations(), 0);
     total_number_of_bites_by_location_year_ =
         LongVector(Model::get_config()->number_of_locations(), 0);
@@ -320,9 +339,23 @@ void ModelDataCollector::perform_population_statistic() {
           double immune_value = person->get_immune_system()->get_latest_immune_value();
           total_immune_by_location_[loc] += immune_value;
           total_immune_by_location_age_class_[loc][ac] += immune_value;
-          int age = static_cast<int>(person->get_age());
-          int age_clamp = (age < 80) ? age : 79;
+          // Effective immunity (clinical and clearance) and total effective boost
+          const double effective_clinical = person->get_immune_system()->get_effective_clinical_immunity(Model::get_scheduler()->current_time());
+          const double effective_clearance = person->get_immune_system()->get_effective_clearance_immunity(Model::get_scheduler()->current_time());
+          const double total_effective = effective_clinical + effective_clearance;
+          total_effective_boost_immune_by_location_[loc] += total_effective;
+          total_effective_boost_immune_by_location_age_class_[loc][ac] += total_effective;
+           int age = static_cast<int>(person->get_age());
+           int age_clamp = (age < 80) ? age : 79;
           total_immune_by_location_age_[loc][age_clamp] += immune_value;
+          total_effective_boost_immune_by_location_age_[loc][age_clamp] += total_effective;
+          // clinical and clearance specific aggregates
+          total_effective_clinical_immune_by_location_[loc] += effective_clinical;
+          total_effective_clinical_immune_by_location_age_class_[loc][ac] += effective_clinical;
+          total_effective_clinical_immune_by_location_age_[loc][age_clamp] += effective_clinical;
+          total_effective_clearance_immune_by_location_[loc] += effective_clearance;
+          total_effective_clearance_immune_by_location_age_class_[loc][ac] += effective_clearance;
+          total_effective_clearance_immune_by_location_age_[loc][age_clamp] += effective_clearance;
           //                    popsize_by_location_age_class_[loc][ac] += 1;
           int ac1 = (person->get_age() > 70) ? 14 : person->get_age() / 5;
           popsize_by_location_age_class_by_5_[loc][ac1] += 1;
@@ -1068,6 +1101,16 @@ void ModelDataCollector::zero_population_statistics() {
   zero_fill_matrix_3d(popsize_by_location_hoststate_age_class_);
   zero_fill_matrix_2d(total_immune_by_location_age_class_);
   zero_fill_matrix_2d(total_immune_by_location_age_);
+  // Zero effective immunity / learned boost aggregates
+  zero_fill(total_effective_boost_immune_by_location_);
+  zero_fill_matrix_2d(total_effective_boost_immune_by_location_age_class_);
+  zero_fill_matrix_2d(total_effective_boost_immune_by_location_age_);
+  zero_fill(total_effective_clinical_immune_by_location_);
+  zero_fill_matrix_2d(total_effective_clinical_immune_by_location_age_class_);
+  zero_fill_matrix_2d(total_effective_clinical_immune_by_location_age_);
+  zero_fill(total_effective_clearance_immune_by_location_);
+  zero_fill_matrix_2d(total_effective_clearance_immune_by_location_age_class_);
+  zero_fill_matrix_2d(total_effective_clearance_immune_by_location_age_);
   zero_fill_matrix_2d(total_parasite_population_by_location_age_group_);
   zero_fill_matrix_2d(number_of_positive_by_location_age_group_);
   zero_fill_matrix_2d(number_of_clinical_by_location_age_group_);
