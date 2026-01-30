@@ -18,7 +18,11 @@ double ImmunityClearanceUpdateFunction::get_current_parasite_density(ClonalParas
 
   // Immunity boost: daily exposure boost
   const auto& cfg = Model::get_config()->get_immune_system_parameters().get_immunity_boost();
-  if (cfg.enable && !p->has_any_drugs()) {
+  // NOTE: Apply daily exposure boost whenever the parasite has been in the blood
+  // for long enough (exposure_gate_days). Previously this skipped when any
+  // drugs were present in the host; that condition was removed to match the
+  // configuration/comment change and updated behavior.
+  if (cfg.enable) {
     int current_time = Model::get_scheduler()->current_time();
     int parasite_in_blood_days = current_time - parasite->first_date_in_blood();
     if (parasite_in_blood_days >= cfg.exposure_gate_days) {

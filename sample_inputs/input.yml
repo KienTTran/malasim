@@ -273,7 +273,6 @@ immune_system_parameters:
     # ----- Continuous exposure learning (V2) -----
     # Apply per day when:
     #   - parasite is in blood
-    #   - AND no drugs in blood
     boost_per_exposure_day: 0.002
 
     # Optional gating to avoid learning from brief/tiny exposures
