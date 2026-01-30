@@ -259,7 +259,7 @@ immune_system_parameters:
   immune_effect_on_progression_to_clinical: 5.4 # Slope of the sigmoidal probability vs. immunity function (z)
   age_mature_immunity: 10 # Age at which immune function is mature
   factor_effect_age_mature_immunity: 0.3 # Adjusts the inflection point in the curve (kappa)
-  midpoint: 0.2 # Midpoint for the immunity curve
+  midpoint: 0.4 # Midpoint for the immunity curve
 
   immunity_boost:
     enable: true
@@ -272,24 +272,25 @@ immune_system_parameters:
     # Key idea (Cameron/Griffin-like):
     #   - clinical immunity can increase relatively fast → fewer clinical episodes
     #   - clearance immunity should be weaker/slower → PfPR saturates instead of collapsing
+    # The values below are default and will make no different between enabled/disabled.
 
     clinical:
       # Discrete boost when recrudescence happens WITHOUT symptoms.
       # Apply only when:
       #   - recrudescence is WITHOUT_SYMPTOM
       #   - AND (optionally) no drugs in blood (your choice; recommended: allow with multiplier)
-      boost_on_asymptomatic_recrudescence: 0.0
+      boost_on_asymptomatic_recrudescence: 0.01
 
       # Continuous learning per day when parasite is in blood.
       # Apply once per PERSON per day (guard against per-parasite double counting).
-      boost_per_exposure_day: 0.0
+      boost_per_exposure_day: 0.01
 
       # Only start learning after parasite has been in blood for at least N days.
       # Prevents brief/tiny exposures from producing strong immunity.
-      exposure_gate_days: 3
+      exposure_gate_days: 5
 
       # Cap on "clinical extra immunity" (added on top of base immunity).
-      max_extra_boost: 0.60
+      max_extra_boost: 0.35
 
       # Exponential decay timescale for clinical extra immunity.
       # 365 days = halves every year if no new exposure.
@@ -298,13 +299,13 @@ immune_system_parameters:
     clearance:
       # Continuous learning per day when parasite is in blood.
       # Usually much smaller than clinical because we don't want PfPR to drop too much.
-      boost_per_exposure_day: 0.003
+      boost_per_exposure_day: 0.0001
 
       # Clearance immunity should build slower (larger gate).
-      exposure_gate_days: 14
+      exposure_gate_days: 21
 
       # Lower cap so clearance effect is limited.
-      max_extra_boost: 0.05
+      max_extra_boost: 0.03
 
       # Slower decay for clearance immunity (longer-lived memory).
       # ~5 years here.
@@ -313,7 +314,7 @@ immune_system_parameters:
     # Optional: how much learning should happen on days when drugs are present.
     # Cameron/Griffin-style: treatment reduces exposure but doesn't fully disable learning.
     # If you want strict "no learning under drugs", set to 0.0
-    drug_exposure_multiplier: 0.4
+    drug_exposure_multiplier: 0.3
 
 # ---------------------------------------------------------------
 # 10. Mutation and Genotype Parameters
