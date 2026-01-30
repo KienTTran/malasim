@@ -58,15 +58,35 @@ public:
   void add_daily_exposure_boost(int current_day);
   [[nodiscard]] double get_effective_immunity(int current_day) const;
 
+  // Two-channel API: clinical (affects clinical progression) and clearance (affects parasite control)
+  void update_boosts_decay_for_day(int current_day);
+  void add_clinical_event_boost(double amount, int current_day);
+  void add_clearance_event_boost(double amount, int current_day);
+  void add_daily_clearance_exposure_boost(int current_day, double amount_multiplier = 1.0);
+  void add_daily_clinical_exposure_boost(int current_day, double amount_multiplier = 1.0);
+
+  [[nodiscard]] double get_effective_clinical_immunity(int current_day) const;
+  [[nodiscard]] double get_effective_clearance_immunity(int current_day) const;
+
 private:
   Person* person_{nullptr};
   std::unique_ptr<ImmuneComponent> immune_component_{nullptr};
   bool increase_{false};
 
-  // Extra boost state
+  // Extra boost state (legacy single-channel kept for backward compatibility)
   double extra_boost_{0.0};
   int last_extra_boost_update_day_{-1};
   int last_daily_boost_day_{-1};
+
+  // New two-channel boost state
+  struct BoostChannel {
+    double value{0.0};
+    int last_decay_day{-1};
+    int last_daily_add_day{-1};
+  };
+
+  BoostChannel clinical_boost_;
+  BoostChannel clearance_boost_;
 };
 
 #endif /* IMMUNESYSTEM_H */

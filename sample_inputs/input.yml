@@ -259,32 +259,61 @@ immune_system_parameters:
   immune_effect_on_progression_to_clinical: 5.4 # Slope of the sigmoidal probability vs. immunity function (z)
   age_mature_immunity: 10 # Age at which immune function is mature
   factor_effect_age_mature_immunity: 0.3 # Adjusts the inflection point in the curve (kappa)
-  midpoint: 0.4 # Midpoint for the immunity curve
+  midpoint: 0.2 # Midpoint for the immunity curve
 
   immunity_boost:
     enable: true
 
-    # ----- Event-based learning (V1) -----
-    # Apply ONLY when:
-    #   - recrudescence is WITHOUT symptom
-    #   - AND no drugs in blood (immunity is doing the work)
-    boost_on_asymptomatic_recrudescence: 0.05
+    # This feature adds "extra learned immunity" on top of your existing base immunity.
+    # It is split into two channels:
+    #  - clinical: reduces probability of progressing to clinical symptoms (affects incidence/treatment)
+    #  - clearance: mildly increases parasite control/clearance (affects PfPR/prevalence)
+    #
+    # Key idea (Cameron/Griffin-like):
+    #   - clinical immunity can increase relatively fast → fewer clinical episodes
+    #   - clearance immunity should be weaker/slower → PfPR saturates instead of collapsing
 
-    # ----- Continuous exposure learning (V2) -----
-    # Apply per day when:
-    #   - parasite is in blood
-    boost_per_exposure_day: 0.002
+    clinical:
+      # Discrete boost when recrudescence happens WITHOUT symptoms.
+      # Apply only when:
+      #   - recrudescence is WITHOUT_SYMPTOM
+      #   - AND (optionally) no drugs in blood (your choice; recommended: allow with multiplier)
+      boost_on_asymptomatic_recrudescence: 0.0
 
-    # Optional gating to avoid learning from brief/tiny exposures
-    exposure_gate_days: 7
+      # Continuous learning per day when parasite is in blood.
+      # Apply once per PERSON per day (guard against per-parasite double counting).
+      boost_per_exposure_day: 0.0
 
-    # ----- Shared controls -----
-    # Cap the extra learned immunity (separate from base immunity)
-    max_extra_boost: 0.30
+      # Only start learning after parasite has been in blood for at least N days.
+      # Prevents brief/tiny exposures from producing strong immunity.
+      exposure_gate_days: 3
 
-    # Exponential decay for learned immunity
-    half_life_days: 365
+      # Cap on "clinical extra immunity" (added on top of base immunity).
+      max_extra_boost: 0.60
 
+      # Exponential decay timescale for clinical extra immunity.
+      # 365 days = halves every year if no new exposure.
+      half_life_days: 365
+
+    clearance:
+      # Continuous learning per day when parasite is in blood.
+      # Usually much smaller than clinical because we don't want PfPR to drop too much.
+      boost_per_exposure_day: 0.003
+
+      # Clearance immunity should build slower (larger gate).
+      exposure_gate_days: 14
+
+      # Lower cap so clearance effect is limited.
+      max_extra_boost: 0.05
+
+      # Slower decay for clearance immunity (longer-lived memory).
+      # ~5 years here.
+      half_life_days: 1800
+
+    # Optional: how much learning should happen on days when drugs are present.
+    # Cameron/Griffin-style: treatment reduces exposure but doesn't fully disable learning.
+    # If you want strict "no learning under drugs", set to 0.0
+    drug_exposure_multiplier: 0.4
 
 # ---------------------------------------------------------------
 # 10. Mutation and Genotype Parameters

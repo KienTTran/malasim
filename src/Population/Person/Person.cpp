@@ -446,11 +446,14 @@ void Person::determine_symptomatic_recrudescence(
 
     this->recurrence_status_ = Person::RecurrenceStatus::WITHOUT_SYMPTOM;
 
-    // Immunity boost: event-based boost for asymptomatic recrudescence without drugs
-    if (drugs_in_blood_->size() == 0) {
-      immune_system_->add_extra_boost(
-          Model::get_config()->get_immune_system_parameters().get_immunity_boost().boost_on_asymptomatic_recrudescence,
-          Model::get_scheduler()->current_time());
+    // Immunity boost: event-based boost for asymptomatic recrudescence
+    const auto& ib_cfg = Model::get_config()->get_immune_system_parameters().get_immunity_boost();
+    if (ib_cfg.enable) {
+      double amount = ib_cfg.clinical.boost_on_asymptomatic_recrudescence;
+      if (drugs_in_blood_->size() > 0) {
+        amount *= ib_cfg.drug_exposure_multiplier;
+      }
+      immune_system_->add_clinical_event_boost(amount, Model::get_scheduler()->current_time());
     }
 
     // If the last update parasite density is greater than the asymptomatic
@@ -461,12 +464,13 @@ void Person::determine_symptomatic_recrudescence(
               ->get_parasite_parameters()
               .get_parasite_density_levels()
               .get_log_parasite_density_asymptomatic()) {
+
       clinical_caused_parasite->set_last_update_log10_parasite_density(
           Model::get_random()->random_normal_truncated(Model::get_config()
-                                                           ->get_parasite_parameters()
-                                                           .get_parasite_density_levels()
-                                                           .get_log_parasite_density_asymptomatic(),
-                                                       0.1));
+                                                       ->get_parasite_parameters()
+                                                       .get_parasite_density_levels()
+                                                       .get_log_parasite_density_asymptomatic(),
+                                                   0.1));
     }
 
     if (drugs_in_blood_->size() > 0) {

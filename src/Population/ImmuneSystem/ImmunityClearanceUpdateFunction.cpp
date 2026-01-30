@@ -16,17 +16,19 @@ double ImmunityClearanceUpdateFunction::get_current_parasite_density(ClonalParas
   double density = p->get_immune_system()->get_parasite_size_after_t_days(duration, parasite->last_update_log10_parasite_density(),
                                                             parasite->genotype()->daily_fitness_multiple_infection);
 
-  // Immunity boost: daily exposure boost
+  // Immunity boost: daily exposure boost (clearance channel)
   const auto& cfg = Model::get_config()->get_immune_system_parameters().get_immunity_boost();
-  // NOTE: Apply daily exposure boost whenever the parasite has been in the blood
-  // for long enough (exposure_gate_days). Previously this skipped when any
-  // drugs were present in the host; that condition was removed to match the
-  // configuration/comment change and updated behavior.
   if (cfg.enable) {
     int current_time = Model::get_scheduler()->current_time();
     int parasite_in_blood_days = current_time - parasite->first_date_in_blood();
-    if (parasite_in_blood_days >= cfg.exposure_gate_days) {
-      p->get_immune_system()->add_daily_exposure_boost(current_time);
+    // Apply when parasite has been in blood long enough for clearance exposure
+    if (parasite_in_blood_days >= cfg.clearance.exposure_gate_days) {
+      double multiplier = 1.0;
+      // If drugs are present, scale the amount by drug_exposure_multiplier
+      if (p->has_effective_drug_in_blood()) {
+        multiplier = cfg.drug_exposure_multiplier;
+      }
+      p->get_immune_system()->add_daily_clearance_exposure_boost(current_time, multiplier);
     }
   }
 

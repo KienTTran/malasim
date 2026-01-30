@@ -113,3 +113,131 @@ TEST(ImmuneSystemBoostTest, DailyExposureBoostOncePerDay) {
   model->release();
   test_fixtures::cleanup_test_files();
 }
+
+TEST(ImmuneSystemBoostTest, ClinicalChannelOnlyDailyAndEventBoost) {
+  test_fixtures::create_complete_test_environment();
+  utils::Cli::get_instance().set_input_path("test_input.yml");
+  auto *model = Model::get_instance();
+  auto mocks = test_fixtures::setup_model_with_mocks(model);
+
+  auto isp = model->get_config()->get_immune_system_parameters();
+  ImmuneSystemParameters::ImmunityBoostConfig boost_cfg{};
+  boost_cfg.enable = true;
+  // Clinical channel only
+  boost_cfg.clinical.boost_per_exposure_day = 0.02;
+  boost_cfg.clinical.max_extra_boost = 0.5;
+  boost_cfg.clinical.half_life_days = 365.0;
+  boost_cfg.clinical.exposure_gate_days = 0;
+  // Leave clearance defaults (zero)
+  isp.set_immunity_boost(boost_cfg);
+  model->get_config()->set_immune_system_parameters(isp);
+
+  ImmuneSystem immune;
+  auto comp = std::make_unique<DummyImmuneComponentFixed>(&immune);
+  comp->value = 0.10; // base immunity
+  immune.set_immune_component(std::move(comp));
+  immune.set_latest_immune_value(0.10);
+
+  // Day 1: apply daily clinical exposure
+  mocks.scheduler->set_current_time(1);
+  immune.add_daily_clinical_exposure_boost(1, 1.0);
+  double eff_clin = immune.get_effective_clinical_immunity(1);
+  double eff_clear = immune.get_effective_clearance_immunity(1);
+
+  EXPECT_NEAR(eff_clin, 0.12, 1e-9); // 0.10 + 0.02
+  EXPECT_NEAR(eff_clear, 0.10, 1e-9); // unaffected
+
+  // Event boost (clinical channel)
+  immune.add_clinical_event_boost(0.05, 1);
+  double eff_clin_evt = immune.get_effective_clinical_immunity(1);
+  EXPECT_NEAR(eff_clin_evt, std::min(1.0, 0.12 + 0.05), 1e-9);
+
+  model->release();
+  test_fixtures::cleanup_test_files();
+}
+
+TEST(ImmuneSystemBoostTest, ClearanceChannelOnlyDailyBoost) {
+  test_fixtures::create_complete_test_environment();
+  utils::Cli::get_instance().set_input_path("test_input.yml");
+  auto *model = Model::get_instance();
+  auto mocks = test_fixtures::setup_model_with_mocks(model);
+
+  auto isp = model->get_config()->get_immune_system_parameters();
+  ImmuneSystemParameters::ImmunityBoostConfig boost_cfg{};
+  boost_cfg.enable = true;
+  // Clearance channel only
+  boost_cfg.clearance.boost_per_exposure_day = 0.03;
+  boost_cfg.clearance.max_extra_boost = 0.4;
+  boost_cfg.clearance.half_life_days = 180.0;
+  boost_cfg.clearance.exposure_gate_days = 0;
+  isp.set_immunity_boost(boost_cfg);
+  model->get_config()->set_immune_system_parameters(isp);
+
+  ImmuneSystem immune;
+  auto comp = std::make_unique<DummyImmuneComponentFixed>(&immune);
+  comp->value = 0.20; // base immunity
+  immune.set_immune_component(std::move(comp));
+  immune.set_latest_immune_value(0.20);
+
+  mocks.scheduler->set_current_time(2);
+  immune.add_daily_clearance_exposure_boost(2, 1.0);
+  double eff_clear = immune.get_effective_clearance_immunity(2);
+  double eff_clin = immune.get_effective_clinical_immunity(2);
+
+  EXPECT_NEAR(eff_clear, 0.23, 1e-9); // 0.20 + 0.03
+  EXPECT_NEAR(eff_clin, 0.20, 1e-9);   // unaffected
+
+  model->release();
+  test_fixtures::cleanup_test_files();
+}
+
+TEST(ImmuneSystemBoostTest, BothChannelsDailyBoostsSeparateCapsAndDecay) {
+  test_fixtures::create_complete_test_environment();
+  utils::Cli::get_instance().set_input_path("test_input.yml");
+  auto *model = Model::get_instance();
+  auto mocks = test_fixtures::setup_model_with_mocks(model);
+
+  auto isp = model->get_config()->get_immune_system_parameters();
+  ImmuneSystemParameters::ImmunityBoostConfig boost_cfg{};
+  boost_cfg.enable = true;
+  // Both channels
+  boost_cfg.clinical.boost_per_exposure_day = 0.01;
+  boost_cfg.clinical.max_extra_boost = 0.05;
+  boost_cfg.clinical.half_life_days = 100.0;
+  boost_cfg.clinical.exposure_gate_days = 0;
+
+  boost_cfg.clearance.boost_per_exposure_day = 0.02;
+  boost_cfg.clearance.max_extra_boost = 0.06;
+  boost_cfg.clearance.half_life_days = 200.0;
+  boost_cfg.clearance.exposure_gate_days = 0;
+
+  isp.set_immunity_boost(boost_cfg);
+  model->get_config()->set_immune_system_parameters(isp);
+
+  ImmuneSystem immune;
+  auto comp = std::make_unique<DummyImmuneComponentFixed>(&immune);
+  comp->value = 0.30; // base immunity
+  immune.set_immune_component(std::move(comp));
+  immune.set_latest_immune_value(0.30);
+
+  // Day 5: apply both daily boosts
+  mocks.scheduler->set_current_time(5);
+  immune.add_daily_clinical_exposure_boost(5, 1.0);
+  immune.add_daily_clearance_exposure_boost(5, 1.0);
+
+  double eff_clin = immune.get_effective_clinical_immunity(5);
+  double eff_clear = immune.get_effective_clearance_immunity(5);
+
+  EXPECT_NEAR(eff_clin, 0.31, 1e-9); // 0.30 + 0.01
+  EXPECT_NEAR(eff_clear, 0.32, 1e-9); // 0.30 + 0.02
+
+  // Advance many days to test decay halves over half-life
+  mocks.scheduler->set_current_time(5 + static_cast<int>(boost_cfg.clinical.half_life_days));
+  immune.update();
+  double eff_clin_after = immune.get_effective_clinical_immunity(mocks.scheduler->current_time());
+  // clinical extra 0.01 -> decays to ~0.005 => effective ~0.305
+  EXPECT_NEAR(eff_clin_after, 0.30 + 0.01 * 0.5, 1e-6);
+
+  model->release();
+  test_fixtures::cleanup_test_files();
+}
