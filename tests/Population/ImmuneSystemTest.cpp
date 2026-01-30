@@ -3,7 +3,11 @@
 #include "Population/ImmuneSystem/ImmuneComponent.h"
 #include "Population/ImmuneSystem/InfantImmuneComponent.h"
 #include "Population/Person/Person.h"
+#include "Core/Scheduler/Scheduler.h"
+#include "fixtures/MockFactories.h"
+#include "fixtures/TestFileGenerators.h"
 #include <memory>
+#include <date/date.h>
 
 // Dummy ImmuneComponent for full control
 class DummyImmuneComponent : public ImmuneComponent {
@@ -63,6 +67,10 @@ TEST(ImmuneSystemTest, DrawRandomImmuneDelegates) {
 }
 
 TEST(ImmuneSystemTest, UpdateCallsComponentUpdate) {
+    auto model = Model::get_instance();
+    model->set_config(std::make_unique<MockConfig>());
+    model->set_scheduler(std::make_unique<Scheduler>());
+    Model::get_scheduler()->initialize(date::year_month_day{date::year{2000}, date::month{1}, date::day{1}}, date::year_month_day{date::year{2010}, date::month{12}, date::day{31}});
     ImmuneSystem immune;
     struct FlagImmuneComponent : public DummyImmuneComponent {
         bool updated = false;

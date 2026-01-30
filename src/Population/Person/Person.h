@@ -261,6 +261,8 @@ public:
 
   [[nodiscard]] bool has_effective_drug_in_blood() const;
 
+  [[nodiscard]] bool has_any_drugs() const;
+
   static double draw_random_relative_biting_rate(utils::Random* p_random, Config* p_config);
 
   void receive_therapy(SCTherapy* sc_therapy, bool is_mac_therapy);

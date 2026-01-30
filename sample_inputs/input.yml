@@ -261,6 +261,32 @@ immune_system_parameters:
   factor_effect_age_mature_immunity: 0.3 # Adjusts the inflection point in the curve (kappa)
   midpoint: 0.4 # Midpoint for the immunity curve
 
+  immunity_boost:
+    enable: true
+
+    # ----- Event-based learning (V1) -----
+    # Apply ONLY when:
+    #   - recrudescence is WITHOUT symptom
+    #   - AND no drugs in blood (immunity is doing the work)
+    boost_on_asymptomatic_recrudescence: 0.05
+
+    # ----- Continuous exposure learning (V2) -----
+    # Apply per day when:
+    #   - parasite is in blood
+    #   - AND no drugs in blood
+    boost_per_exposure_day: 0.002
+
+    # Optional gating to avoid learning from brief/tiny exposures
+    exposure_gate_days: 7
+
+    # ----- Shared controls -----
+    # Cap the extra learned immunity (separate from base immunity)
+    max_extra_boost: 0.30
+
+    # Exponential decay for learned immunity
+    half_life_days: 365
+
+
 # ---------------------------------------------------------------
 # 10. Mutation and Genotype Parameters
 # ---------------------------------------------------------------

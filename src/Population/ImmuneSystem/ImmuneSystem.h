@@ -52,12 +52,21 @@ public:
 
   [[nodiscard]] virtual double get_clinical_progression_probability() const;
 
+  // Immunity boost methods
+  void update_extra_boost_decay(int current_day);
+  void add_extra_boost(double amount, int current_day);
+  void add_daily_exposure_boost(int current_day);
+  [[nodiscard]] double get_effective_immunity(int current_day) const;
+
 private:
   Person* person_{nullptr};
   std::unique_ptr<ImmuneComponent> immune_component_{nullptr};
   bool increase_{false};
 
-  //    virtual void clear();
+  // Extra boost state
+  double extra_boost_{0.0};
+  int last_extra_boost_update_day_{-1};
+  int last_daily_boost_day_{-1};
 };
 
 #endif /* IMMUNESYSTEM_H */

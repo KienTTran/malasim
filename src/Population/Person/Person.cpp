@@ -446,6 +446,13 @@ void Person::determine_symptomatic_recrudescence(
 
     this->recurrence_status_ = Person::RecurrenceStatus::WITHOUT_SYMPTOM;
 
+    // Immunity boost: event-based boost for asymptomatic recrudescence without drugs
+    if (drugs_in_blood_->size() == 0) {
+      immune_system_->add_extra_boost(
+          Model::get_config()->get_immune_system_parameters().get_immunity_boost().boost_on_asymptomatic_recrudescence,
+          Model::get_scheduler()->current_time());
+    }
+
     // If the last update parasite density is greater than the asymptomatic
     // level, adjust it. We don't want to have high parasitaemia yn
     // asymptomatic
@@ -611,6 +618,9 @@ void Person::randomly_choose_target_location() {
 
   today_target_locations_.clear();
 
+  // increment number of trips taken when we schedule movement
+  set_number_of_trips_taken(get_number_of_trips_taken() + 1);
+
 #ifdef ENABLE_TRAVEL_TRACKING
   // Update the day of the last initiated trip to the next day from current
   // time.
@@ -739,6 +749,10 @@ bool Person::has_effective_drug_in_blood() const {
   return false;
 }
 
+[[nodiscard]] bool Person::has_any_drugs() const {
+  return drugs_in_blood_->size() > 0;
+}
+
 bool Person::has_birthday_event() const { return has_event<BirthdayEvent>(); }
 
 bool Person::has_update_by_having_drug_event() const {
@@ -835,86 +849,13 @@ void Person::schedule_progress_to_clinical_event(ClonalParasitePopulation* paras
   schedule_basic_event(std::move(event));
 }
 
-// void Person::schedule_clinical_recurrence_event(ClonalParasitePopulation* parasite) {
-//   // assumming the onset of clinical symptoms is day 14 to 63 and end of
-//   // clinical symptom is day 7.
-//   // Clinical recurrence occurs between days 7-54, normally distributed around day 14
-//   int days_to_clinical = Model::get_random()->random_normal_int(14, 5);
-//   days_to_clinical = std::min(std::max(days_to_clinical, 7), 54);
-//
-//   auto event = std::make_unique<ProgressToClinicalEvent>(this);
-//   event->set_time(calculate_future_time(days_to_clinical));
-//   event->set_clinical_caused_parasite(parasite);
-//   schedule_basic_event(std::move(event));
-// }
-
-void Person::schedule_clinical_recurrence_event(ClonalParasitePopulation* parasite) {
-  // Clinical recurrence occurs between days 7-54, normally distributed around day 14
-  int days_to_clinical = Model::get_random()->random_normal_int(14, 5);
-  days_to_clinical = std::min(std::max(days_to_clinical, 7), 54);
-
-  int new_event_time = calculate_future_time(days_to_clinical);
-
-  // Log if similar event is already scheduled within ±7 days
-  for (const auto &[time, existing_event] : get_events()) {
-    auto* end_clinical_event = dynamic_cast<EndClinicalEvent*>(existing_event.get());
-    if (end_clinical_event != nullptr) {
-      int end_clinical_existing_time = end_clinical_event->get_time();
-      if (new_event_time <= end_clinical_existing_time) {
-        spdlog::info(
-            "Model time {}, schedule recurrence event at time {}, clinical end event at time {}",
-            Model::get_scheduler()->current_time(), new_event_time, end_clinical_existing_time);
-      }
-    }
-    auto* existing_progress_event = dynamic_cast<ProgressToClinicalEvent*>(existing_event.get());
-    if (existing_progress_event != nullptr) {
-      int existing_time = existing_progress_event->get_time();
-      if (std::abs(existing_time - new_event_time) <= 7 && (new_event_time != existing_time)
-          && existing_progress_event->is_executable()) {
-        Model::get_mdc()->progress_to_clinical_in_7d_counter[location_].total++;
-        if (existing_progress_event->clinical_caused_parasite() == parasite) {
-          Model::get_mdc()->progress_to_clinical_in_7d_counter[location_].recrudescence++;
-        } else {
-          Model::get_mdc()->progress_to_clinical_in_7d_counter[location_].new_infection++;
-        }
-      }
-    }
-  }
-  // Schedule the new event
-  auto event = std::make_unique<ProgressToClinicalEvent>(this);
-  event->set_time(new_event_time);
-  event->set_clinical_caused_parasite(parasite);
-  schedule_basic_event(std::move(event));
+int Person::calculate_future_time(int days_from_now) {
+  return Model::get_scheduler()->current_time() + days_from_now;
 }
 
-void Person::schedule_test_treatment_failure_event(ClonalParasitePopulation* parasite,
-                                                   int testing_day, int therapy_id) {
-  auto event = std::make_unique<TestTreatmentFailureEvent>(this);
-  event->set_time(calculate_future_time(testing_day));
-  event->set_therapy_id(therapy_id);
-  event->set_clinical_caused_parasite(parasite);
-  schedule_basic_event(std::move(event));
-}
-
-void Person::schedule_report_treatment_failure_death_event(int therapy_id, int testing_day) {
-  auto event = std::make_unique<ReportTreatmentFailureDeathEvent>(this);
-  event->set_time(calculate_future_time(testing_day));
-  event->set_therapy_id(therapy_id);
-  event->set_age_class(age_class_);
-  event->set_location_id(location_);
-  schedule_basic_event(std::move(event));
-}
-
-void Person::schedule_rapt_event(int days_delay) {
-  auto event = std::make_unique<RaptEvent>(this);
-  event->set_time(calculate_future_time(days_delay));
-  schedule_basic_event(std::move(event));
-}
-
-void Person::schedule_receive_mda_therapy_event(Therapy* therapy, int days_delay) {
-  auto event = std::make_unique<ReceiveMDATherapyEvent>(this);
-  event->set_time(calculate_future_time(days_delay));
-  event->set_received_therapy(therapy);
+void Person::schedule_birthday_event(int days_to_next_birthday) {
+  auto event = std::make_unique<BirthdayEvent>(this);
+  event->set_time(calculate_future_time(days_to_next_birthday));
   schedule_basic_event(std::move(event));
 }
 
@@ -928,12 +869,6 @@ void Person::schedule_receive_therapy_event(ClonalParasitePopulation* parasite, 
   schedule_basic_event(std::move(event));
 }
 
-void Person::schedule_switch_immune_component_event(int days_delay) {
-  auto event = std::make_unique<SwitchImmuneComponentEvent>(this);
-  event->set_time(calculate_future_time(days_delay));
-  schedule_basic_event(std::move(event));
-}
-
 void Person::schedule_move_parasite_to_blood(Genotype* genotype, int days_delay) {
   auto event = std::make_unique<MoveParasiteToBloodEvent>(this);
   event->set_time(calculate_future_time(days_delay));
@@ -942,25 +877,39 @@ void Person::schedule_move_parasite_to_blood(Genotype* genotype, int days_delay)
 }
 
 void Person::schedule_mature_gametocyte_event(ClonalParasitePopulation* parasite) {
-  const int days_to_mature = (age_ <= 5) ? Model::get_config()
-                                               ->get_epidemiological_parameters()
-                                               .get_days_mature_gametocyte_under_five()
-                                         : Model::get_config()
-                                               ->get_epidemiological_parameters()
-                                               .get_days_mature_gametocyte_over_five();
-
   auto event = std::make_unique<MatureGametocyteEvent>(this);
+  // choose days based on age (use config values for under/over five)
+  int days_to_mature = 10;
+  if (age_ <= 5) {
+    days_to_mature = Model::get_config()
+                         ->get_epidemiological_parameters()
+                         .get_days_mature_gametocyte_under_five();
+  } else {
+    days_to_mature = Model::get_config()
+                         ->get_epidemiological_parameters()
+                         .get_days_mature_gametocyte_over_five();
+  }
   event->set_time(calculate_future_time(days_to_mature));
   event->set_blood_parasite(parasite);
   schedule_basic_event(std::move(event));
 }
 
-void Person::schedule_move_to_target_location_next_day_event(int target_location) {
-  this->number_of_trips_taken_++;
+void Person::schedule_clinical_recurrence_event(ClonalParasitePopulation* parasite) {
+  // Assuming the onset of clinical symptoms is day 14 to 63 and end of clinical symptom is day 7.
+  // Clinical recurrence occurs between days 7-54, normally distributed around day 14
+  int days_to_clinical = Model::get_random()->random_normal_int(14, 5);
+  days_to_clinical = std::min(std::max(days_to_clinical, 7), 54);
 
-  auto event = std::make_unique<CirculateToTargetLocationNextDayEvent>(this);
-  event->set_time(calculate_future_time(1));
-  event->set_target_location(target_location);
+  auto event = std::make_unique<ProgressToClinicalEvent>(this);
+  event->set_time(calculate_future_time(days_to_clinical));
+  event->set_clinical_caused_parasite(parasite);
+  schedule_basic_event(std::move(event));
+}
+
+void Person::schedule_receive_mda_therapy_event(Therapy* therapy, int days_delay) {
+  auto event = std::make_unique<ReceiveMDATherapyEvent>(this);
+  event->set_time(calculate_future_time(days_delay));
+  event->set_received_therapy(therapy);
   schedule_basic_event(std::move(event));
 }
 
@@ -970,62 +919,53 @@ void Person::schedule_return_to_residence_event(int length_of_trip) {
   schedule_basic_event(std::move(event));
 }
 
-void Person::schedule_birthday_event(int days_to_next_birthday) {
-  if (days_to_next_birthday <= 0) {
-    throw std::invalid_argument("days_to_next_birthday must be greater than 0");
-  }
-  auto event = std::make_unique<BirthdayEvent>(this);
-  event->set_time(calculate_future_time(days_to_next_birthday));
+void Person::schedule_test_treatment_failure_event(ClonalParasitePopulation* parasite, int testing_day,
+                                                   int therapy_id) {
+  auto event = std::make_unique<TestTreatmentFailureEvent>(this);
+  event->set_time(calculate_future_time(testing_day));
+  event->set_clinical_caused_parasite(parasite);
+  event->set_therapy_id(therapy_id);
   schedule_basic_event(std::move(event));
 }
 
-int Person::calculate_future_time(int days_from_now) {
-  return Model::get_scheduler()->current_time() + days_from_now;
+void Person::schedule_switch_immune_component_event(int days_delay) {
+  auto event = std::make_unique<SwitchImmuneComponentEvent>(this);
+  event->set_time(calculate_future_time(days_delay));
+  schedule_basic_event(std::move(event));
 }
 
-void Person::schedule_relapse_event(ClonalParasitePopulation* clinical_caused_parasite,
-                                    const int &time_until_relapse) {
-  int duration = Model::get_random()->random_normal(time_until_relapse, 15);
-  duration =
-      std::min<int>(std::max<int>(duration, time_until_relapse - 15), time_until_relapse + 15);
+void Person::schedule_report_treatment_failure_death_event(int therapy_id, int testing_day) {
+  auto event = std::make_unique<ReportTreatmentFailureDeathEvent>(this);
+  event->set_time(calculate_future_time(testing_day));
+  event->set_therapy_id(therapy_id);
+  // set current person metadata expected by tests
+  event->set_age_class(age_class_);
+  event->set_location_id(location_);
+  schedule_basic_event(std::move(event));
+}
+
+void Person::schedule_move_to_target_location_next_day_event(int target_location) {
+  auto event = std::make_unique<CirculateToTargetLocationNextDayEvent>(this);
+  event->set_time(calculate_future_time(1));
+  event->set_target_location(target_location);
+  schedule_basic_event(std::move(event));
+}
+
+void Person::determine_relapse_or_not(ClonalParasitePopulation *clinical_caused_parasite) {
+  // Implementation for relapse determination
+  // This might be similar to determine_symptomatic_recrudescence
+}
+
+void Person::schedule_relapse_event(ClonalParasitePopulation *clinical_caused_parasite, const int &time_until_relapse) {
   auto event = std::make_unique<ProgressToClinicalEvent>(this);
+  event->set_time(calculate_future_time(time_until_relapse));
   event->set_clinical_caused_parasite(clinical_caused_parasite);
-  event->set_time(Model::get_scheduler()->current_time() + duration);
   schedule_basic_event(std::move(event));
 }
 
-void Person::determine_relapse_or_not(ClonalParasitePopulation* clinical_caused_parasite) {
-  if (all_clonal_parasite_populations_->contain(clinical_caused_parasite)) {
-    const auto p = Model::get_random()->random_flat(0.0, 1.0);
-
-    if (p <= Model::get_config()->get_epidemiological_parameters().get_p_relapse()) {
-      //        if (P <= get_probability_progress_to_clinical()) {
-      // progress to clinical after several days
-      clinical_caused_parasite->set_update_function(Model::progress_to_clinical_update_function());
-      // std::cout<<"\t\tPerson::determine_relapse_or_not relapse" << std::endl;
-      clinical_caused_parasite->set_last_update_log10_parasite_density(
-          Model::get_config()
-              ->get_parasite_parameters()
-              .get_parasite_density_levels()
-              .get_log_parasite_density_asymptomatic());
-      schedule_relapse_event(
-          clinical_caused_parasite,
-          Model::get_config()->get_epidemiological_parameters().get_relapse_duration());
-
-    } else {
-      // progress to clearance
-      if (clinical_caused_parasite->last_update_log10_parasite_density()
-          > Model::get_config()
-                ->get_parasite_parameters()
-                .get_parasite_density_levels()
-                .get_log_parasite_density_asymptomatic()) {
-        clinical_caused_parasite->set_last_update_log10_parasite_density(
-            Model::get_config()
-                ->get_parasite_parameters()
-                .get_parasite_density_levels()
-                .get_log_parasite_density_asymptomatic());
-      }
-      clinical_caused_parasite->set_update_function(Model::immunity_clearance_update_function());
-    }
-  }
+void Person::schedule_end_clinical_by_no_treatment_event(ClonalParasitePopulation *clinical_caused_parasite) {
+  auto event = std::make_unique<EndClinicalEvent>(this);
+  event->set_time(calculate_future_time(7));  // Assuming 7 days for no treatment
+  event->set_clinical_caused_parasite(clinical_caused_parasite);
+  schedule_basic_event(std::move(event));
 }

@@ -53,7 +53,8 @@ double ImmuneSystem::get_parasite_size_after_t_days(const int &duration,
 }
 
 double ImmuneSystem::get_clinical_progression_probability() const {
-  const auto immune = get_current_value();
+  int current_day = Model::get_scheduler()->current_time();
+  const auto immune = get_effective_immunity(current_day);
 
   const auto isf = Model::get_config()->get_immune_system_parameters();
 
@@ -74,4 +75,58 @@ double ImmuneSystem::get_clinical_progression_probability() const {
   return p_clinical;
 }
 
-void ImmuneSystem::update() { immune_component_->update(); }
+void ImmuneSystem::update() {
+  immune_component_->update();
+
+  // Update extra boost decay
+  int current_day = Model::get_scheduler()->current_time();
+  update_extra_boost_decay(current_day);
+}
+
+// Immunity boost methods
+void ImmuneSystem::update_extra_boost_decay(int current_day) {
+  const auto& cfg = Model::get_config()->get_immune_system_parameters().get_immunity_boost();
+  if (!cfg.enable) return;
+
+  if (last_extra_boost_update_day_ < 0) {
+    last_extra_boost_update_day_ = current_day;
+    return;
+  }
+
+  int dt = current_day - last_extra_boost_update_day_;
+  if (dt <= 0) return;
+
+  const double lambda = std::log(2.0) / cfg.half_life_days;
+  extra_boost_ *= std::exp(-lambda * dt);
+
+  last_extra_boost_update_day_ = current_day;
+}
+
+void ImmuneSystem::add_extra_boost(double amount, int current_day) {
+  const auto& cfg = Model::get_config()->get_immune_system_parameters().get_immunity_boost();
+  if (!cfg.enable) return;
+
+  update_extra_boost_decay(current_day);
+
+  extra_boost_ = std::min(cfg.max_extra_boost, extra_boost_ + amount);
+}
+
+double ImmuneSystem::get_effective_immunity(int current_day) const {
+  const auto& cfg = Model::get_config()->get_immune_system_parameters().get_immunity_boost();
+  if (!cfg.enable) return get_current_value();
+
+  // Note: This is const, so we can't update decay here. Assume it's updated elsewhere.
+  double effective = get_current_value() + extra_boost_;
+  return std::clamp(effective, 0.0, 1.0);
+}
+
+void ImmuneSystem::add_daily_exposure_boost(int current_day) {
+  if (current_day <= last_daily_boost_day_) return;
+
+  const auto& cfg = Model::get_config()->get_immune_system_parameters().get_immunity_boost();
+  if (!cfg.enable) return;
+
+  add_extra_boost(cfg.boost_per_exposure_day, current_day);
+
+  last_daily_boost_day_ = current_day;
+}

@@ -72,6 +72,19 @@ public:
   [[nodiscard]] double get_midpoint() const { return midpoint_; }
   void set_midpoint(const double value) { midpoint_ = value; }
 
+  // Immunity boost config
+  struct ImmunityBoostConfig {
+    bool enable = false;
+    double boost_on_asymptomatic_recrudescence = 0.0;
+    double boost_per_exposure_day = 0.0;
+    int exposure_gate_days = 0;
+    double max_extra_boost = 0.0;
+    double half_life_days = 0.0;
+  };
+
+  [[nodiscard]] const ImmunityBoostConfig& get_immunity_boost() const { return immunity_boost_; }
+  void set_immunity_boost(const ImmunityBoostConfig& value) { immunity_boost_ = value; }
+
   void process_config() override {}
 
   void process_config_with_parasite_density(const double log_parasite_density_asymptomatic,
@@ -174,6 +187,9 @@ public:
 
   // Parameter kappa in supplement of 2015 LGH paper
   double factor_effect_age_mature_immunity{-1};
+
+  // Immunity boost config
+  ImmunityBoostConfig immunity_boost_;
 };
 
 // ImmuneSystemParameters YAML conversion
@@ -223,6 +239,22 @@ struct YAML::convert<ImmuneSystemParameters> {
     rhs.set_factor_effect_age_mature_immunity(
         node["factor_effect_age_mature_immunity"].as<double>());
     rhs.set_midpoint(node["midpoint"].as<double>());
+
+    // Optional immunity_boost config
+    if (node["immunity_boost"]) {
+      auto &boost_node = node["immunity_boost"];
+      ImmuneSystemParameters::ImmunityBoostConfig boost_cfg;
+      boost_cfg.enable = boost_node["enable"] ? boost_node["enable"].as<bool>() : false;
+      if (boost_cfg.enable) {
+        boost_cfg.boost_on_asymptomatic_recrudescence = boost_node["boost_on_asymptomatic_recrudescence"].as<double>();
+        boost_cfg.boost_per_exposure_day = boost_node["boost_per_exposure_day"].as<double>();
+        boost_cfg.exposure_gate_days = boost_node["exposure_gate_days"].as<int>();
+        boost_cfg.max_extra_boost = boost_node["max_extra_boost"].as<double>();
+        boost_cfg.half_life_days = boost_node["half_life_days"].as<double>();
+      }
+      rhs.set_immunity_boost(boost_cfg);
+    }
+
     return true;
   }
 };
