@@ -32,6 +32,12 @@ void MoveParasiteToBloodEvent::do_execute() {
 
   auto new_parasite = person->add_new_parasite_to_blood(parasite_type);
 
+  // Set per-person first blood exposure day if not already set. This marks the day
+  // the host first had a blood-stage parasite and is used by host-level daily learning.
+  if (person->get_first_blood_exposure_day() < 0) {
+    person->set_first_blood_exposure_day(Model::get_scheduler()->current_time());
+  }
+
   new_parasite->set_last_update_log10_parasite_density(
       Model::get_random()->random_normal_truncated(
           Model::get_config()->get_parasite_parameters().get_parasite_density_levels()

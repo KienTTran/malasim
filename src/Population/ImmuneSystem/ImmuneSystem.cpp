@@ -1,3 +1,6 @@
+#include <atomic>
+#include <algorithm>
+
 #include "ImmuneSystem.h"
 
 #include <cmath>
@@ -76,6 +79,14 @@ void ImmuneSystem::update() {
   update_boosts_decay_for_day(current_day);
 }
 
+double ImmuneSystem::get_clinical_immunity_only() const {
+  return clinical_boost_.value;
+}
+double ImmuneSystem::get_clearance_immunity_only() const {
+  return clearance_boost_.value;
+}
+
+
 // Immunity boost methods (legacy)
 void ImmuneSystem::update_extra_boost_decay(int current_day) {
   const auto& cfg = Model::get_config()->get_immune_system_parameters().get_immunity_boost();
@@ -115,6 +126,13 @@ double ImmuneSystem::get_effective_immunity(int current_day) const {
   return std::clamp(effective, 0.0, 1.0);
 }
 
+
+double ImmuneSystem::get_effective_clinical_immunity() const {
+  double base = get_current_value();
+  double eff  = base + clinical_boost_.value;
+  return std::clamp(eff, 0.0, 1.0);
+}
+
 void ImmuneSystem::add_daily_exposure_boost(int current_day) {
   if (current_day <= last_daily_boost_day_) return;
 
@@ -139,6 +157,7 @@ void ImmuneSystem::update_boosts_decay_for_day(int current_day) {
   const auto& cfg = Model::get_config()->get_immune_system_parameters().get_immunity_boost();
   if (!cfg.enable) return;
 
+  if (current_day <= clinical_boost_.last_decay_day) return;
   // Clinical channel decay
   if (clinical_boost_.last_decay_day < 0) {
     clinical_boost_.last_decay_day = current_day;
@@ -223,4 +242,41 @@ double ImmuneSystem::get_effective_clearance_immunity(int current_day) const {
   double effective = get_current_value() + clearance_boost_.value;
   return std::clamp(effective, 0.0, 1.0);
 }
+
+static std::atomic<int> g_daily_clinical_boosts_applied{0};
+static std::atomic<int> g_daily_clearance_boosts_applied{0};
+
+void ImmuneSystem::reset_daily_learning_counters() {
+  g_daily_clinical_boosts_applied.store(0, std::memory_order_relaxed);
+  g_daily_clearance_boosts_applied.store(0, std::memory_order_relaxed);
+}
+
+int ImmuneSystem::daily_clinical_boosts_applied_today() { return g_daily_clinical_boosts_applied.load(std::memory_order_relaxed); }
+
+int ImmuneSystem::daily_clearance_boosts_applied_today() { return g_daily_clearance_boosts_applied.load(std::memory_order_relaxed); }
+
+void ImmuneSystem::apply_daily_immunity_learning(Person& p, int current_day) {
+  const auto& cfg = Model::get_config()->get_immune_system_parameters().get_immunity_boost();
+  if (!cfg.enable) return;
+
+  // IMPORTANT: p.update_blood_streaks() must have been called already today.
+
+  double mult = 1.0;
+  if (p.has_effective_drug_in_blood() || p.has_any_drugs()) {
+    mult = cfg.drug_exposure_multiplier; // reduce, don't disable
+  }
+
+  // Clinical learns from any blood-day streak
+  if (p.blood_days_streak() >= cfg.clinical.exposure_gate_days) {
+    add_daily_clinical_exposure_boost(current_day, mult);
+    g_daily_clinical_boosts_applied.fetch_add(1, std::memory_order_relaxed);
+  }
+
+  // Clearance learns only from *continuous asymptomatic carriage*
+  if (p.asym_blood_days_streak() >= cfg.clearance.exposure_gate_days) {
+    add_daily_clearance_exposure_boost(current_day, mult);
+    g_daily_clearance_boosts_applied.fetch_add(1, std::memory_order_relaxed);
+  }
+}
+
 

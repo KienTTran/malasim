@@ -57,6 +57,11 @@ public:
   void add_extra_boost(double amount, int current_day);
   void add_daily_exposure_boost(int current_day);
   [[nodiscard]] double get_effective_immunity(int current_day) const;
+  [[nodiscard]] double get_effective_clinical_immunity(int current_day) const;
+  [[nodiscard]] double get_effective_clearance_immunity(int current_day) const;
+  [[nodiscard]] double get_clinical_immunity_only() const;
+  [[nodiscard]] double get_clearance_immunity_only() const;
+  [[nodiscard]] double get_effective_clinical_immunity() const;
 
   // Two-channel API: clinical (affects clinical progression) and clearance (affects parasite control)
   void update_boosts_decay_for_day(int current_day);
@@ -65,8 +70,14 @@ public:
   void add_daily_clearance_exposure_boost(int current_day, double amount_multiplier = 1.0);
   void add_daily_clinical_exposure_boost(int current_day, double amount_multiplier = 1.0);
 
-  [[nodiscard]] double get_effective_clinical_immunity(int current_day) const;
-  [[nodiscard]] double get_effective_clearance_immunity(int current_day) const;
+  // Host-level daily immunity learning hook: applies clinical and clearance exposure
+  // boosts once per person per day, honoring exposure gating and drug multiplier.
+  void apply_daily_immunity_learning(Person& p, int current_time);
+
+  // Diagnostics: counters for daily applied boosts (reset externally at start of day)
+  static void reset_daily_learning_counters();
+  static int daily_clinical_boosts_applied_today();
+  static int daily_clearance_boosts_applied_today();
 
 private:
   Person* person_{nullptr};

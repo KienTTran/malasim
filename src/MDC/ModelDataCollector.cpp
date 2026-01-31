@@ -340,9 +340,12 @@ void ModelDataCollector::perform_population_statistic() {
           total_immune_by_location_[loc] += immune_value;
           total_immune_by_location_age_class_[loc][ac] += immune_value;
           // Effective immunity (clinical and clearance) and total effective boost
+          const double effective_clinical_only = person->get_immune_system()->get_clinical_immunity_only();
+          const double effective_clearance_only = person->get_immune_system()->get_clearance_immunity_only();
           const double effective_clinical = person->get_immune_system()->get_effective_clinical_immunity(Model::get_scheduler()->current_time());
           const double effective_clearance = person->get_immune_system()->get_effective_clearance_immunity(Model::get_scheduler()->current_time());
-          const double total_effective = effective_clinical + effective_clearance;
+
+          const double total_effective = immune_value + effective_clinical_only + effective_clearance_only;
           total_effective_boost_immune_by_location_[loc] += total_effective;
           total_effective_boost_immune_by_location_age_class_[loc][ac] += total_effective;
            int age = static_cast<int>(person->get_age());

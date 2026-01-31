@@ -90,6 +90,11 @@ public:
 
   void update();
 
+  // Host-level first blood exposure day used by immunity learning (default -1 = not exposed)
+  int get_first_blood_exposure_day() const { return first_blood_exposure_day_; }
+  void set_first_blood_exposure_day(int day) { first_blood_exposure_day_ = day; }
+  void reset_first_blood_exposure_day() { first_blood_exposure_day_ = -1; }
+
   [[nodiscard]] Population* get_population() const { return population_; }
   void set_population(Population* population) { population_ = population; }
 
@@ -305,8 +310,15 @@ public:
 
   void schedule_end_clinical_by_no_treatment_event(ClonalParasitePopulation *clinical_caused_parasite);
 
+  int blood_days_streak() const { return blood_days_streak_; }
+  int asym_blood_days_streak() const { return asym_blood_days_streak_; }
+  void reset_blood_streaks() { blood_days_streak_ = 0; asym_blood_days_streak_ = 0; }
+  void update_blood_streaks();
+
 private:
   int age_{-1};
+  // -1 indicates person is not currently exposed (no blood-stage parasites)
+  int first_blood_exposure_day_{-1};
   Population* population_{nullptr};
   int location_{-1};
   int residence_location_{-1};
@@ -331,6 +343,10 @@ private:
   int latest_time_received_public_treatment_{-30};
   RecurrenceStatus recurrence_status_{RecurrenceStatus::NONE};
   EventManager<PersonEvent> event_manager_;
+
+
+  int blood_days_streak_ = 0;
+  int asym_blood_days_streak_ = 0;
 
 #ifdef ENABLE_TRAVEL_TRACKING
   int day_that_last_trip_was_initiated_{-1};

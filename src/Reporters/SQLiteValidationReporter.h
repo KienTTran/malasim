@@ -47,6 +47,22 @@ protected:
     std::vector<ul> current_foi_by_location;
     std::vector<std::vector<ul>> recrudescence_treatment_by_age_class;
     std::vector<std::vector<ul>> recrudescence_treatment_by_age;
+
+    // New: Effective immunity aggregates (boost, clinical, clearance)
+    // Per-unit scalar aggregates
+    std::vector<double> total_effective_boost_immune_by_location;
+    std::vector<double> total_effective_clinical_immune_by_location;
+    std::vector<double> total_effective_clearance_immune_by_location;
+
+    // Per-unit by age-class aggregates
+    std::vector<std::vector<double>> total_effective_boost_immune_by_location_age_class;
+    std::vector<std::vector<double>> total_effective_clinical_immune_by_location_age_class;
+    std::vector<std::vector<double>> total_effective_clearance_immune_by_location_age_class;
+
+    // Per-unit by age (0-79) aggregates
+    std::vector<std::vector<double>> total_effective_boost_immune_by_location_age;
+    std::vector<std::vector<double>> total_effective_clinical_immune_by_location_age;
+    std::vector<std::vector<double>> total_effective_clearance_immune_by_location_age;
   };
 
   struct MonthlyGenomeData {

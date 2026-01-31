@@ -534,6 +534,10 @@ void Person::update() {
   immune_system_->update();
 
   update_current_state();
+  update_blood_streaks();
+  // Host-level daily immunity learning: apply once per person per day after parasite and drug updates
+  immune_system_->apply_daily_immunity_learning(*this, Model::get_scheduler()->current_time());
+
 
   // update biting level only less than 1 to save performance
   //  the other will be update in birthday event
@@ -972,4 +976,25 @@ void Person::schedule_end_clinical_by_no_treatment_event(ClonalParasitePopulatio
   event->set_time(calculate_future_time(7));  // Assuming 7 days for no treatment
   event->set_clinical_caused_parasite(clinical_caused_parasite);
   schedule_basic_event(std::move(event));
+}
+
+// Call once per day AFTER parasites/drugs/state are updated.
+void Person::update_blood_streaks() {
+  const bool has_blood = (get_all_clonal_parasite_populations()->size() > 0);
+
+  if (!has_blood) {
+    blood_days_streak_ = 0;
+    asym_blood_days_streak_ = 0;
+    return;
+  }
+
+  // Any blood day
+  blood_days_streak_ += 1;
+
+  // Only continuous asymptomatic carriage
+  if (get_host_state() == Person::ASYMPTOMATIC) {
+    asym_blood_days_streak_ += 1;
+  } else {
+    asym_blood_days_streak_ = 0;  // resets on clinical, etc.
+  }
 }
