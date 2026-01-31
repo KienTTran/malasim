@@ -52,97 +52,97 @@ double ImmuneSystem::get_parasite_size_after_t_days(const int &duration,
   return value;
 }
 
-double ImmuneSystem::get_clinical_progression_probability() const {
-  const auto immune = get_current_value();
-
-  const auto isf = Model::get_config()->get_immune_system_parameters();
-
-  // Check get_percentage_deciding_to_not_seek_treatment
-  const auto& not_seeking_treatment_list = Model::get_config()->get_epidemiological_parameters().get_percentage_deciding_to_not_seek_treatment();
-  for (size_t i = 0; i < not_seeking_treatment_list.size(); ++i) {
-    const auto& entry = not_seeking_treatment_list[i];
-    if (person_->get_age() >= entry.get_age()) {
-      const auto prob = Model::get_random()->random_flat(0.0, 1.0);
-      if (prob < entry.get_percentage()) {
-        // Record the count
-        if (Model::get_mdc()->recording_data()) {
-          Model::get_mdc()->monthly_number_of_not_seeking_treatment_by_location_index()[person_->get_location()][i]++;
-        }
-        return 0.0;  // Don't progress to clinical
-      }
-    }
-  }
-
-  //    double PClinical = (isf.min_clinical_probability - isf.max_clinical_probability) *
-  //    pow(immune, isf.immune_effect_on_progression_to_clinical) + isf.max_clinical_probability;
-
-  //    const double p_m = 0.99;
-
-  const auto p_clinical =
-      isf.max_clinical_probability
-      / (1 + pow((immune / isf.midpoint), isf.immune_effect_on_progression_to_clinical));
-
-  // spdlog::info(
-  //     "ImmuneSystem::get_clinical_progression_probability: immune: {}, PClinical: {}, max
-  //     clinical " "probability: {}, immune effect on progression to clinical: {}", immune,
-  //     p_clinical, isf.max_clinical_probability, isf.immune_effect_on_progression_to_clinical);
-  //    std::cout << immune << "\t" << PClinical<< std::endl;
-  return p_clinical;
-}
-//
-// static double lerp(double a, double b, double t) {
-//   return a + (b - a) * t;
-// }
-//
 // double ImmuneSystem::get_clinical_progression_probability() const {
 //   const auto immune = get_current_value();
+//
 //   const auto isf = Model::get_config()->get_immune_system_parameters();
 //
-//   const auto& list =
-//       Model::get_config()->get_epidemiological_parameters()
-//           .get_percentage_deciding_to_not_seek_treatment();
-//
-//   double p_not_seek = 0.0;
-//   int record_i = 0;
-//
-//   if (!list.empty()) {
-//     const int age = person_->get_age();
-//
-//     // Clamp below first point
-//     if (age <= list.front().get_age()) {
-//       p_not_seek = list.front().get_percentage();
-//       record_i = 0;
-//     }
-//     // Clamp above last point
-//     else if (age >= list.back().get_age()) {
-//       p_not_seek = list.back().get_percentage();
-//       record_i = static_cast<int>(list.size()) - 1;
-//     }
-//     // Interpolate between surrounding points
-//     else {
-//       int hi = 1;
-//       while (hi < static_cast<int>(list.size()) && age > list[hi].get_age()) ++hi;
-//       int lo = hi - 1;
-//
-//       const double a0 = list[lo].get_age();
-//       const double a1 = list[hi].get_age();
-//       const double t = (age - a0) / (a1 - a0);
-//
-//       p_not_seek = lerp(list[lo].get_percentage(), list[hi].get_percentage(), t);
-//
-//       // For recording, pick the lower bucket (or choose hi if you want)
-//       record_i = lo;
-//     }
-//
-//     const double u = Model::get_random()->random_flat(0.0, 1.0);
-//     if (u < p_not_seek) {
-//       if (Model::get_mdc()->recording_data()) {
-//         Model::get_mdc()->monthly_number_of_not_seeking_treatment_by_location_index()
-//             [person_->get_location()][record_i]++;
+//   // Check get_percentage_deciding_to_not_seek_treatment
+//   const auto& not_seeking_treatment_list = Model::get_config()->get_epidemiological_parameters().get_percentage_deciding_to_not_seek_treatment();
+//   for (size_t i = 0; i < not_seeking_treatment_list.size(); ++i) {
+//     const auto& entry = not_seeking_treatment_list[i];
+//     if (person_->get_age() >= entry.get_age()) {
+//       const auto prob = Model::get_random()->random_flat(0.0, 1.0);
+//       if (prob < entry.get_percentage()) {
+//         // Record the count
+//         if (Model::get_mdc()->recording_data()) {
+//           Model::get_mdc()->monthly_number_of_not_seeking_treatment_by_location_index()[person_->get_location()][i]++;
+//         }
+//         return 0.0;  // Don't progress to clinical
 //       }
-//       return 0.0;
 //     }
 //   }
+//
+//   //    double PClinical = (isf.min_clinical_probability - isf.max_clinical_probability) *
+//   //    pow(immune, isf.immune_effect_on_progression_to_clinical) + isf.max_clinical_probability;
+//
+//   //    const double p_m = 0.99;
+//
+//   const auto p_clinical =
+//       isf.max_clinical_probability
+//       / (1 + pow((immune / isf.midpoint), isf.immune_effect_on_progression_to_clinical));
+//
+//   // spdlog::info(
+//   //     "ImmuneSystem::get_clinical_progression_probability: immune: {}, PClinical: {}, max
+//   //     clinical " "probability: {}, immune effect on progression to clinical: {}", immune,
+//   //     p_clinical, isf.max_clinical_probability, isf.immune_effect_on_progression_to_clinical);
+//   //    std::cout << immune << "\t" << PClinical<< std::endl;
+//   return p_clinical;
+// }
+
+static double lerp(double a, double b, double t) {
+  return a + (b - a) * t;
+}
+
+double ImmuneSystem::get_clinical_progression_probability() const {
+  const auto immune = get_current_value();
+  const auto isf = Model::get_config()->get_immune_system_parameters();
+
+  const auto& list =
+      Model::get_config()->get_epidemiological_parameters()
+          .get_percentage_deciding_to_not_seek_treatment();
+
+  double p_not_seek = 0.0;
+  int record_i = 0;
+
+  if (!list.empty()) {
+    const int age = person_->get_age();
+
+    // Clamp below first point
+    if (age <= list.front().get_age()) {
+      p_not_seek = list.front().get_percentage();
+      record_i = 0;
+    }
+    // Clamp above last point
+    else if (age >= list.back().get_age()) {
+      p_not_seek = list.back().get_percentage();
+      record_i = static_cast<int>(list.size()) - 1;
+    }
+    // Interpolate between surrounding points
+    else {
+      int hi = 1;
+      while (hi < static_cast<int>(list.size()) && age > list[hi].get_age()) ++hi;
+      int lo = hi - 1;
+
+      const double a0 = list[lo].get_age();
+      const double a1 = list[hi].get_age();
+      const double t = (age - a0) / (a1 - a0);
+
+      p_not_seek = lerp(list[lo].get_percentage(), list[hi].get_percentage(), t);
+
+      // For recording, pick the lower bucket (or choose hi if you want)
+      record_i = lo;
+    }
+
+    const double u = Model::get_random()->random_flat(0.0, 1.0);
+    if (u < p_not_seek) {
+      if (Model::get_mdc()->recording_data()) {
+        Model::get_mdc()->monthly_number_of_not_seeking_treatment_by_location_index()
+            [person_->get_location()][record_i]++;
+      }
+      return 0.0;
+    }
+  }
 
   const auto p_clinical =
       isf.max_clinical_probability
