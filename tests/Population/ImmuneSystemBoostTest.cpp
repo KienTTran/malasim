@@ -29,11 +29,9 @@ TEST(ImmuneSystemBoostTest, ExtraBoostClampAndHalfLife) {
   auto isp = model->get_config()->get_immune_system_parameters();
   ImmuneSystemParameters::ImmunityBoostConfig boost_cfg{};
   boost_cfg.enable = true;
-  boost_cfg.boost_on_asymptomatic_recrudescence = 0.05;
-  boost_cfg.boost_per_exposure_day = 0.002;
-  boost_cfg.exposure_gate_days = 0;
-  boost_cfg.max_extra_boost = 0.3;
-  boost_cfg.half_life_days = 365.0;
+  // clearance defaults for this test
+  boost_cfg.clearance.max_extra_boost = 0.3;
+  boost_cfg.clearance.half_life_days = 365.0;
   isp.set_immunity_boost(boost_cfg);
   model->get_config()->set_immune_system_parameters(isp);
 
@@ -76,10 +74,10 @@ TEST(ImmuneSystemBoostTest, DailyExposureBoostOncePerDay) {
   auto isp = model->get_config()->get_immune_system_parameters();
   ImmuneSystemParameters::ImmunityBoostConfig boost_cfg{};
   boost_cfg.enable = true;
-  boost_cfg.boost_per_exposure_day = 0.01;
-  boost_cfg.max_extra_boost = 1.0;
-  boost_cfg.half_life_days = 365.0;
-  boost_cfg.exposure_gate_days = 0;
+  // set daily clearance exposure amount and caps for this test
+  boost_cfg.clearance.boost_per_exposure_day = 0.01;
+  boost_cfg.clearance.max_extra_boost = 1.0;
+  boost_cfg.clearance.half_life_days = 365.0;
   isp.set_immunity_boost(boost_cfg);
   model->get_config()->set_immune_system_parameters(isp);
 

@@ -83,42 +83,14 @@ public:
 
   struct ImmunityBoostConfig {
     bool enable = false;
-    ChannelBoostConfig clearance; // default mapping for backward compatibility
+    ChannelBoostConfig clearance;
     ChannelBoostConfig clinical;
     double drug_exposure_multiplier = 1.0; // multiplier when drugs are present (0..1)
-
-    // Legacy flat fields (kept for tests and old code that constructs the flat form)
-    // These are interpreted as the clearance channel when set via set_immunity_boost
-    double boost_on_asymptomatic_recrudescence = 0.0;
-    double boost_per_exposure_day = 0.0;
-    int exposure_gate_days = 0;
-    double max_extra_boost = 0.0;
-    double half_life_days = 0.0;
   };
 
   [[nodiscard]] const ImmunityBoostConfig& get_immunity_boost() const { return immunity_boost_; }
   void set_immunity_boost(const ImmunityBoostConfig& value) {
-    // Map flat legacy fields into clearance channel if nested fields are left as defaults
-    ImmunityBoostConfig v = value; // make a copy we can modify
-    // If clearance channel is all zeros but flat legacy fields are non-zero, copy them
-    bool clearance_empty = (v.clearance.boost_on_asymptomatic_recrudescence == 0.0
-                            && v.clearance.boost_per_exposure_day == 0.0
-                            && v.clearance.exposure_gate_days == 0
-                            && v.clearance.max_extra_boost == 0.0
-                            && v.clearance.half_life_days == 0.0);
-    bool has_legacy_flat = (v.boost_on_asymptomatic_recrudescence != 0.0
-                            || v.boost_per_exposure_day != 0.0
-                            || v.exposure_gate_days != 0
-                            || v.max_extra_boost != 0.0
-                            || v.half_life_days != 0.0);
-    if (clearance_empty && has_legacy_flat) {
-      v.clearance.boost_on_asymptomatic_recrudescence = v.boost_on_asymptomatic_recrudescence;
-      v.clearance.boost_per_exposure_day = v.boost_per_exposure_day;
-      v.clearance.exposure_gate_days = v.exposure_gate_days;
-      v.clearance.max_extra_boost = v.max_extra_boost;
-      v.clearance.half_life_days = v.half_life_days;
-    }
-    immunity_boost_ = v;
+    immunity_boost_ = value;
   }
 
   void process_config() override {}
@@ -282,36 +254,25 @@ struct YAML::convert<ImmuneSystemParameters> {
       ImmuneSystemParameters::ImmunityBoostConfig boost_cfg;
       boost_cfg.enable = boost_node["enable"] ? boost_node["enable"].as<bool>() : false;
       if (boost_cfg.enable) {
-        // Backwards-compatible flat form: treat flat keys as clearance channel
-        if (boost_node["clearance"] || boost_node["clinical"]) {
-          // Nested form
-          if (boost_node["clearance"]) {
-            auto &c = boost_node["clearance"];
-            boost_cfg.clearance.boost_on_asymptomatic_recrudescence = c["boost_on_asymptomatic_recrudescence"] ? c["boost_on_asymptomatic_recrudescence"].as<double>() : 0.0;
-            boost_cfg.clearance.boost_per_exposure_day = c["boost_per_exposure_day"] ? c["boost_per_exposure_day"].as<double>() : 0.0;
-            boost_cfg.clearance.exposure_gate_days = c["exposure_gate_days"] ? c["exposure_gate_days"].as<int>() : 0;
-            boost_cfg.clearance.max_extra_boost = c["max_extra_boost"] ? c["max_extra_boost"].as<double>() : 0.0;
-            boost_cfg.clearance.half_life_days = c["half_life_days"] ? c["half_life_days"].as<double>() : 0.0;
-          }
-          if (boost_node["clinical"]) {
-            auto &c = boost_node["clinical"];
-            boost_cfg.clinical.boost_on_asymptomatic_recrudescence = c["boost_on_asymptomatic_recrudescence"] ? c["boost_on_asymptomatic_recrudescence"].as<double>() : 0.0;
-            boost_cfg.clinical.boost_per_exposure_day = c["boost_per_exposure_day"] ? c["boost_per_exposure_day"].as<double>() : 0.0;
-            boost_cfg.clinical.exposure_gate_days = c["exposure_gate_days"] ? c["exposure_gate_days"].as<int>() : 0;
-            boost_cfg.clinical.max_extra_boost = c["max_extra_boost"] ? c["max_extra_boost"].as<double>() : 0.0;
-            boost_cfg.clinical.half_life_days = c["half_life_days"] ? c["half_life_days"].as<double>() : 0.0;
-          }
-          // optional multiplier
-          boost_cfg.drug_exposure_multiplier = boost_node["drug_exposure_multiplier"] ? boost_node["drug_exposure_multiplier"].as<double>() : 1.0;
-        } else {
-          // Flat legacy form -> map to clearance channel
-          boost_cfg.clearance.boost_on_asymptomatic_recrudescence = boost_node["boost_on_asymptomatic_recrudescence"].as<double>();
-          boost_cfg.clearance.boost_per_exposure_day = boost_node["boost_per_exposure_day"].as<double>();
-          boost_cfg.clearance.exposure_gate_days = boost_node["exposure_gate_days"].as<int>();
-          boost_cfg.clearance.max_extra_boost = boost_node["max_extra_boost"].as<double>();
-          boost_cfg.clearance.half_life_days = boost_node["half_life_days"].as<double>();
-          boost_cfg.drug_exposure_multiplier = boost_node["drug_exposure_multiplier"] ? boost_node["drug_exposure_multiplier"].as<double>() : 1.0;
+        // Nested form expected: parse `clearance` and/or `clinical` if present
+        if (boost_node["clearance"]) {
+          auto &c = boost_node["clearance"];
+          boost_cfg.clearance.boost_on_asymptomatic_recrudescence = c["boost_on_asymptomatic_recrudescence"] ? c["boost_on_asymptomatic_recrudescence"].as<double>() : 0.0;
+          boost_cfg.clearance.boost_per_exposure_day = c["boost_per_exposure_day"] ? c["boost_per_exposure_day"].as<double>() : 0.0;
+          boost_cfg.clearance.exposure_gate_days = c["exposure_gate_days"] ? c["exposure_gate_days"].as<int>() : 0;
+          boost_cfg.clearance.max_extra_boost = c["max_extra_boost"] ? c["max_extra_boost"].as<double>() : 0.0;
+          boost_cfg.clearance.half_life_days = c["half_life_days"] ? c["half_life_days"].as<double>() : 0.0;
         }
+        if (boost_node["clinical"]) {
+          auto &c = boost_node["clinical"];
+          boost_cfg.clinical.boost_on_asymptomatic_recrudescence = c["boost_on_asymptomatic_recrudescence"] ? c["boost_on_asymptomatic_recrudescence"].as<double>() : 0.0;
+          boost_cfg.clinical.boost_per_exposure_day = c["boost_per_exposure_day"] ? c["boost_per_exposure_day"].as<double>() : 0.0;
+          boost_cfg.clinical.exposure_gate_days = c["exposure_gate_days"] ? c["exposure_gate_days"].as<int>() : 0;
+          boost_cfg.clinical.max_extra_boost = c["max_extra_boost"] ? c["max_extra_boost"].as<double>() : 0.0;
+          boost_cfg.clinical.half_life_days = c["half_life_days"] ? c["half_life_days"].as<double>() : 0.0;
+        }
+        // optional multiplier (may be present at top-level of immunity_boost)
+        boost_cfg.drug_exposure_multiplier = boost_node["drug_exposure_multiplier"] ? boost_node["drug_exposure_multiplier"].as<double>() : 1.0;
       }
       rhs.set_immunity_boost(boost_cfg);
     }

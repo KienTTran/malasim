@@ -262,7 +262,7 @@ immune_system_parameters:
   midpoint: 0.2 # Midpoint for the immunity curve
 
   immunity_boost:
-    enable: false
+    enable: true
 
     # This feature adds "extra learned immunity" on top of your existing base immunity.
     # It is split into two channels:
@@ -278,7 +278,7 @@ immune_system_parameters:
       # Apply only when:
       #   - recrudescence is WITHOUT_SYMPTOM
       #   - AND (optionally) no drugs in blood (your choice; recommended: allow with multiplier)
-      boost_on_asymptomatic_recrudescence: 0.002
+      boost_on_asymptomatic_recrudescence: 0.0 #0.002
 
       # Continuous learning per day when parasite is in blood.
       # Apply once per PERSON per day (guard against per-parasite double counting).
@@ -298,7 +298,7 @@ immune_system_parameters:
     clearance:
       # Continuous learning per day when parasite is in blood.
       # Usually much smaller than clinical because we don't want PfPR to drop too much.
-      boost_per_exposure_day: 0.0001
+      boost_per_exposure_day: 0.0 #0.0001
 
       # Clearance immunity should build slower (larger gate).
       exposure_gate_days: 21
@@ -307,13 +307,13 @@ immune_system_parameters:
       max_extra_boost: 0.03
 
       # Slower decay for clearance immunity (longer-lived memory).
-      # ~5 years here.
-      half_life_days: 1800
+      # ~2.5 years here.
+      half_life_days: 900
 
     # Optional: how much learning should happen on days when drugs are present.
     # Cameron/Griffin-style: treatment reduces exposure but doesn't fully disable learning.
     # If you want strict "no learning under drugs", set to 0.0
-    drug_exposure_multiplier: 0.3
+    drug_exposure_multiplier: 0.0 #0.1
 
 # ---------------------------------------------------------------
 # 10. Mutation and Genotype Parameters
