@@ -79,8 +79,7 @@ TEST(ImmuneSystemTest, UpdateCallsComponentUpdate) {
     EXPECT_TRUE(ptr->updated);
 }
 
-// Test that not_progress_to_clinical logic works correctly
-TEST(ImmuneSystemTest, NotProgressToClinicalPercentage) {
+TEST(ImmuneSystemTest, PercentageDecidingToNotSeekTreatment) {
     // Set up model with config
     utils::Cli::get_instance().set_input_path("sample_inputs/input.yml");
     ASSERT_TRUE(Model::get_instance()->initialize());
@@ -104,12 +103,12 @@ TEST(ImmuneSystemTest, NotProgressToClinicalPercentage) {
 
     // Run the test multiple times to check statistics
     const int num_trials = 100;
-    int not_progress_count = 0;
+    int not_seeking_treatment_count = 0;
 
     for (int i = 0; i < num_trials; ++i) {
         double prob = immune.get_clinical_progression_probability();
         if (prob == 0.0) {
-            not_progress_count++;
+            not_seeking_treatment_count++;
         }
     }
 
@@ -119,10 +118,10 @@ TEST(ImmuneSystemTest, NotProgressToClinicalPercentage) {
     const int expected_count = static_cast<int>(num_trials * expected_percentage);
     const int tolerance = 20;  // Allow some variance due to randomness
 
-    EXPECT_NEAR(not_progress_count, expected_count, tolerance);
+    EXPECT_NEAR(not_seeking_treatment_count, expected_count, tolerance);
 
     // Also check that MDC recorded the events
-    EXPECT_EQ(Model::get_mdc()->monthly_number_of_not_progress_to_clinical_by_location_threshold()[0][0], not_progress_count);
+    EXPECT_EQ(Model::get_mdc()->monthly_number_of_not_seeking_treatment_by_location_index()[0][0], not_seeking_treatment_count);
 
     // Clean up
     Model::get_instance()->release();

@@ -833,14 +833,14 @@ public:
   }
 
 private:
-  IntVector2 monthly_number_of_not_progress_to_clinical_by_location_threshold_;
+  IntVector2 monthly_number_of_not_seeking_treatment_by_location_index_;
 
 public:
-  IntVector2 &monthly_number_of_not_progress_to_clinical_by_location_threshold() {
-    return monthly_number_of_not_progress_to_clinical_by_location_threshold_;
+  IntVector2 &monthly_number_of_not_seeking_treatment_by_location_index() {
+    return monthly_number_of_not_seeking_treatment_by_location_index_;
   }
-  void set_monthly_number_of_not_progress_to_clinical_by_location_threshold(const IntVector2 &value) {
-    monthly_number_of_not_progress_to_clinical_by_location_threshold_ = value;
+  void set_monthly_number_of_not_seeking_treatment_by_location_index(const IntVector2 &value) {
+    monthly_number_of_not_seeking_treatment_by_location_index_ = value;
   }
 
 private:

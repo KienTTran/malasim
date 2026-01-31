@@ -46,7 +46,7 @@ protected:
     std::vector<ul> current_foi_by_location;
     std::vector<std::vector<ul>> recrudescence_treatment_by_age_class;
     std::vector<std::vector<ul>> recrudescence_treatment_by_age;
-    std::vector<std::vector<int>> number_of_not_progress_to_clinical_by_threshold;
+    std::vector<std::vector<int>> number_of_not_seeking_treatment_by_location_index;
   };
 
   struct MonthlyGenomeData {

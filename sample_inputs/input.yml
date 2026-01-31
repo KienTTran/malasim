@@ -235,7 +235,7 @@ parasite_parameters:
     # Within-chromosome recombination rate
     within_chromosome_recombination_rate: 0.1
 
-    # Free recombination among the drug resistance loci
+    # Free recombination among the drug resistance loci`
     using_free_recombination: true
 
 # ---------------------------------------------------------------
@@ -914,10 +914,23 @@ epidemiological_parameters:
   # from an infectious mosquito bite) age-dependent
   using_variable_probability_infectious_bites_cause_infection: false
 
-  # percentage of 25 year olds with mature immunity don't seek treatment
-  not_progress_to_clinical:
-    - age: 25
-      percentage: 0.5
+  # percentage of K year olds not seeking treatment
+  # because their immunity is high enough to suppress symptoms
+#  percentage_deciding_to_not_seek_treatment:
+#    - age: 0
+#      percentage: 0.1
+#    - age: 5
+#      percentage: 0.3
+#    - age: 10
+#      percentage: 0.5
+#    - age: 15
+#      percentage: 0.65
+#    - age: 20
+#      percentage: 0.75
+#    - age: 30
+#      percentage: 0.85
+#    - age: 40
+#      percentage: 0.9
 
 # ---------------------------------------------------------------
 # 15. Mosquito Parameters (default is location based)

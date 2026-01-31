@@ -145,7 +145,7 @@ void SQLiteMonthlyReporter::calculate_and_build_up_site_data_insert_values(int m
     }
 
     for (const auto &count :
-         monthly_site_data_by_level[level_id].number_of_not_progress_to_clinical_by_threshold[unit_id]) {
+         monthly_site_data_by_level[level_id].number_of_not_seeking_treatment_by_location_index[unit_id]) {
       singleRow += fmt::format(", {}", count);
     }
 
@@ -304,9 +304,9 @@ void SQLiteMonthlyReporter::collect_site_data_for_location(int location_id, int 
         Model::get_mdc()->multiple_of_infection_by_location()[location_id][moi];
   }
 
-  for (size_t threshold = 0; threshold < Model::get_config()->get_epidemiological_parameters().get_not_progress_to_clinical().size(); ++threshold) {
-    monthly_site_data_by_level[level_id].number_of_not_progress_to_clinical_by_threshold[unit_id][threshold] +=
-        Model::get_mdc()->monthly_number_of_not_progress_to_clinical_by_location_threshold()[location_id][threshold];
+  for (size_t threshold = 0; threshold < Model::get_config()->get_epidemiological_parameters().get_percentage_deciding_to_not_seek_treatment().size(); ++threshold) {
+    monthly_site_data_by_level[level_id].number_of_not_seeking_treatment_by_location_index[unit_id][threshold] +=
+        Model::get_mdc()->monthly_number_of_not_seeking_treatment_by_location_index()[location_id][threshold];
   }
 
   // EIR and PfPR is a bit more complicated since it could be an invalid value
@@ -380,8 +380,8 @@ void SQLiteMonthlyReporter::reset_site_data_structures(int level_id, int vector_
   vector_size, std::vector<ul>(80, 0));
   monthly_site_data_by_level[level_id].multiple_of_infection.assign(
   vector_size, std::vector<int>(ModelDataCollector::NUMBER_OF_REPORTED_MOI, 0));
-  monthly_site_data_by_level[level_id].number_of_not_progress_to_clinical_by_threshold.assign(
-  vector_size, std::vector<int>(Model::get_config()->get_epidemiological_parameters().get_not_progress_to_clinical().size(), 0));
+  monthly_site_data_by_level[level_id].number_of_not_seeking_treatment_by_location_index.assign(
+  vector_size, std::vector<int>(Model::get_config()->get_epidemiological_parameters().get_percentage_deciding_to_not_seek_treatment().size(), 0));
   monthly_site_data_by_level[level_id].treatments.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].treatment_failures.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].nontreatment.assign(vector_size, 0);

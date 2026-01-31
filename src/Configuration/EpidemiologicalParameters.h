@@ -218,7 +218,7 @@ private:
 public:
     double gamma_a = 0.0;
     double gamma_b = 0.0;
-    class NotProgressToClinical {
+    class PercentageDecidingToNotSeekTreatment {
     public:
         // Getters and Setters
         [[nodiscard]] int get_age() const { return age_; }
@@ -231,10 +231,10 @@ public:
         int age_ = 0;
         double percentage_ = 0.0;
     };
-    [[nodiscard]] const std::vector<NotProgressToClinical>& get_not_progress_to_clinical() const { return not_progress_to_clinical_; }
-    void set_not_progress_to_clinical(const std::vector<NotProgressToClinical>& value) { not_progress_to_clinical_ = value; }
+    [[nodiscard]] const std::vector<PercentageDecidingToNotSeekTreatment>& get_percentage_deciding_to_not_seek_treatment() const { return percentage_deciding_to_not_seek_treatment_; }
+    void set_percentage_deciding_to_not_seek_treatment(const std::vector<PercentageDecidingToNotSeekTreatment>& value) { percentage_deciding_to_not_seek_treatment_ = value; }
 
-    std::vector<NotProgressToClinical> not_progress_to_clinical_;
+    std::vector<PercentageDecidingToNotSeekTreatment> percentage_deciding_to_not_seek_treatment_;
 };
 
 namespace YAML {
@@ -348,15 +348,15 @@ struct convert<EpidemiologicalParameters::RelativeInfectivity> {
 
 // NotProgressToClinical YAML conversion
 template<>
-struct convert<EpidemiologicalParameters::NotProgressToClinical> {
-    static Node encode(const EpidemiologicalParameters::NotProgressToClinical& rhs) {
+struct convert<EpidemiologicalParameters::PercentageDecidingToNotSeekTreatment> {
+    static Node encode(const EpidemiologicalParameters::PercentageDecidingToNotSeekTreatment& rhs) {
         Node node;
         node["age"] = rhs.get_age();
         node["percentage"] = rhs.get_percentage();
         return node;
     }
 
-    static bool decode(const Node& node, EpidemiologicalParameters::NotProgressToClinical& rhs) {
+    static bool decode(const Node& node, EpidemiologicalParameters::PercentageDecidingToNotSeekTreatment& rhs) {
         if (!node["age"] || !node["percentage"]) {
             throw std::runtime_error("Missing fields in NotProgressToClinical");
         }
@@ -392,7 +392,7 @@ struct convert<EpidemiologicalParameters> {
         node["inflation_factor"] = rhs.get_inflation_factor();
         node["using_age_dependent_biting_level"] = rhs.get_using_age_dependent_biting_level();
         node["using_variable_probability_infectious_bites_cause_infection"] = rhs.get_using_variable_probability_infectious_bites_cause_infection();
-        node["not_progress_to_clinical"] = rhs.get_not_progress_to_clinical();
+        node["percentage_deciding_to_not_seek_treatment"] = rhs.get_percentage_deciding_to_not_seek_treatment();
         return node;
     }
 
@@ -429,8 +429,8 @@ struct convert<EpidemiologicalParameters> {
         rhs.set_inflation_factor(node["inflation_factor"].as<double>());
         rhs.set_using_age_dependent_biting_level(node["using_age_dependent_biting_level"].as<bool>());
         rhs.set_using_variable_probability_infectious_bites_cause_infection(node["using_variable_probability_infectious_bites_cause_infection"].as<bool>());
-        if (node["not_progress_to_clinical"]) {
-            rhs.set_not_progress_to_clinical(node["not_progress_to_clinical"].as<std::vector<EpidemiologicalParameters::NotProgressToClinical>>());
+        if (node["percentage_deciding_to_not_seek_treatment"]) {
+            rhs.set_percentage_deciding_to_not_seek_treatment(node["percentage_deciding_to_not_seek_treatment"].as<std::vector<EpidemiologicalParameters::PercentageDecidingToNotSeekTreatment>>());
         }
         return true;
     }

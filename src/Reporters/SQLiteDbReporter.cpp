@@ -117,18 +117,19 @@ void SQLiteDbReporter::create_all_reporting_tables() {
     age_column_definitions +=
         fmt::format("total_immune_by_age_{} REAL, ", age);
   }
-
   for (auto age = 0; age < 80; age++) {
     age_column_definitions +=
         fmt::format("recrudescence_treatment_by_age_{} INTEGER, ", age);
   }
 
   for (auto moi = 0; moi < ModelDataCollector::NUMBER_OF_REPORTED_MOI; moi++) {
-    age_column_definitions += fmt::format("moi_{} INTEGER, ", moi);
+    age_column_definitions +=
+        fmt::format("moi_{} INTEGER, ", moi);
   }
 
-  for (size_t i = 0; i < Model::get_config()->get_epidemiological_parameters().get_not_progress_to_clinical().size(); ++i) {
-    age_column_definitions += fmt::format("number_of_not_progress_to_clinical_threshold_{} INTEGER, ", i);
+  for (size_t i = 0; i < Model::get_config()->get_epidemiological_parameters().get_percentage_deciding_to_not_seek_treatment().size(); ++i) {
+    age_column_definitions +=
+        fmt::format("number_of_not_seeking_treatment_by_location_index_{} INTEGER, ", i);
   }
 
   std::string age_columns;
@@ -147,8 +148,8 @@ void SQLiteDbReporter::create_all_reporting_tables() {
   for (auto moi = 0; moi < ModelDataCollector::NUMBER_OF_REPORTED_MOI; moi++) {
     age_columns += fmt::format("moi_{}, ", moi);
   }
-  for (size_t i = 0; i < Model::get_config()->get_epidemiological_parameters().get_not_progress_to_clinical().size(); ++i) {
-    age_columns += fmt::format("number_of_not_progress_to_clinical_threshold_{}, ", i);
+  for (size_t i = 0; i < Model::get_config()->get_epidemiological_parameters().get_percentage_deciding_to_not_seek_treatment().size(); ++i) {
+    age_columns += fmt::format("number_of_not_seeking_treatment_by_location_index_{}, ", i);
   }
 
   // // Include cell level in the number of levels
