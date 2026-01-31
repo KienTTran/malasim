@@ -56,8 +56,7 @@ double ImmuneSystem::get_parasite_size_after_t_days(const int &duration,
 }
 
 double ImmuneSystem::get_clinical_progression_probability() const {
-  int current_day = Model::get_scheduler()->current_time();
-  const auto immune = get_effective_clinical_immunity(current_day);
+  const auto immune = get_effective_clinical_immunity();
 
   const auto isf = Model::get_config()->get_immune_system_parameters();
 
@@ -73,7 +72,6 @@ void ImmuneSystem::update() {
 
   // Update extra boost decay (legacy)
   int current_day = Model::get_scheduler()->current_time();
-  update_extra_boost_decay(current_day);
 
   // Update new two-channel boosts
   update_boosts_decay_for_day(current_day);
@@ -86,43 +84,12 @@ double ImmuneSystem::get_clearance_immunity_only() const {
   return clearance_boost_.value;
 }
 
-
-// Immunity boost methods (legacy)
-void ImmuneSystem::update_extra_boost_decay(int current_day) {
-  const auto& cfg = Model::get_config()->get_immune_system_parameters().get_immunity_boost();
-  if (!cfg.enable) return;
-
-  if (last_extra_boost_update_day_ < 0) {
-    last_extra_boost_update_day_ = current_day;
-    return;
-  }
-
-  int dt = current_day - last_extra_boost_update_day_;
-  if (dt <= 0) return;
-
-  // Legacy single-channel maps to clearance channel in the new config
-  const double lambda = std::log(2.0) / cfg.clearance.half_life_days;
-  extra_boost_ *= std::exp(-lambda * dt);
-
-  last_extra_boost_update_day_ = current_day;
-}
-
-void ImmuneSystem::add_extra_boost(double amount, int current_day) {
-  const auto& cfg = Model::get_config()->get_immune_system_parameters().get_immunity_boost();
-  if (!cfg.enable) return;
-
-  update_extra_boost_decay(current_day);
-
-  // Legacy single-channel maps to clearance channel cap
-  extra_boost_ = std::min(cfg.clearance.max_extra_boost, extra_boost_ + amount);
-}
-
-double ImmuneSystem::get_effective_immunity(int current_day) const {
+double ImmuneSystem::get_effective_immunity() const {
   const auto& cfg = Model::get_config()->get_immune_system_parameters().get_immunity_boost();
   if (!cfg.enable) return get_current_value();
 
   // Note: This is const, so we can't update decay here. Assume it's updated elsewhere.
-  double effective = get_current_value() + extra_boost_;
+  double effective = get_current_value() + clinical_boost_.value + clearance_boost_.value;
   return std::clamp(effective, 0.0, 1.0);
 }
 
@@ -133,17 +100,12 @@ double ImmuneSystem::get_effective_clinical_immunity() const {
   return std::clamp(eff, 0.0, 1.0);
 }
 
-void ImmuneSystem::add_daily_exposure_boost(int current_day) {
-  if (current_day <= last_daily_boost_day_) return;
-
-  const auto& cfg = Model::get_config()->get_immune_system_parameters().get_immunity_boost();
-  if (!cfg.enable) return;
-
-  // Legacy mapping: daily exposure affects clearance channel (backwards-compatible)
-  add_extra_boost(cfg.clearance.boost_per_exposure_day, current_day);
-
-  last_daily_boost_day_ = current_day;
+double ImmuneSystem::get_effective_clearance_immunity() const {
+  double base = get_current_value();
+  double eff  = base + clearance_boost_.value;
+  return std::clamp(eff, 0.0, 1.0);
 }
+
 
 // New two-channel boost helpers
 static double safe_decay(double value, double half_life_days, int dt) {
@@ -225,22 +187,6 @@ void ImmuneSystem::add_daily_clinical_exposure_boost(int current_day, double amo
   double amount = base_amount * amount_multiplier;
   clinical_boost_.value = std::min(cfg.clinical.max_extra_boost, clinical_boost_.value + amount);
   clinical_boost_.last_daily_add_day = current_day;
-}
-
-double ImmuneSystem::get_effective_clinical_immunity(int current_day) const {
-  const auto& cfg = Model::get_config()->get_immune_system_parameters().get_immunity_boost();
-  if (!cfg.enable) return get_current_value();
-
-  double effective = get_current_value() + clinical_boost_.value;
-  return std::clamp(effective, 0.0, 1.0);
-}
-
-double ImmuneSystem::get_effective_clearance_immunity(int current_day) const {
-  const auto& cfg = Model::get_config()->get_immune_system_parameters().get_immunity_boost();
-  if (!cfg.enable) return get_current_value();
-
-  double effective = get_current_value() + clearance_boost_.value;
-  return std::clamp(effective, 0.0, 1.0);
 }
 
 static std::atomic<int> g_daily_clinical_boosts_applied{0};

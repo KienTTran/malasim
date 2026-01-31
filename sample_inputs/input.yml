@@ -259,10 +259,10 @@ immune_system_parameters:
   immune_effect_on_progression_to_clinical: 5.4 # Slope of the sigmoidal probability vs. immunity function (z)
   age_mature_immunity: 10 # Age at which immune function is mature
   factor_effect_age_mature_immunity: 0.3 # Adjusts the inflection point in the curve (kappa)
-  midpoint: 0.4 # Midpoint for the immunity curve
+  midpoint: 0.2 # Midpoint for the immunity curve
 
   immunity_boost:
-    enable: true
+    enable: false
 
     # This feature adds "extra learned immunity" on top of your existing base immunity.
     # It is split into two channels:
@@ -272,7 +272,6 @@ immune_system_parameters:
     # Key idea (Cameron/Griffin-like):
     #   - clinical immunity can increase relatively fast → fewer clinical episodes
     #   - clearance immunity should be weaker/slower → PfPR saturates instead of collapsing
-    # The values below are default and will make no different between enabled/disabled.
 
     clinical:
       # Discrete boost when recrudescence happens WITHOUT symptoms.
