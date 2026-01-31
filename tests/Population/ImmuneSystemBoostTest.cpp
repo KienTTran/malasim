@@ -44,21 +44,21 @@ TEST(ImmuneSystemBoostTest, ExtraBoostClampAndHalfLife) {
   immune.set_immune_component(std::move(comp));
   immune.set_latest_immune_value(0.2);
 
-  // Day 0: add extra boost
+  // Day 0: add extra boost (mapped to clearance/event boost in new API)
   mocks.scheduler->set_current_time(0);
-  immune.add_extra_boost(0.2, 0);
-  double eff0 = immune.get_effective_immunity(0);
+  immune.add_clearance_event_boost(0.2, 0);
+  double eff0 = immune.get_effective_immunity();
   EXPECT_NEAR(eff0, 0.4, 1e-9); // 0.2 base + 0.2 extra
 
   // Add again on same day - should clamp to max_extra_boost (0.3)
-  immune.add_extra_boost(0.2, 0);
-  double eff1 = immune.get_effective_immunity(0);
+  immune.add_clearance_event_boost(0.2, 0);
+  double eff1 = immune.get_effective_immunity();
   EXPECT_NEAR(eff1, 0.5, 1e-9); // base 0.2 + extra 0.3 (clamped)
 
   // Advance to half-life day and update - extra should halve
   mocks.scheduler->set_current_time(365);
   immune.update(); // will run decay
-  double eff2 = immune.get_effective_immunity(365);
+  double eff2 = immune.get_effective_immunity();
   // extra was 0.3 -> decays to 0.15 => effective 0.35
   EXPECT_NEAR(eff2, 0.35, 1e-6);
 
@@ -91,19 +91,20 @@ TEST(ImmuneSystemBoostTest, DailyExposureBoostOncePerDay) {
 
   // Day 10: first exposure boost
   mocks.scheduler->set_current_time(10);
-  immune.add_daily_exposure_boost(10);
-  double eff_a = immune.get_effective_immunity(10);
+  // Legacy daily exposure mapped to clearance daily exposure in new API
+  immune.add_daily_clearance_exposure_boost(10, 1.0);
+  double eff_a = immune.get_effective_immunity();
   EXPECT_NEAR(eff_a, 0.01, 1e-9);
 
   // Re-apply same day -> no change
-  immune.add_daily_exposure_boost(10);
-  double eff_b = immune.get_effective_immunity(10);
+  immune.add_daily_clearance_exposure_boost(10, 1.0);
+  double eff_b = immune.get_effective_immunity();
   EXPECT_NEAR(eff_b, 0.01, 1e-9);
 
   // Next day -> applied again
   mocks.scheduler->set_current_time(11);
-  immune.add_daily_exposure_boost(11);
-  double eff_c = immune.get_effective_immunity(11);
+  immune.add_daily_clearance_exposure_boost(11, 1.0);
+  double eff_c = immune.get_effective_immunity();
   // extra at day 10 was 0.01; it decays for 1 day before adding new daily boost
   const double lambda = std::log(2.0) / 365.0;
   const double expected_extra = 0.01 * std::exp(-lambda * 1) + 0.01;
@@ -141,15 +142,15 @@ TEST(ImmuneSystemBoostTest, ClinicalChannelOnlyDailyAndEventBoost) {
   // Day 1: apply daily clinical exposure
   mocks.scheduler->set_current_time(1);
   immune.add_daily_clinical_exposure_boost(1, 1.0);
-  double eff_clin = immune.get_effective_clinical_immunity(1);
-  double eff_clear = immune.get_effective_clearance_immunity(1);
+  double eff_clin = immune.get_effective_clinical_immunity();
+  double eff_clear = immune.get_effective_clearance_immunity();
 
   EXPECT_NEAR(eff_clin, 0.12, 1e-9); // 0.10 + 0.02
   EXPECT_NEAR(eff_clear, 0.10, 1e-9); // unaffected
 
   // Event boost (clinical channel)
   immune.add_clinical_event_boost(0.05, 1);
-  double eff_clin_evt = immune.get_effective_clinical_immunity(1);
+  double eff_clin_evt = immune.get_effective_clinical_immunity();
   EXPECT_NEAR(eff_clin_evt, std::min(1.0, 0.12 + 0.05), 1e-9);
 
   model->release();
@@ -181,8 +182,8 @@ TEST(ImmuneSystemBoostTest, ClearanceChannelOnlyDailyBoost) {
 
   mocks.scheduler->set_current_time(2);
   immune.add_daily_clearance_exposure_boost(2, 1.0);
-  double eff_clear = immune.get_effective_clearance_immunity(2);
-  double eff_clin = immune.get_effective_clinical_immunity(2);
+  double eff_clear = immune.get_effective_clearance_immunity();
+  double eff_clin = immune.get_effective_clinical_immunity();
 
   EXPECT_NEAR(eff_clear, 0.23, 1e-9); // 0.20 + 0.03
   EXPECT_NEAR(eff_clin, 0.20, 1e-9);   // unaffected
@@ -225,8 +226,8 @@ TEST(ImmuneSystemBoostTest, BothChannelsDailyBoostsSeparateCapsAndDecay) {
   immune.add_daily_clinical_exposure_boost(5, 1.0);
   immune.add_daily_clearance_exposure_boost(5, 1.0);
 
-  double eff_clin = immune.get_effective_clinical_immunity(5);
-  double eff_clear = immune.get_effective_clearance_immunity(5);
+  double eff_clin = immune.get_effective_clinical_immunity();
+  double eff_clear = immune.get_effective_clearance_immunity();
 
   EXPECT_NEAR(eff_clin, 0.31, 1e-9); // 0.30 + 0.01
   EXPECT_NEAR(eff_clear, 0.32, 1e-9); // 0.30 + 0.02
@@ -234,7 +235,7 @@ TEST(ImmuneSystemBoostTest, BothChannelsDailyBoostsSeparateCapsAndDecay) {
   // Advance many days to test decay halves over half-life
   mocks.scheduler->set_current_time(5 + static_cast<int>(boost_cfg.clinical.half_life_days));
   immune.update();
-  double eff_clin_after = immune.get_effective_clinical_immunity(mocks.scheduler->current_time());
+  double eff_clin_after = immune.get_effective_clinical_immunity();
   // clinical extra 0.01 -> decays to ~0.005 => effective ~0.305
   EXPECT_NEAR(eff_clin_after, 0.30 + 0.01 * 0.5, 1e-6);
 
