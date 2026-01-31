@@ -120,8 +120,37 @@ TEST(ImmuneSystemTest, PercentageDecidingToNotSeekTreatment) {
 
     EXPECT_NEAR(not_seeking_treatment_count, expected_count, tolerance);
 
-    // Also check that MDC recorded the events
-    EXPECT_EQ(Model::get_mdc()->monthly_number_of_not_seeking_treatment_by_location_index()[0][0], not_seeking_treatment_count);
+    // Determine which MDC bucket should have been incremented based on active configuration
+    const auto& epi = Model::get_config()->get_epidemiological_parameters();
+    int bucket_idx = 0;
+    // If new age-based config is enabled, compute index like runtime logic
+    if (epi.get_age_based_probability_of_seeking_treatment().enabled() &&
+        !epi.get_age_based_probability_of_seeking_treatment().get_ages().empty()) {
+        const int age = person.get_age();
+        const auto& ages = epi.get_age_based_probability_of_seeking_treatment().get_ages();
+        if (age <= ages.front()) bucket_idx = 0;
+        else if (age >= ages.back()) bucket_idx = static_cast<int>(ages.size()) - 1;
+        else {
+            int hi = 1;
+            while (hi < static_cast<int>(ages.size()) && age >= ages[hi]) ++hi;
+            bucket_idx = hi - 1;
+        }
+    }
+    // Otherwise fallback to legacy percentage list semantics
+    else {
+        const auto& list = epi.get_percentage_deciding_to_not_seek_treatment();
+        if (!list.empty()) {
+            const int age = person.get_age();
+            // Find the last entry whose age <= person's age
+            bucket_idx = 0;
+            for (size_t i = 0; i < list.size(); ++i) {
+                if (age >= list[i].get_age()) bucket_idx = static_cast<int>(i);
+            }
+        }
+    }
+
+    // Also check that MDC recorded the events in the expected bucket
+    EXPECT_EQ(Model::get_mdc()->monthly_number_of_not_seeking_treatment_by_location_index()[0][bucket_idx], not_seeking_treatment_count);
 
     // Clean up
     Model::get_instance()->release();

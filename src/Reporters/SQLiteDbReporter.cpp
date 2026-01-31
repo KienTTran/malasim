@@ -127,7 +127,7 @@ void SQLiteDbReporter::create_all_reporting_tables() {
         fmt::format("moi_{} INTEGER, ", moi);
   }
 
-  for (size_t i = 0; i < Model::get_config()->get_epidemiological_parameters().get_percentage_deciding_to_not_seek_treatment().size(); ++i) {
+  for (size_t i = 0; i < Model::get_config()->get_epidemiological_parameters().get_not_seeking_treatment_bucket_count(); ++i) {
     age_column_definitions +=
         fmt::format("number_of_not_seeking_treatment_by_location_index_{} INTEGER, ", i);
   }
@@ -148,7 +148,7 @@ void SQLiteDbReporter::create_all_reporting_tables() {
   for (auto moi = 0; moi < ModelDataCollector::NUMBER_OF_REPORTED_MOI; moi++) {
     age_columns += fmt::format("moi_{}, ", moi);
   }
-  for (size_t i = 0; i < Model::get_config()->get_epidemiological_parameters().get_percentage_deciding_to_not_seek_treatment().size(); ++i) {
+  for (size_t i = 0; i < Model::get_config()->get_epidemiological_parameters().get_not_seeking_treatment_bucket_count(); ++i) {
     age_columns += fmt::format("number_of_not_seeking_treatment_by_location_index_{}, ", i);
   }
 

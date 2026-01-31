@@ -235,133 +235,209 @@ public:
     void set_percentage_deciding_to_not_seek_treatment(const std::vector<PercentageDecidingToNotSeekTreatment>& value) { percentage_deciding_to_not_seek_treatment_ = value; }
 
     std::vector<PercentageDecidingToNotSeekTreatment> percentage_deciding_to_not_seek_treatment_;
-};
 
-namespace YAML {
+    // New age-based modifier configuration
+    class AgeBasedProbabilityOfSeekingTreatment {
+    public:
+        class PowerConfig {
+        public:
+            [[nodiscard]] double get_base() const { return base_; }
+            void set_base(const double v) { base_ = v; }
 
-// ExponentialDistribution YAML conversion
-template<>
-struct convert<EpidemiologicalParameters::BitingLevelDistributionExponential> {
-    static Node encode(const EpidemiologicalParameters::BitingLevelDistributionExponential& rhs) {
-        Node node;
-        node["scale"] = rhs.get_scale();
-        return node;
+            [[nodiscard]] const std::string& get_exponent_source() const { return exponent_source_; }
+            void set_exponent_source(const std::string& s) { exponent_source_ = s; }
+
+        private:
+            double base_ = 1.0;
+            std::string exponent_source_ = "index";
+        };
+
+        [[nodiscard]] bool enabled() const { return enable_; }
+        void set_enable(bool v) { enable_ = v; }
+
+        [[nodiscard]] const std::string& get_type() const { return type_; }
+        void set_type(const std::string& t) { type_ = t; }
+
+        [[nodiscard]] const PowerConfig& get_power() const { return power_; }
+        void set_power(const PowerConfig& p) { power_ = p; }
+
+        [[nodiscard]] const std::vector<int>& get_ages() const { return ages_; }
+        void set_ages(const std::vector<int>& a) { ages_ = a; }
+
+    private:
+        bool enable_ = false;
+        std::string type_ = "power";
+        PowerConfig power_;
+        std::vector<int> ages_;
+    };
+
+    [[nodiscard]] const AgeBasedProbabilityOfSeekingTreatment& get_age_based_probability_of_seeking_treatment() const { return age_based_probability_of_seeking_treatment_; }
+    void set_age_based_probability_of_seeking_treatment(const AgeBasedProbabilityOfSeekingTreatment& v) { age_based_probability_of_seeking_treatment_ = v; }
+
+    // Helper: number of buckets used for recording not-seeking-treatment counts
+    [[nodiscard]] size_t get_not_seeking_treatment_bucket_count() const {
+        if (age_based_probability_of_seeking_treatment_.enabled()) return age_based_probability_of_seeking_treatment_.get_ages().size();
+        return percentage_deciding_to_not_seek_treatment_.size();
     }
 
-    static bool decode(const Node& node, EpidemiologicalParameters::BitingLevelDistributionExponential& rhs) {
-        if (!node["scale"]) {
-            throw std::runtime_error("Missing fields in ExponentialDistribution");
-        }
-        rhs.set_scale(node["scale"].as<double>());
-        return true;
-    }
-};
+    AgeBasedProbabilityOfSeekingTreatment age_based_probability_of_seeking_treatment_;
+ };
+
+ namespace YAML {
+
+ // ExponentialDistribution YAML conversion
+ template<>
+ struct convert<EpidemiologicalParameters::BitingLevelDistributionExponential> {
+     static Node encode(const EpidemiologicalParameters::BitingLevelDistributionExponential& rhs) {
+         Node node;
+         node["scale"] = rhs.get_scale();
+         return node;
+     }
+
+     static bool decode(const Node& node, EpidemiologicalParameters::BitingLevelDistributionExponential& rhs) {
+         if (!node["scale"]) {
+             throw std::runtime_error("Missing fields in ExponentialDistribution");
+         }
+         rhs.set_scale(node["scale"].as<double>());
+         return true;
+     }
+ };
 
 // GammaDistribution YAML conversion
-template<>
-struct convert<EpidemiologicalParameters::BitingLevelDistributionGamma> {
-    static Node encode(const EpidemiologicalParameters::BitingLevelDistributionGamma& rhs) {
-        Node node;
-        node["mean"] = rhs.get_mean();
-        node["sd"] = rhs.get_sd();
-        return node;
-    }
+ template<>
+ struct convert<EpidemiologicalParameters::BitingLevelDistributionGamma> {
+     static Node encode(const EpidemiologicalParameters::BitingLevelDistributionGamma& rhs) {
+         Node node;
+         node["mean"] = rhs.get_mean();
+         node["sd"] = rhs.get_sd();
+         return node;
+     }
 
-    static bool decode(const Node& node, EpidemiologicalParameters::BitingLevelDistributionGamma& rhs) {
-        if (!node["mean"] || !node["sd"]) {
-            throw std::runtime_error("Missing fields in GammaDistribution");
-        }
-        rhs.set_mean(node["mean"].as<double>());
-        rhs.set_sd(node["sd"].as<double>());
-        return true;
-    }
-};
+     static bool decode(const Node& node, EpidemiologicalParameters::BitingLevelDistributionGamma& rhs) {
+         if (!node["mean"] || !node["sd"]) {
+             throw std::runtime_error("Missing fields in GammaDistribution");
+         }
+         rhs.set_mean(node["mean"].as<double>());
+         rhs.set_sd(node["sd"].as<double>());
+         return true;
+     }
+ };
 
 // BitingLevelDistribution YAML conversion
-template<>
-struct convert<EpidemiologicalParameters::BitingLevelDistribution> {
-    static Node encode(const EpidemiologicalParameters::BitingLevelDistribution& rhs) {
-        Node node;
-        node["distribution"] = rhs.get_distribution();
-        node["Gamma"] = rhs.get_gamma();
-        node["Exponential"] = rhs.get_exponential();
-        return node;
-    }
+ template<>
+ struct convert<EpidemiologicalParameters::BitingLevelDistribution> {
+     static Node encode(const EpidemiologicalParameters::BitingLevelDistribution& rhs) {
+         Node node;
+         node["distribution"] = rhs.get_distribution();
+         node["Gamma"] = rhs.get_gamma();
+         node["Exponential"] = rhs.get_exponential();
+         return node;
+     }
 
-    static bool decode(const Node& node, EpidemiologicalParameters::BitingLevelDistribution& rhs) {
-        if (!node["distribution"] || !node["Gamma"] || !node["Exponential"]) {
-            throw std::runtime_error("Missing fields in BitingLevelDistribution");
-        }
-        rhs.set_distribution(node["distribution"].as<std::string>());
-        rhs.set_gamma(node["Gamma"].as<EpidemiologicalParameters::BitingLevelDistributionGamma>());
-        rhs.set_exponential(node["Exponential"].as<EpidemiologicalParameters::BitingLevelDistributionExponential>());
-        return true;
-    }
-};
+     static bool decode(const Node& node, EpidemiologicalParameters::BitingLevelDistribution& rhs) {
+         if (!node["distribution"] || !node["Gamma"] || !node["Exponential"]) {
+             throw std::runtime_error("Missing fields in BitingLevelDistribution");
+         }
+         rhs.set_distribution(node["distribution"].as<std::string>());
+         rhs.set_gamma(node["Gamma"].as<EpidemiologicalParameters::BitingLevelDistributionGamma>());
+         rhs.set_exponential(node["Exponential"].as<EpidemiologicalParameters::BitingLevelDistributionExponential>());
+         return true;
+     }
+ };
 
 // RelativeBitingInfo YAML conversion
-template<>
-struct convert<EpidemiologicalParameters::RelativeBitingInfo> {
-    static Node encode(const EpidemiologicalParameters::RelativeBitingInfo& rhs) {
-        Node node;
-        node["max_relative_biting_value"] = rhs.get_max_relative_biting_value();
-        node["min_relative_biting_value"] = rhs.get_min_relative_biting_value();
-        node["number_of_biting_levels"] = rhs.get_number_of_biting_levels();
-        node["biting_level_distribution"] = rhs.get_biting_level_distribution();
-        return node;
-    }
+ template<>
+ struct convert<EpidemiologicalParameters::RelativeBitingInfo> {
+     static Node encode(const EpidemiologicalParameters::RelativeBitingInfo& rhs) {
+         Node node;
+         node["max_relative_biting_value"] = rhs.get_max_relative_biting_value();
+         node["min_relative_biting_value"] = rhs.get_min_relative_biting_value();
+         node["number_of_biting_levels"] = rhs.get_number_of_biting_levels();
+         node["biting_level_distribution"] = rhs.get_biting_level_distribution();
+         return node;
+     }
 
-    static bool decode(const Node& node, EpidemiologicalParameters::RelativeBitingInfo& rhs) {
-        if (!node["max_relative_biting_value"] || !node["min_relative_biting_value"]
-            || !node["number_of_biting_levels"] || !node["biting_level_distribution"]) {
-            throw std::runtime_error("Missing fields in RelativeBitingInfo");
-        }
-        rhs.set_max_relative_biting_value(node["max_relative_biting_value"].as<int>());
-        rhs.set_min_relative_biting_value(node["min_relative_biting_value"].as<double>());
-        rhs.set_number_of_biting_levels(node["number_of_biting_levels"].as<int>());
-        rhs.set_biting_level_distribution(node["biting_level_distribution"].as<EpidemiologicalParameters::BitingLevelDistribution>());
-        return true;
-    }
-};
+     static bool decode(const Node& node, EpidemiologicalParameters::RelativeBitingInfo& rhs) {
+         if (!node["max_relative_biting_value"] || !node["min_relative_biting_value"]
+             || !node["number_of_biting_levels"] || !node["biting_level_distribution"]) {
+             throw std::runtime_error("Missing fields in RelativeBitingInfo");
+         }
+         rhs.set_max_relative_biting_value(node["max_relative_biting_value"].as<int>());
+         rhs.set_min_relative_biting_value(node["min_relative_biting_value"].as<double>());
+         rhs.set_number_of_biting_levels(node["number_of_biting_levels"].as<int>());
+         rhs.set_biting_level_distribution(node["biting_level_distribution"].as<EpidemiologicalParameters::BitingLevelDistribution>());
+         return true;
+     }
+ };
 
 // RelativeInfectivity YAML conversion
-template<>
-struct convert<EpidemiologicalParameters::RelativeInfectivity> {
-    static Node encode(const EpidemiologicalParameters::RelativeInfectivity& rhs) {
-        Node node;
-        node["sigma"] = rhs.get_sigma();
-        node["ro"] = rhs.get_ro_star();
-        node["blood_meal_volume"] = rhs.get_blood_meal_volume();
-        return node;
-    }
+ template<>
+ struct convert<EpidemiologicalParameters::RelativeInfectivity> {
+     static Node encode(const EpidemiologicalParameters::RelativeInfectivity& rhs) {
+         Node node;
+         node["sigma"] = rhs.get_sigma();
+         node["ro"] = rhs.get_ro_star();
+         node["blood_meal_volume"] = rhs.get_blood_meal_volume();
+         return node;
+     }
 
-    static bool decode(const Node& node, EpidemiologicalParameters::RelativeInfectivity& rhs) {
-        if (!node["sigma"] || !node["ro"] || !node["blood_meal_volume"]) {
-            throw std::runtime_error("Missing fields in RelativeInfectivity");
-        }
-        rhs.set_sigma(node["sigma"].as<double>());
-        rhs.set_ro_star(node["ro"].as<double>());
-        rhs.set_blood_meal_volume(node["blood_meal_volume"].as<double>());
-        return true;
-    }
-};
+     static bool decode(const Node& node, EpidemiologicalParameters::RelativeInfectivity& rhs) {
+         if (!node["sigma"] || !node["ro"] || !node["blood_meal_volume"]) {
+             throw std::runtime_error("Missing fields in RelativeInfectivity");
+         }
+         rhs.set_sigma(node["sigma"].as<double>());
+         rhs.set_ro_star(node["ro"].as<double>());
+         rhs.set_blood_meal_volume(node["blood_meal_volume"].as<double>());
+         return true;
+     }
+ };
 
 // NotProgressToClinical YAML conversion
+ template<>
+ struct convert<EpidemiologicalParameters::PercentageDecidingToNotSeekTreatment> {
+     static Node encode(const EpidemiologicalParameters::PercentageDecidingToNotSeekTreatment& rhs) {
+         Node node;
+         node["age"] = rhs.get_age();
+         node["percentage"] = rhs.get_percentage();
+         return node;
+     }
+
+     static bool decode(const Node& node, EpidemiologicalParameters::PercentageDecidingToNotSeekTreatment& rhs) {
+         if (!node["age"] || !node["percentage"]) {
+             throw std::runtime_error("Missing fields in NotProgressToClinical");
+         }
+         rhs.set_age(node["age"].as<int>());
+         rhs.set_percentage(node["percentage"].as<double>());
+         return true;
+     }
+ };
+
+// AgeBasedProbabilityOfSeekingTreatment YAML conversion
 template<>
-struct convert<EpidemiologicalParameters::PercentageDecidingToNotSeekTreatment> {
-    static Node encode(const EpidemiologicalParameters::PercentageDecidingToNotSeekTreatment& rhs) {
+struct convert<EpidemiologicalParameters::AgeBasedProbabilityOfSeekingTreatment> {
+    static Node encode(const EpidemiologicalParameters::AgeBasedProbabilityOfSeekingTreatment& rhs) {
         Node node;
-        node["age"] = rhs.get_age();
-        node["percentage"] = rhs.get_percentage();
+        node["enable"] = rhs.enabled();
+        node["type"] = rhs.get_type();
+        Node powerNode;
+        powerNode["base"] = rhs.get_power().get_base();
+        powerNode["exponent_source"] = rhs.get_power().get_exponent_source();
+        node["power"] = powerNode;
+        node["ages"] = rhs.get_ages();
         return node;
     }
 
-    static bool decode(const Node& node, EpidemiologicalParameters::PercentageDecidingToNotSeekTreatment& rhs) {
-        if (!node["age"] || !node["percentage"]) {
-            throw std::runtime_error("Missing fields in NotProgressToClinical");
+    static bool decode(const Node& node, EpidemiologicalParameters::AgeBasedProbabilityOfSeekingTreatment& rhs) {
+        if (!node) return true;
+        if (node["enable"]) rhs.set_enable(node["enable"].as<bool>());
+        if (node["type"]) rhs.set_type(node["type"].as<std::string>());
+        if (node["power"]) {
+            EpidemiologicalParameters::AgeBasedProbabilityOfSeekingTreatment::PowerConfig pc;
+            if (node["power"]["base"]) pc.set_base(node["power"]["base"].as<double>());
+            if (node["power"]["exponent_source"]) pc.set_exponent_source(node["power"]["exponent_source"].as<std::string>());
+            rhs.set_power(pc);
         }
-        rhs.set_age(node["age"].as<int>());
-        rhs.set_percentage(node["percentage"].as<double>());
+        if (node["ages"]) rhs.set_ages(node["ages"].as<std::vector<int>>());
         return true;
     }
 };
@@ -393,6 +469,7 @@ struct convert<EpidemiologicalParameters> {
         node["using_age_dependent_biting_level"] = rhs.get_using_age_dependent_biting_level();
         node["using_variable_probability_infectious_bites_cause_infection"] = rhs.get_using_variable_probability_infectious_bites_cause_infection();
         node["percentage_deciding_to_not_seek_treatment"] = rhs.get_percentage_deciding_to_not_seek_treatment();
+        node["age_based_probability_of_seeking_treatment"] = rhs.get_age_based_probability_of_seeking_treatment();
         return node;
     }
 
@@ -432,8 +509,11 @@ struct convert<EpidemiologicalParameters> {
         if (node["percentage_deciding_to_not_seek_treatment"]) {
             rhs.set_percentage_deciding_to_not_seek_treatment(node["percentage_deciding_to_not_seek_treatment"].as<std::vector<EpidemiologicalParameters::PercentageDecidingToNotSeekTreatment>>());
         }
+        if (node["age_based_probability_of_seeking_treatment"]) {
+            rhs.set_age_based_probability_of_seeking_treatment(node["age_based_probability_of_seeking_treatment"].as<EpidemiologicalParameters::AgeBasedProbabilityOfSeekingTreatment>());
+        }
         return true;
     }
-};
-}
-#endif //EPIDEMIOLOGICALPARAMETERS_H
+ };
+ }
+ #endif //EPIDEMIOLOGICALPARAMETERS_H

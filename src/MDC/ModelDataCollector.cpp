@@ -246,7 +246,7 @@ void ModelDataCollector::initialize() {
         IntVector2(Model::get_config()->number_of_locations(), IntVector(100, 0));
     monthly_number_of_not_seeking_treatment_by_location_index_ =
         IntVector2(Model::get_config()->number_of_locations(),
-                   IntVector(Model::get_config()->get_epidemiological_parameters().get_percentage_deciding_to_not_seek_treatment().size(), 0));
+                   IntVector(Model::get_config()->get_epidemiological_parameters().get_not_seeking_treatment_bucket_count(), 0));
     monthly_number_of_mutation_events_by_location_ =
         IntVector(Model::get_config()->number_of_locations(), 0);
 
