@@ -279,18 +279,18 @@ immune_system_parameters:
       # Apply only when:
       #   - recrudescence is WITHOUT_SYMPTOM
       #   - AND (optionally) no drugs in blood (your choice; recommended: allow with multiplier)
-      boost_on_asymptomatic_recrudescence: 0.01
+      boost_on_asymptomatic_recrudescence: 0.002
 
       # Continuous learning per day when parasite is in blood.
       # Apply once per PERSON per day (guard against per-parasite double counting).
-      boost_per_exposure_day: 0.01
+      boost_per_exposure_day: 0.001
 
       # Only start learning after parasite has been in blood for at least N days.
       # Prevents brief/tiny exposures from producing strong immunity.
-      exposure_gate_days: 5
+      exposure_gate_days: 10
 
       # Cap on "clinical extra immunity" (added on top of base immunity).
-      max_extra_boost: 0.35
+      max_extra_boost: 0.15
 
       # Exponential decay timescale for clinical extra immunity.
       # 365 days = halves every year if no new exposure.
