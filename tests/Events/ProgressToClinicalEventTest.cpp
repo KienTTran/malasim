@@ -93,3 +93,91 @@ TEST(ProgressToClinicalEventDeterministicTest, ShouldReceiveTreatmentRespectsAge
     Model::get_instance()->release();
     test_fixtures::cleanup_test_files();
 }
+
+TEST(ProgressToClinicalEventDeterministicTest, LogisticTypeRespectsAgeBasedModifier) {
+    // Prepare a config enabling logistic type
+    test_fixtures::setup_test_environment("test_input.yml", [](YAML::Node &cfg){
+        if (!cfg["epidemiological_parameters"]) cfg["epidemiological_parameters"] = YAML::Node(YAML::NodeType::Map);
+        auto n = cfg["epidemiological_parameters"]["age_based_probability_of_seeking_treatment"];
+        n["enable"] = true;
+        n["type"] = "logistic";
+        n["logistic"] = YAML::Node(YAML::NodeType::Map);
+        n["logistic"]["min"] = 0.3;
+        n["logistic"]["max"] = 0.95;
+        n["logistic"]["midpoint"] = 20.0;
+        n["logistic"]["k"] = 0.12;
+    });
+
+    // Initialize model
+    utils::Cli::get_instance().set_input_path("test_input.yml");
+    ASSERT_TRUE(Model::get_instance()->initialize());
+
+    // Replace treatment coverage with a constant value (base_p)
+    Model::get_instance()->set_treatment_coverage(std::make_unique<ConstTCM>(0.6));
+
+    // Replace global RNG with a deterministic stub returning 0.55
+    Model::set_random(std::make_unique<TestRandomFixed>(0.55));
+
+    // Create and initialize a Person
+    auto person = std::make_unique<Person>();
+    person->initialize();
+    person->set_location(0);
+
+    // Pick an age to test
+    const int age = 2; // young -> modifier closer to max
+    person->set_age(age);
+
+    // Get modifier from config helper and compute expected
+    const auto &agecfg = Model::get_config()->get_epidemiological_parameters().get_age_based_probability_of_seeking_treatment();
+    const double modifier = agecfg.evaluate_for_age(age);
+    const double effective_p = 0.6 * modifier;
+    const bool expected = (0.55 <= effective_p);
+
+    EXPECT_EQ(ProgressToClinicalEvent::should_receive_treatment(person.get()), expected);
+
+    Model::get_instance()->release();
+    test_fixtures::cleanup_test_files();
+}
+
+TEST(ProgressToClinicalEventDeterministicTest, ExpFloorTypeRespectsAgeBasedModifier) {
+    // Prepare a config enabling exp_floor type
+    test_fixtures::setup_test_environment("test_input.yml", [](YAML::Node &cfg){
+        if (!cfg["epidemiological_parameters"]) cfg["epidemiological_parameters"] = YAML::Node(YAML::NodeType::Map);
+        auto n = cfg["epidemiological_parameters"]["age_based_probability_of_seeking_treatment"];
+        n["enable"] = true;
+        n["type"] = "exp_floor";
+        n["exp_floor"] = YAML::Node(YAML::NodeType::Map);
+        n["exp_floor"]["min"] = 0.25;
+        n["exp_floor"]["lambda"] = 0.05;
+    });
+
+    // Initialize model
+    utils::Cli::get_instance().set_input_path("test_input.yml");
+    ASSERT_TRUE(Model::get_instance()->initialize());
+
+    // Replace treatment coverage with a constant value (base_p)
+    Model::get_instance()->set_treatment_coverage(std::make_unique<ConstTCM>(0.6));
+
+    // Replace global RNG with a deterministic stub returning 0.55
+    Model::set_random(std::make_unique<TestRandomFixed>(0.55));
+
+    // Create and initialize a Person
+    auto person = std::make_unique<Person>();
+    person->initialize();
+    person->set_location(0);
+
+    // Pick an age to test where decay reduces seeking
+    const int age = 50; // older -> modifier closer to min
+    person->set_age(age);
+
+    // Get modifier from config helper and compute expected
+    const auto &agecfg = Model::get_config()->get_epidemiological_parameters().get_age_based_probability_of_seeking_treatment();
+    const double modifier = agecfg.evaluate_for_age(age);
+    const double effective_p = 0.6 * modifier;
+    const bool expected = (0.55 <= effective_p);
+
+    EXPECT_EQ(ProgressToClinicalEvent::should_receive_treatment(person.get()), expected);
+
+    Model::get_instance()->release();
+    test_fixtures::cleanup_test_files();
+}
