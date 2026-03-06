@@ -168,7 +168,11 @@ TEST_F(ModelDataCollectorTest, RecordTreatmentIncrementsAgeIndex) {
     mdc_->initialize();
 
     const int locations = Model::get_config()->number_of_locations();
-    const int ages_count = 4; // as provided above
+    const int ages_count = static_cast<int>(
+    Model::get_config()
+        ->get_epidemiological_parameters()
+        .get_age_based_probability_of_seeking_treatment()
+        .get_ages().size());
 
     // Check dimensions
     ASSERT_EQ(static_cast<int>(mdc_->monthly_number_of_people_seeking_treatment_by_location_age_index().size()), locations);
@@ -411,7 +415,11 @@ TEST_F(ModelDataCollectorTest, AgeBasedSeekingInitializeRecordZero) {
     mdc_->initialize();
 
     const int locations = Model::get_config()->number_of_locations();
-    const int ages_count = 4; // as provided above
+    const int ages_count = static_cast<int>(
+    Model::get_config()
+        ->get_epidemiological_parameters()
+        .get_age_based_probability_of_seeking_treatment()
+        .get_ages().size());
 
     // Check dimensions
     ASSERT_EQ(static_cast<int>(mdc_->monthly_number_of_people_seeking_treatment_by_location_age_index().size()), locations);
@@ -454,10 +462,10 @@ TEST_F(ModelDataCollectorTest, AgeBasedSeekingEvaluationEnabledDisabled) {
     const auto &ep = Model::get_config()->get_epidemiological_parameters();
     const auto &agecfg = ep.get_age_based_probability_of_seeking_treatment();
 
-    // Enabled: age 2 -> idx 0 -> modifier 0.9^(0+1) = 0.9
-    EXPECT_DOUBLE_EQ(agecfg.evaluate_for_age(2), 0.9);
-    // Enabled: age 12 -> idx 2 (ages[2] == 10) -> modifier 0.9^(2+1) = 0.729
-    EXPECT_NEAR(agecfg.evaluate_for_age(12), 0.729, 1e-12);
+    // Enabled: age 2 -> idx 0 -> modifier 0.9^(0) = 1.0
+    EXPECT_DOUBLE_EQ(agecfg.evaluate_for_age(2), 1.0);
+    // Enabled: age 12 -> idx 2 (ages[2] == 10) -> modifier 0.9^(2) = 0.81
+    EXPECT_NEAR(agecfg.evaluate_for_age(12), 0.81, 1e-12);
 
     // Now set disabled and re-check (should return 1.0 regardless)
     Model::get_instance()->release();

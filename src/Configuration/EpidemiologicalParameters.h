@@ -8,6 +8,7 @@
 #include <spdlog/spdlog.h>
 #include <vector>
 #include <cmath>
+#include <algorithm>
 #include "IConfigData.h"
 
 class EpidemiologicalParameters: public IConfigData {
@@ -108,24 +109,12 @@ public:
         double ro_star_ = 0.00031;
         double blood_meal_volume_ = 3.0;
     };
-    // New: Age-based probability of seeking treatment
+
     class AgeBasedProbabilityOfSeekingTreatment {
     public:
         struct PowerConfig {
-            double base = 1.0;                 // multiplicative base
+            double base = 1.0;                      // multiplicative base
             std::string exponent_source = "index"; // how to derive exponent
-        };
-
-        struct LogisticConfig {
-            double min = 0.4;       // floor
-            double max = 1.0;       // ceiling
-            double midpoint = 15.0; // age where drop is fastest
-            double k = 0.15;        // steepness (>0)
-        };
-
-        struct ExpFloorConfig {
-            double min = 0.4;     // floor in [0,1]
-            double lambda = 0.05; // decay rate (>=0)
         };
 
         [[nodiscard]] const std::string& get_type() const { return type_; }
@@ -134,97 +123,101 @@ public:
         [[nodiscard]] const PowerConfig& get_power() const { return power_; }
         void set_power(const PowerConfig& value) { power_ = value; }
 
-        [[nodiscard]] const LogisticConfig& get_logistic() const { return logistic_; }
-        void set_logistic(const LogisticConfig& value) { logistic_ = value; }
-
-        [[nodiscard]] const ExpFloorConfig& get_exp_floor() const { return exp_floor_; }
-        void set_exp_floor(const ExpFloorConfig& value) { exp_floor_ = value; }
-
         [[nodiscard]] const std::vector<int>& get_ages() const { return ages_; }
         void set_ages(const std::vector<int>& value) { ages_ = value; }
 
-        // Enabled/disabled flag
         [[nodiscard]] bool is_enabled() const { return enabled_; }
         void set_enabled(bool v) { enabled_ = v; }
 
-        // Returns a multiplicative modifier to apply to base treatment probability
+        void validate() const {
+            if (!enabled_) return;
+
+            if (type_.empty()) {
+                throw std::runtime_error(
+                    "age_based_probability_of_seeking_treatment.type must not be empty when enabled");
+            }
+
+            if (type_ != "power") {
+                throw std::runtime_error(
+                    "age_based_probability_of_seeking_treatment.type must be 'power', got '" + type_ + "'");
+            }
+
+            if (power_.exponent_source != "index") {
+                throw std::runtime_error(
+                    "age_based_probability_of_seeking_treatment.power.exponent_source must be 'index', got '" +
+                    power_.exponent_source + "'");
+            }
+
+            if (ages_.empty()) {
+                throw std::runtime_error(
+                    "age_based_probability_of_seeking_treatment.ages must not be empty when enabled");
+            }
+
+            if (!std::is_sorted(ages_.begin(), ages_.end())) {
+                throw std::runtime_error(
+                    "age_based_probability_of_seeking_treatment.ages must be sorted ascending");
+            }
+
+            auto dup_it = std::adjacent_find(ages_.begin(), ages_.end());
+            if (dup_it != ages_.end()) {
+                throw std::runtime_error(
+                    "age_based_probability_of_seeking_treatment.ages must be strictly increasing");
+            }
+
+            if (ages_.front() < 0) {
+                throw std::runtime_error(
+                    "age_based_probability_of_seeking_treatment.ages must contain non-negative values");
+            }
+
+            if (ages_.front() != 0) {
+                spdlog::warn(
+                    "age_based_probability_of_seeking_treatment.ages starts at {}, not 0",
+                    ages_.front());
+            }
+
+            if (power_.base < 0.0) {
+                throw std::runtime_error(
+                    "age_based_probability_of_seeking_treatment.power.base must be >= 0");
+            }
+        }
+
         double evaluate_for_age(const int age_in) const {
-            if (!enabled_) return 1.0; // when disabled, no age-based modification
-            if (type_.empty()) return 1.0;
+            if (!enabled_) return 1.0;
 
-            const int age = (age_in < 0) ? 0 : age_in;
+            const int age = std::max(0, age_in);
 
-            // -------- power (existing behavior) --------
             if (type_ == "power") {
                 if (ages_.empty()) return 1.0;
 
                 if (power_.exponent_source == "index") {
-                    // ages defines boundaries: ages[i] is start of bin i
-                    // find largest i such that age >= ages[i]
                     int idx = 0;
                     for (size_t i = 0; i < ages_.size(); ++i) {
                         if (age >= ages_[i]) idx = static_cast<int>(i);
                         else break;
                     }
-                    // exponent = idx + 1
-                    return std::pow(power_.base, idx + 1);
+
+                    return std::pow(power_.base, static_cast<double>(idx));
                 }
 
-                // unknown exponent_source -> treat as no-op
+                spdlog::warn(
+                    "Unknown exponent_source '{}' for AgeBasedProbabilityOfSeekingTreatment, returning 1.0",
+                    power_.exponent_source
+                );
                 return 1.0;
             }
 
-            // -------- logistic (smooth S-curve) --------
-            if (type_ == "logistic") {
-                return eval_logistic(age, logistic_);
-            }
-
-            // -------- exp + floor (fast drop then flatten) --------
-            if (type_ == "exp_floor") {
-                return eval_exp_floor(age, exp_floor_);
-            }
-
-            // unknown type -> no-op
+            spdlog::warn(
+                "Unknown AgeBasedProbabilityOfSeekingTreatment type '{}', returning 1.0 with no modification",
+                type_
+            );
             return 1.0;
-        }
-
-    private:
-        static double clamp(double x, double lo, double hi) {
-            return std::max(lo, std::min(x, hi));
-        }
-
-        static double eval_logistic(int age, const LogisticConfig& c) {
-            // mult(age) = min + (max-min) / (1 + exp(k*(age-midpoint)))
-            // Normalize bounds even if user swaps them
-            const double lo = std::min(c.min, c.max);
-            const double hi = std::max(c.min, c.max);
-
-            const double k = (c.k == 0.0) ? 0.0 : c.k; // allow k=0 => flat midpoint blend
-            const double x = k * (static_cast<double>(age) - c.midpoint);
-
-            // exp overflow-safe enough for typical ages; still clamp result afterward
-            const double denom = 1.0 + std::exp(x);
-            double y = lo + (hi - lo) / denom;
-
-            return clamp(y, lo, hi);
-        }
-
-        static double eval_exp_floor(int age, const ExpFloorConfig& c) {
-            // mult(age) = min + (1-min) * exp(-lambda * age)
-            const double lo = clamp(c.min, 0.0, 1.0);
-            const double lam = std::max(0.0, c.lambda);
-
-            double y = lo + (1.0 - lo) * std::exp(-lam * static_cast<double>(age));
-            return clamp(y, lo, 1.0);
         }
 
     private:
         std::string type_;
         PowerConfig power_;
-        LogisticConfig logistic_;
-        ExpFloorConfig exp_floor_;
         std::vector<int> ages_;
-        bool enabled_ = false; // default disabled when no config node is provided
+        bool enabled_ = false;
     };
 
 
@@ -305,6 +298,10 @@ public:
     //process config data
     void process_config() override {
       spdlog::info("Processing EpidemiologicalParameters");
+
+    // Validate age-based treatment-seeking config
+    age_based_probability_of_seeking_treatment_.validate();
+
       const auto var = relative_biting_info_.get_biting_level_distribution().get_gamma().get_sd()
       * relative_biting_info_.get_biting_level_distribution().get_gamma().get_sd();
       gamma_b = var / relative_biting_info_.get_biting_level_distribution().get_gamma().get_mean();

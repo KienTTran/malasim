@@ -935,21 +935,23 @@ epidemiological_parameters:
   # - base_p represents health-system coverage / access (e.g. availability of ACT, facility readiness)
   # - this age-based modifier represents care-seeking behavior by age among clinical cases
   #
-  # The ages array defines age bin boundaries (in years).
-  # The exponent is the index of the largest entry such that age >= ages[i].
+  # The ages array defines age bin boundaries (in years). The array MUST BE IN ORDER.
+  # Each entry in `ages` is a lower-bound cutoff for a bin (sorted ascending).
+  # Bin i applies when: age >= ages[i] AND (i+1 == ages.size() OR age < ages[i+1]).
+  # In other words, ages are lower bounds and the last bin covers ages >= ages[last].
   #
-  # Example:
-  # ages: [0, 5, 10, 15] defines 4 brackets:
-  #   idx=0: ages 0–4
-  #   idx=1: ages 5–9
-  #   idx=2: ages 10–14
-  #   idx=3: ages >=15
+  # Example (lower-bound cutoffs):
+  # ages: [0, 5, 10, 15] defines 4 brackets (lower-bound semantics):
+  #   idx=0: ages >=0 and <5    (ages 0–4)
+  #   idx=1: ages >=5 and <10   (ages 5–9)
+  #   idx=2: ages >=10 and <15  (ages 10–14)
+  #   idx=3: ages >=15          (ages 15+)
   #
-  # The multiplier applied is base^(idx + 1), so that:
-  #   0–4   → 0.9^1  = 0.9   (90% of base_p)
-  #   5–9   → 0.9^2
-  #   10–14 → 0.9^3
-  #   >=15  → 0.9^4
+  # The exponent applied is idx and the multiplier is base^(idx). For example:
+  #   ages 0–4   → idx=0 -> base^0 = 1.0
+  #   ages 5–9   → idx=1 -> base^1 = base
+  #   ages 10–14 → idx=2 -> base^2
+  #   >=15       → idx=3 -> base^3
   #
   # Final probability of receiving treatment for a clinical case:
   #
@@ -960,16 +962,8 @@ epidemiological_parameters:
     enable: true
     type: power
     power:
-      base: 0.9
+      base: 1.0
       exponent_source: index
-    logistic:
-      min: 0.4
-      max: 1.0
-      midpoint: 15
-      k: 0.15
-    exp_floor:
-      min: 0.4
-      lambda: 0.05
     ages: [0, 5, 10, 15, 20, 30, 40]
 
 # ---------------------------------------------------------------

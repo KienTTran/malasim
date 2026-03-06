@@ -129,75 +129,37 @@ TEST_F(EpidemiologicalParametersYAMLTest, DecodeEpidemiologicalParametersMissing
     EXPECT_THROW(YAML::convert<EpidemiologicalParameters>::decode(node, decoded_parameters), std::runtime_error);
 }
 
-// ----- Added tests for AgeBasedProbabilityOfSeekingTreatment -----
-
-TEST_F(EpidemiologicalParametersYAMLTest, AgeBased_Logistic_EvaluateForAgeMatchesManual) {
+// Test for AgeBasedProbabilityOfSeekingTreatment: we only support 'power' type now
+TEST_F(EpidemiologicalParametersYAMLTest, AgeBased_Power_EvaluateForAgeBasic) {
     EpidemiologicalParameters::AgeBasedProbabilityOfSeekingTreatment cfg;
     cfg.set_enabled(true);
-    cfg.set_type("logistic");
-    EpidemiologicalParameters::AgeBasedProbabilityOfSeekingTreatment::LogisticConfig lc;
-    lc.min = 0.2;
-    lc.max = 0.9;
-    lc.midpoint = 20.0;
-    lc.k = 0.1;
-    cfg.set_logistic(lc);
+    cfg.set_type("power");
+    EpidemiologicalParameters::AgeBasedProbabilityOfSeekingTreatment::PowerConfig pc;
+    pc.base = 0.9;
+    pc.exponent_source = "index";
+    cfg.set_power(pc);
+    cfg.set_ages(std::vector<int>{0,5,10,15});
 
-    // young age: expect value near max
-    double v_young = cfg.evaluate_for_age(0);
-    double expected_young = lc.min + (lc.max - lc.min) / (1.0 + std::exp(lc.k * (0.0 - lc.midpoint)));
-    EXPECT_NEAR(v_young, expected_young, 1e-12);
-    EXPECT_GT(v_young, 0.5);
-
-    // midpoint age: expect (min + (max-min)/2)
-    double v_mid = cfg.evaluate_for_age(static_cast<int>(lc.midpoint));
-    double expected_mid = lc.min + (lc.max - lc.min) / 2.0;
-    EXPECT_NEAR(v_mid, expected_mid, 1e-12);
-
-    // old age: expect value near min
-    double v_old = cfg.evaluate_for_age(100);
-    double expected_old = lc.min + (lc.max - lc.min) / (1.0 + std::exp(lc.k * (100.0 - lc.midpoint)));
-    EXPECT_NEAR(v_old, expected_old, 1e-12);
-    EXPECT_LE(v_old, 0.3);
-}
-
-TEST_F(EpidemiologicalParametersYAMLTest, AgeBased_ExpFloor_EvaluateForAgeMatchesManual) {
-    EpidemiologicalParameters::AgeBasedProbabilityOfSeekingTreatment cfg;
-    cfg.set_enabled(true);
-    cfg.set_type("exp_floor");
-    EpidemiologicalParameters::AgeBasedProbabilityOfSeekingTreatment::ExpFloorConfig ec;
-    ec.min = 0.25;
-    ec.lambda = 0.05;
-    cfg.set_exp_floor(ec);
-
-    // Age 0 -> 1.0
-    double v0 = cfg.evaluate_for_age(0);
-    double expected0 = ec.min + (1.0 - ec.min) * std::exp(-ec.lambda * 0.0);
-    EXPECT_NEAR(v0, expected0, 1e-12);
-    EXPECT_NEAR(v0, 1.0, 1e-12);
-
-    // Age 20 -> decayed value
-    double age = 20.0;
-    double v20 = cfg.evaluate_for_age(static_cast<int>(age));
-    double expected20 = ec.min + (1.0 - ec.min) * std::exp(-ec.lambda * age);
-    EXPECT_NEAR(v20, expected20, 1e-12);
-    EXPECT_GT(v20, ec.min);
-
-    // Very large age -> tends to min
-    double v_old = cfg.evaluate_for_age(1000);
-    double expected_old = ec.min + (1.0 - ec.min) * std::exp(-ec.lambda * 1000.0);
-    EXPECT_NEAR(v_old, expected_old, 1e-12);
-    EXPECT_NEAR(v_old, ec.min, 1e-6);
+    // Age 2 -> bin idx 0 -> exponent 0 -> multiplier = 0.9^0 = 1.0
+    EXPECT_DOUBLE_EQ(cfg.evaluate_for_age(2), 1.0);
+    // Age 7 -> idx 1 -> exponent 1 -> multiplier = 0.9^1 = 0.9
+    EXPECT_NEAR(cfg.evaluate_for_age(7), 0.9, 1e-12);
+    // Age 12 -> idx 2 -> exponent 2 -> multiplier = 0.9^2 = 0.81
+    EXPECT_NEAR(cfg.evaluate_for_age(12), 0.81, 1e-12);
 }
 
 TEST_F(EpidemiologicalParametersYAMLTest, AgeBased_Disabled_ReturnsOne) {
     EpidemiologicalParameters::AgeBasedProbabilityOfSeekingTreatment cfg;
     cfg.set_enabled(false);
-    cfg.set_type("logistic");
-    EpidemiologicalParameters::AgeBasedProbabilityOfSeekingTreatment::LogisticConfig lc;
-    lc.min = 0.2; lc.max = 0.9; lc.midpoint = 15.0; lc.k = 0.2;
-    cfg.set_logistic(lc);
+    cfg.set_type("power");
+    EpidemiologicalParameters::AgeBasedProbabilityOfSeekingTreatment::PowerConfig pc;
+    pc.base = 0.9;
+    pc.exponent_source = "index";
+    cfg.set_power(pc);
+    cfg.set_ages(std::vector<int>{0,5,10,15});
 
     EXPECT_DOUBLE_EQ(cfg.evaluate_for_age(0), 1.0);
     EXPECT_DOUBLE_EQ(cfg.evaluate_for_age(10), 1.0);
     EXPECT_DOUBLE_EQ(cfg.evaluate_for_age(100), 1.0);
 }
+
