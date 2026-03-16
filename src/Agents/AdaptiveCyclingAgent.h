@@ -1,6 +1,61 @@
 #ifndef ADAPTIVECYCLINGAGENT_H
 #define ADAPTIVECYCLINGAGENT_H
 
+/**
+ * AdaptiveCyclingAgent.h  —  v5.5 Transformer integration
+ * ─────────────────────────────────────────────────────────
+ * Model interface (predict_cpp in TorchScript):
+ *   Input:  (B, W=24, F=55)
+ *   Output: tuple(dist[B,3], switch_prob[B])
+ *     dist[0..2] = [d6, d7, d8], sums to 1
+ *     switch_prob = P(dominant therapy changes at T+24)
+ *
+ * Exact 50 YAML features (from checkpoint, in order):
+ *   f[ 0]  monthly_number_of_new_infections_by_location      log1p(v/pop)
+ *   f[ 1]  monthly_number_of_treatment_by_location           log1p(v/pop)
+ *   f[ 2]  monthly_number_of_clinical_episode_by_location    v/pop
+ *   f[ 3..13]  monthly_number_of_clinical_episode_by_location_age_{0,1,10,2,3,4,5,6,7,8,9}  v/pop
+ *   f[14..28]  blood_slide_prevalence_by_location_age_group_{0,1,10,11,12,13,14,2,3,4,5,6,7,8,9}
+ *   f[29..39]  blood_slide_prevalence_by_location_age_{0,1,10,2,3,4,5,6,7,8,9}
+ *   f[40]  current_TF_by_location                            raw rate
+ *   f[41]  monthly_number_of_mutation_events_by_location     log1p(v/pop)
+ *   f[42]  tf_by_therapy_6                                   raw rate
+ *   f[43]  tf_by_therapy_7                                   raw rate
+ *   f[44]  tf_by_therapy_8                                   raw rate
+ *   f[45]  monthly_number_of_TF_by_location                  v/pop
+ *   f[46]  ART   allele freq
+ *   f[47]  PPQ   allele freq
+ *   f[48]  LUM   allele freq
+ *   f[49]  AMQ   allele freq
+ *   f[50..52]  switch-timing (computed, not MDC)
+ *   f[53]  beta_norm
+ *   f[54]  t_pos
+ *
+ * Age sub-indices present in NPZ (NOT the full range):
+ *   _age:       0,1,2,3,4,5,6,7,8,9,10   (11 values)
+ *   _age_group: 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14  (15 values)
+ *
+ * MDC calls required in collect_site_data_for_location():
+ *   monthly_number_of_new_infections_by_location()[loc]
+ *   monthly_number_of_treatment_by_location()[loc]
+ *   monthly_number_of_clinical_episode_by_location()[loc]
+ *   monthly_number_of_clinical_episode_by_location_age()[loc][age]  age 0..10
+ *   blood_slide_prevalence_by_location_age_group()[loc][ag]          ag  0..14
+ *   blood_slide_prevalence_by_location_age()[loc][age]              age 0..10
+ *   current_tf_by_location()[loc]
+ *   monthly_number_of_tf_by_location()[loc]
+ *   monthly_number_of_mutation_events_by_location()[loc]
+ *   current_tf_by_therapy()[6], [7], [8]
+ *   popsize_by_location()[loc]   (for per-capita norm, not a model feature)
+ *
+ * Genotype alleles in finalize_month_all_features() via weighted_occurrences:
+ *   ART: is_matched_genotype_by_id(g, 12, 10, 'Y')
+ *   PPQ: is_matched_genotype_by_id(g,  7,  0, 'x')
+ *   LUM: is_matched_genotype_by_id(g,  0,  0, 'Y')
+ *   AMQ: is_matched_genotype_by_id(g,  0,  1, 'F')
+ *   Verify chr/gene against your GenotypeParameters.
+ */
+
 #include <torch/script.h>
 #include <yaml-cpp/yaml.h>
 
@@ -10,385 +65,198 @@
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "ModelLoader.h"
 #include "Reporters/Reporter.h"
 #include "Reporters/SQLiteValidationReporter.h"
 
-class ModelDataCollector;
-
 class AdaptiveCyclingAgent {
 private:
     struct ADCTorchMeta {
-        int L = 0;   // history window length (months)
-        int H = 0;   // horizon
-        int F = 0;   // number of input features
-        int K = 0;   // number of classes
-        std::vector<std::string> input_features;          // exact training order
-        std::unordered_map<int,int> class_to_therapy;     // class -> therapy_id
+        int W = 0;
+        int F = 0;
+        std::vector<std::string> input_features;
     };
 
     struct ADCTorchModel {
-        ADCTorchMeta meta;
+        ADCTorchMeta       meta;
         torch::jit::Module module;
-        torch::Device device = torch::kCPU;
+        torch::Device      device = torch::kCPU;
     };
 
     torch::jit::Module agent_raw_model_;
-    YAML::Node agent_raw_manifest_;
-    ADCTorchMeta agent_meta_;
-    ADCTorchModel agent_model_;
+    YAML::Node         agent_raw_manifest_;
+    ADCTorchMeta       agent_meta_;
+    ADCTorchModel      agent_model_;
 
 public:
-    struct ADCState {
-        bool deployed = false;
-
-        // Config (copied here for convenience)
-        double trigger_threshold = 0.0;
-        int delay_until_actual_trigger_days = 0;
-        int turn_off_days_default = 0;
-        std::array<int, 3> therapy_ids = {8, 7, 6};
-
-        // Runtime counters (persistent)
-        int delay_days_left = 0;
-        int turn_off_days_left = 0;
-
-        // Optional
-        double trigger_value_at_start = 0.0;
-        int active_therapy_index = 0;
+    // ── Per-unit persistent state ─────────────────────────────────────────────
+    struct SwitchState {
+        int   last_switch_t = -1;
+        float tf_at_switch  = 0.f;
+        float mean_interval = 0.f;
+        int   n_intervals   = 0;
+        int   prev_smoothed = -1;
+        std::vector<int> raw_buf;   // rolling argmax(dist) for majority-vote smoothing
     };
 
-    struct ADCInferenceDebug {
-        int level_id = -1;
-        int unit_id = -1;
-        int end_month = -1;          // exclusive
-        int predicted_class = -1;
-        int predicted_therapy = -1;
-
-        std::vector<float> logits;              // [K]
-        std::vector<float> probabilities;       // [K] optional
-        std::vector<float> input_last_timestep; // [F]
+    struct GuardState {
+        int pending_day      = -1;
+        int pending_strategy = -1;
+        int block_until_day  = -1;
     };
 
+    // ── Monthly data per level ────────────────────────────────────────────────
     struct ADCAgentData {
-        // --------- monthly feature vectors (reset each month) ----------
-        std::vector<double> current_tf_by_unit;
-        std::vector<double> monthly_number_of_tf_by_unit;
-        std::vector<double> accumulative_tf_by_unit;
-        std::vector<double> accumulative_ntf_by_unit;
 
-        std::vector<double> tf_by_therapy_6_by_unit;
-        std::vector<double> tf_by_therapy_7_by_unit;
-        std::vector<double> tf_by_therapy_8_by_unit;
+        // Scalar accumulators — reset each month, accumulated over locations
+        std::vector<double> monthly_new_infections;  // MDC: monthly_number_of_new_infections_by_location
+        std::vector<double> monthly_treatment;       // MDC: monthly_number_of_treatment_by_location
+        std::vector<double> monthly_clinical;        // MDC: monthly_number_of_clinical_episode_by_location
+        std::vector<double> current_tf;              // MDC: current_tf_by_location
+        std::vector<double> monthly_tf;              // MDC: monthly_number_of_tf_by_location
+        std::vector<double> monthly_mutation;        // MDC: monthly_number_of_mutation_events_by_location
+        std::vector<double> tf6, tf7, tf8;           // MDC: current_tf_by_therapy()[6/7/8]
+        std::vector<double> freq_ART, freq_PPQ;
+        std::vector<double> freq_LUM, freq_AMQ;
+        std::vector<double> popsize;                 // MDC: popsize_by_location (norm only)
 
-        std::vector<double> current_580Y_freq_by_unit;
+        // 2-D accumulators [unit][sub-index]
+        // clinical_age[unit][0..10]: MDC monthly_clinical_episode_by_location_age, ages 0..10
+        std::vector<std::vector<double>> clinical_age;   // [unit][11]
+        // bsp_age_group[unit][0..14]: MDC blood_slide_prevalence_by_location_age_group, groups 0..14
+        std::vector<std::vector<double>> bsp_age_group;  // [unit][15]
+        // bsp_age[unit][0..10]: MDC blood_slide_prevalence_by_location_age, ages 0..10
+        std::vector<std::vector<double>> bsp_age;        // [unit][11]
 
-        std::vector<double> adc_deployed_by_unit;
-        std::vector<double> adc_trigger_value_by_unit;
-        std::vector<double> adc_delay_days_by_unit;
-        std::vector<double> adc_turn_off_days_by_unit;
+        // Deque history — one entry per month, trimmed to max_history
+        std::deque<std::vector<double>> h_new_infections;
+        std::deque<std::vector<double>> h_treatment;
+        std::deque<std::vector<double>> h_clinical;
+        std::deque<std::vector<double>> h_current_tf;
+        std::deque<std::vector<double>> h_monthly_tf;
+        std::deque<std::vector<double>> h_mutation;
+        std::deque<std::vector<double>> h_tf6, h_tf7, h_tf8;
+        std::deque<std::vector<double>> h_ART, h_PPQ, h_LUM, h_AMQ;
+        std::deque<std::vector<double>> h_popsize;
+        std::deque<std::vector<std::vector<double>>> h_clinical_age;   // [m][u][0..10]
+        std::deque<std::vector<std::vector<double>>> h_bsp_age_group;  // [m][u][0..14]
+        std::deque<std::vector<std::vector<double>>> h_bsp_age;        // [m][u][0..10]
 
-        // --------- month history (deque for cheap pop_front) ----------
-        std::deque<std::vector<double>> current_tf_hist;
-        std::deque<std::vector<double>> monthly_tf_hist;
-        std::deque<std::vector<double>> acc_tf_hist;
-        std::deque<std::vector<double>> acc_ntf_hist;
+        // Persistent state
+        std::vector<SwitchState> switch_state;
+        std::vector<GuardState>  guard;
 
-        std::deque<std::vector<double>> tf6_hist;
-        std::deque<std::vector<double>> tf7_hist;
-        std::deque<std::vector<double>> tf8_hist;
+        int max_history = 0;
+        int history_len() const { return static_cast<int>(h_current_tf.size()); }
+        void set_history_cap(int W) { max_history = W + 2; }
 
-        std::deque<std::vector<double>> freq_580Y_hist;
-
-        std::deque<std::vector<double>> adc_deployed_hist;
-        std::deque<std::vector<double>> adc_trigger_value_hist;
-        std::deque<std::vector<double>> adc_delay_days_hist;
-        std::deque<std::vector<double>> adc_turn_off_days_hist;
-
-        int max_history_months = 0;
-
-        // --- ADC scheduling guard (per unit) ---
-        std::vector<int> pending_switch_day_by_unit;      // -1 = none, else absolute day
-        std::vector<int> pending_switch_therapy_by_unit;  // -1 = none, else therapy id
-        std::vector<int> pending_switch_strategy_by_unit; // -1 = none, else strategy id
-
-        // block inference until this day (inclusive/exclusive is your choice; I use < day to block)
-        std::vector<int> block_inference_until_day_by_unit; // -1 = no block
-
-
-        // --------- persistent controller state (DO NOT reset) ----------
-        std::vector<ADCState> adc_state_by_unit;
-
-        // ---- sizing / config ----
-        void ensure_adc_state_size_and_init(
-            int vector_size,
-            double trigger_threshold,
-            int delay_until_actual_trigger_days,
-            int turn_off_days_default,
-            std::array<int,3> therapy_ids
-        ) {
-            if ((int)adc_state_by_unit.size() == vector_size) {
-                for (auto& s : adc_state_by_unit) {
-                    s.trigger_threshold = trigger_threshold;
-                    s.delay_until_actual_trigger_days = delay_until_actual_trigger_days;
-                    s.turn_off_days_default = turn_off_days_default;
-                    s.therapy_ids = therapy_ids;
-                }
-                return;
-            }
-
-            adc_state_by_unit.resize(vector_size);
-            for (auto& s : adc_state_by_unit) {
-                s.deployed = false;
-                s.trigger_threshold = trigger_threshold;
-                s.delay_until_actual_trigger_days = delay_until_actual_trigger_days;
-                s.turn_off_days_default = turn_off_days_default;
-                s.therapy_ids = therapy_ids;
-
-                s.delay_days_left = 0;
-                s.turn_off_days_left = 0;
-                s.trigger_value_at_start = 0.0;
-                s.active_therapy_index = 0;
-            }
+        void reset_month(int n) {
+            monthly_new_infections.assign(n, 0.0);
+            monthly_treatment.assign(n, 0.0);
+            monthly_clinical.assign(n, 0.0);
+            current_tf.assign(n, 0.0);
+            monthly_tf.assign(n, 0.0);
+            monthly_mutation.assign(n, 0.0);
+            tf6.assign(n, 0.0); tf7.assign(n, 0.0); tf8.assign(n, 0.0);
+            freq_ART.assign(n, 0.0); freq_PPQ.assign(n, 0.0);
+            freq_LUM.assign(n, 0.0); freq_AMQ.assign(n, 0.0);
+            popsize.assign(n, 0.0);
+            clinical_age.assign(n,  std::vector<double>(11, 0.0));
+            bsp_age_group.assign(n, std::vector<double>(15, 0.0));
+            bsp_age.assign(n,       std::vector<double>(11, 0.0));
         }
 
-        // Keep enough months for model window + rolling features (+1 buffer for delta)
-        void set_history_cap(int L_months, int rolling_window, int user_cap_months = 0) {
-            int auto_cap = L_months + rolling_window + 1;
-            max_history_months = (user_cap_months > 0) ? user_cap_months : auto_cap;
-            if (max_history_months < auto_cap) max_history_months = auto_cap;
-        }
-
-        // reset only the monthly vectors (NOT persistent adc_state_by_unit)
-        void reset_month(int vector_size) {
-            current_tf_by_unit.assign(vector_size, 0.0);
-            monthly_number_of_tf_by_unit.assign(vector_size, 0.0);
-            accumulative_tf_by_unit.assign(vector_size, 0.0);
-            accumulative_ntf_by_unit.assign(vector_size, 0.0);
-
-            tf_by_therapy_6_by_unit.assign(vector_size, 0.0);
-            tf_by_therapy_7_by_unit.assign(vector_size, 0.0);
-            tf_by_therapy_8_by_unit.assign(vector_size, 0.0);
-
-            current_580Y_freq_by_unit.assign(vector_size, 0.0);
-
-            adc_deployed_by_unit.assign(vector_size, 0.0);
-            adc_trigger_value_by_unit.assign(vector_size, 0.0);
-            adc_delay_days_by_unit.assign(vector_size, 0.0);
-            adc_turn_off_days_by_unit.assign(vector_size, 0.0);
-        }
-
-        void ensure_guard_size(int vector_size) {
-            if ((int)pending_switch_day_by_unit.size() != vector_size) {
-                pending_switch_day_by_unit.assign(vector_size, -1);
-                pending_switch_therapy_by_unit.assign(vector_size, -1);
-                pending_switch_strategy_by_unit.assign(vector_size, -1);
-                block_inference_until_day_by_unit.assign(vector_size, -1);
-            }
-        }
-
-
-        void snapshot_adc_state_to_features() {
-            const int n = (int)adc_state_by_unit.size();
-            if ((int)adc_deployed_by_unit.size() != n) return;
-
-            for (int u = 0; u < n; ++u) {
-                const auto& s = adc_state_by_unit[u];
-                adc_deployed_by_unit[u] = s.deployed ? 1.0 : 0.0;
-
-                // choose meaning you trained with; here: threshold/config
-                adc_trigger_value_by_unit[u] = s.trigger_threshold;
-
-                adc_delay_days_by_unit[u] = (double)s.delay_days_left;
-                adc_turn_off_days_by_unit[u] = (double)s.turn_off_days_left;
-            }
-        }
-
-        int history_len() const {
-            return (int)freq_580Y_hist.size();
-        }
-
-        static void trim_deque(std::deque<std::vector<double>>& q, int cap) {
-            while (cap > 0 && (int)q.size() > cap) q.pop_front();
+        void ensure_state_size(int n) {
+            if (static_cast<int>(guard.size())        != n) guard.assign(n,        GuardState{});
+            if (static_cast<int>(switch_state.size()) != n) switch_state.assign(n, SwitchState{});
         }
 
         void push_month_all() {
-            // push snapshots
-            current_tf_hist.push_back(current_tf_by_unit);
-            monthly_tf_hist.push_back(monthly_number_of_tf_by_unit);
-            acc_tf_hist.push_back(accumulative_tf_by_unit);
-            acc_ntf_hist.push_back(accumulative_ntf_by_unit);
-
-            tf6_hist.push_back(tf_by_therapy_6_by_unit);
-            tf7_hist.push_back(tf_by_therapy_7_by_unit);
-            tf8_hist.push_back(tf_by_therapy_8_by_unit);
-
-            freq_580Y_hist.push_back(current_580Y_freq_by_unit);
-
-            adc_deployed_hist.push_back(adc_deployed_by_unit);
-            adc_trigger_value_hist.push_back(adc_trigger_value_by_unit);
-            adc_delay_days_hist.push_back(adc_delay_days_by_unit);
-            adc_turn_off_days_hist.push_back(adc_turn_off_days_by_unit);
-
-            // trim to cap
-            const int cap = max_history_months;
-            trim_deque(current_tf_hist, cap);
-            trim_deque(monthly_tf_hist, cap);
-            trim_deque(acc_tf_hist, cap);
-            trim_deque(acc_ntf_hist, cap);
-
-            trim_deque(tf6_hist, cap);
-            trim_deque(tf7_hist, cap);
-            trim_deque(tf8_hist, cap);
-
-            trim_deque(freq_580Y_hist, cap);
-
-            trim_deque(adc_deployed_hist, cap);
-            trim_deque(adc_trigger_value_hist, cap);
-            trim_deque(adc_delay_days_hist, cap);
-            trim_deque(adc_turn_off_days_hist, cap);
+            const int cap = max_history;
+            auto ps = [&](std::deque<std::vector<double>>& q, const std::vector<double>& v) {
+                q.push_back(v);
+                while (static_cast<int>(q.size()) > cap) q.pop_front();
+            };
+            auto p2 = [&](std::deque<std::vector<std::vector<double>>>& q,
+                           const std::vector<std::vector<double>>& v) {
+                q.push_back(v);
+                while (static_cast<int>(q.size()) > cap) q.pop_front();
+            };
+            ps(h_new_infections, monthly_new_infections);
+            ps(h_treatment,      monthly_treatment);
+            ps(h_clinical,       monthly_clinical);
+            ps(h_current_tf,     current_tf);
+            ps(h_monthly_tf,     monthly_tf);
+            ps(h_mutation,       monthly_mutation);
+            ps(h_tf6, tf6); ps(h_tf7, tf7); ps(h_tf8, tf8);
+            ps(h_ART, freq_ART); ps(h_PPQ, freq_PPQ);
+            ps(h_LUM, freq_LUM); ps(h_AMQ, freq_AMQ);
+            ps(h_popsize, popsize);
+            p2(h_clinical_age,  clinical_age);
+            p2(h_bsp_age_group, bsp_age_group);
+            p2(h_bsp_age,       bsp_age);
         }
 
-        // ---- derived genotype helpers (in history index space) ----
-        double freq_580Y_delta(int t, int u) const {
-            if (t <= 0) return 0.0;
-            return freq_580Y_hist[t][u] - freq_580Y_hist[t - 1][u];
-        }
-
-        double freq_580Y_rollmean_12(int t, int u) const {
-            const int window = 12;
-            const int start = std::max(0, t - window + 1);
-            double sum = 0.0;
-            int count = 0;
-            for (int m = start; m <= t; ++m) {
-                sum += freq_580Y_hist[m][u];
-                ++count;
-            }
-            return count ? sum / count : 0.0;
-        }
-
-        // Build model batch: [num_units x (L*F)] in exact feature order
+        // Build (N_units, W*F) input batch for the model
         std::vector<std::vector<float>> build_input_batch(
-            int end_month_exclusive,
-            int L,
-            const std::vector<std::string>& feature_names
+            int W, int F,
+            float beta_norm,
+            int month_abs, int burn_in, int t_active
         ) const;
     };
 
     std::vector<ADCAgentData> adc_agent_data_by_level;
 
-    struct YearMonth {
-        int year;
-        int month; // 1..12
-    };
-
-    // Mapping from therapy id -> strategy id, loaded from configuration's adc_agent.strategy_cycle
-    std::unordered_map<int, std::vector<int>> therapy_strategy_map_;
-    std::unordered_map<int, int> therapy_cycle_index_;
-
-    // ADC agent-level trigger parameters (loaded from AgentParameters.adc_agent)
-    double trigger_value_ = 0.8; // default exec threshold
-    long trigger_day_ = 1;
-    int trigger_month_ = -1; // days from simulation starting_date to adc trigger_date
-
-    // Simulation start date components (set from configuration)
-    int sim_start_year_ = 2000;
-    int sim_start_month_ = 0; // user requested month 0
-
-    // ------------------------------
-    // Helpers
-    // ------------------------------
-    static int as_int_or_throw(const YAML::Node& n, const char* path) {
-        if (!n) {
-            throw std::runtime_error(std::string("Missing YAML field: ") + path);
-        }
-        if (!n.IsScalar()) {
-            throw std::runtime_error(std::string("YAML field not scalar: ") + path);
-        }
-        try {
-            return n.as<int>();
-        } catch (const YAML::BadConversion& e) {
-            throw std::runtime_error(std::string("Bad int conversion at ") + path +
-                                     " value='" + n.Scalar() + "' : " + e.what());
-        }
-    }
-
-    static std::string as_str_or_throw(const YAML::Node& n, const char* path) {
-        if (!n) throw std::runtime_error(std::string("Missing YAML field: ") + path);
-        if (!n.IsScalar()) throw std::runtime_error(std::string("YAML field not scalar: ") + path);
-        return n.as<std::string>();
-    }
-
-    // ------------------------------
-    // TorchScript forward helpers
-    // ------------------------------
-    struct ADCOutputs {
-        torch::Tensor exec_logits; // (N,H)
-        torch::Tensor excc_logits; // (N,H,K)
-    };
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    static int         as_int_or_throw(const YAML::Node& n, const char* path);
+    static std::string as_str_or_throw(const YAML::Node& n, const char* path);
 
     static inline float sigmoidf(float x) {
-        if (x >= 0.f) {
-            float z = std::exp(-x);
-            return 1.f / (1.f + z);
-        } else {
-            float z = std::exp(x);
-            return z / (1.f + z);
-        }
+        return x >= 0.f ? 1.f / (1.f + std::exp(-x))
+                        : std::exp(x) / (1.f + std::exp(x));
     }
 
-    static inline void softmax_row(const std::vector<float>& logits, std::vector<float>& probs) {
-        probs.resize(logits.size());
-        if (logits.empty()) return;
+    static int  smoothed_therapy(SwitchState& sw, int raw_argmax);
+    static void update_switch_state(SwitchState& sw, int t_pb, int sm, float tf);
+    static std::array<float,3> switch_feats(int t_pb, const SwitchState& sw);
 
-        float mx = *std::max_element(logits.begin(), logits.end());
-        float sum = 0.f;
-        for (size_t i = 0; i < logits.size(); ++i) {
-            probs[i] = std::exp(logits[i] - mx);
-            sum += probs[i];
-        }
-        sum = std::max(sum, 1e-12f);
-        for (size_t i = 0; i < probs.size(); ++i) probs[i] /= sum;
-    }
+    // ── Agent parameters ──────────────────────────────────────────────────────
+    double trigger_value_   = 0.7;
+    long   trigger_day_     = 1;
+    int    trigger_month_   = -1;
+    int    sim_start_year_  = 2000;
+    int    sim_start_month_ = 0;
+    float  beta_norm_       = 0.f;
 
-    static ADCOutputs forward_adc_outputs(torch::jit::Module& module,
-                                          const std::vector<torch::jit::IValue>& inputs) {
-        torch::jit::IValue out = module.forward(inputs);
+    // therapy_id (6/7/8) → strategy_id
+    std::unordered_map<int,int> therapy_to_strategy_;
 
-        if (!out.isTuple()) {
-            throw std::runtime_error("ADC model forward() must return tuple (exec_logits, excc_logits).");
-        }
+    // Pre-computed genotype ID sets for allele frequency calculation.
+    // Built lazily on first call to finalize_month_all_features() once the
+    // full genotype DB is populated. Rebuilt if new genotypes are added.
+    // Index: 0=ART, 1=PPQ, 2=LUM, 3=AMQ
+    std::unordered_set<int> allele_genotype_ids_[4];
+    bool allele_genotype_ids_built_  = false;
+    int  allele_genotype_ids_n_geno_ = 0;
 
-        auto tup = out.toTuple();
-        const auto& elems = tup->elements();
-        if (elems.size() != 2) {
-            throw std::runtime_error("ADC model forward tuple must have exactly 2 elements.");
-        }
-        if (!elems[0].isTensor() || !elems[1].isTensor()) {
-            throw std::runtime_error("ADC model forward tuple elements must be tensors.");
-        }
-
-        ADCOutputs o;
-        o.exec_logits = elems[0].toTensor();
-        o.excc_logits = elems[1].toTensor();
-        return o;
-    }
-
-    struct ADCTop1Decision {
-        int best_h = -1;
-        int therapy = -1;
-        int forecast_day = -1;
-        float exec_p = 0.f;
-        float cls_p = 0.f;
+    // Allele regex patterns (can be overridden in the ADC manifest)
+    // Default patterns match the original hard-coded behavior.
+    // Index mapping: 0=ART, 1=PPQ, 2=LUM, 3=AMQ
+    std::array<std::string,4> allele_patterns_ = {
+        std::string(".*PRPYRA\\|.*"),   // ART (index 0)
+        std::string(".*\\|2$"),         // PPQ (index 1)
+        std::string("^.{4}NY.{3}K"),      // LUM (index 2)
+        std::string("^.{4}YY.{3}T")       // AMQ (index 3)
     };
 
-
 public:
-    AdaptiveCyclingAgent(const AdaptiveCyclingAgent&) = delete;
+    AdaptiveCyclingAgent(const AdaptiveCyclingAgent&)            = delete;
     AdaptiveCyclingAgent& operator=(const AdaptiveCyclingAgent&) = delete;
-    AdaptiveCyclingAgent(AdaptiveCyclingAgent&&) = delete;
-    AdaptiveCyclingAgent& operator=(AdaptiveCyclingAgent&&) = delete;
+    AdaptiveCyclingAgent(AdaptiveCyclingAgent&&)                 = delete;
+    AdaptiveCyclingAgent& operator=(AdaptiveCyclingAgent&&)      = delete;
 
     explicit AdaptiveCyclingAgent();
     virtual ~AdaptiveCyclingAgent() = default;
@@ -399,60 +267,22 @@ public:
 
     YAML::Node get_manifest() const { return agent_raw_manifest_; }
 
-    void monthly_collect_data_by_level(int level_id);
+    // Called by SQLiteValidationReporter
     void reset_adc_data(int level_id, int vector_size);
 
-    void finalize_month_580Y_freq(
+    // Replaces finalize_month_580Y_freq() — called from monthly_report_genome_data
+    void finalize_month_all_features(
         int level_id,
         int numGenotypes,
-        std::vector<SQLiteValidationReporter::MonthlyGenomeData> monthly_genome_data_by_level
+        const std::vector<SQLiteValidationReporter::MonthlyGenomeData>&
+            monthly_genome_data_by_level
     );
 
-    // Inference using internal ADCAgentData history
-    void inference_from_adc_data(int level_id, std::vector<int>& output_classes);
+    void inference_from_adc_data(int level_id);
 
-    // Debug inference (captures logits/probs/last-timestep)
-    void inference_from_adc_data_debug(
-        int level_id,
-        std::vector<ADCInferenceDebug>& debug_out,
-        bool compute_softmax
-    );
-
-    static void log_adc_inference_debug(
-        const ADCInferenceDebug& d,
-        const std::vector<std::string>& feature_names
-    );
-
-    static YearMonth add_months(int start_year, int start_month, int offset);
-
+    struct YearMonth { int year, month; };
+    static YearMonth   add_months(int y, int m, int offset);
     static std::string ym_to_string(const YearMonth& ym);
-
-    void print_adc_schedule(
-        int tcur_month,
-        int tcur_day,                      // NEW: current simulation day
-        int horizon,
-        const std::vector<float>& p_exec,
-        const std::vector<std::vector<float>>& p_cls,
-        const std::vector<int>& class_to_therapy,
-        float exec_threshold,
-        int sim_start_year,
-        int sim_start_month,
-        int days_per_month                 // NEW: usually 30
-    ) ;
-
-    void print_adc_schedule_top1(
-        int tcur_month,
-        int tcur_day,
-        int horizon,
-        const std::vector<float>& p_exec,
-        const std::vector<std::vector<float>>& p_cls,
-        const std::vector<int>& class_to_therapy,
-        float exec_threshold,
-        int sim_start_year,
-        int sim_start_month,
-        int days_per_month
-    );
-
 };
 
 #endif // ADAPTIVECYCLINGAGENT_H

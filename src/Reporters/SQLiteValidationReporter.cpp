@@ -593,22 +593,78 @@ void SQLiteValidationReporter::collect_site_data_for_location(int location_id, i
     for (int therapy_index = 0; therapy_index < n_therapies; therapy_index++) {
         monthly_site_data_by_level[level_id].tf_by_therapy[therapy_index] += Model::get_mdc()->current_tf_by_therapy()[therapy_index];
     }
-    /* Collecting data for ADC Agent */
+    /* Collecting data for ADC Agent v5.5 */
     if (Model::get_config()->get_agent_parameters().get_adc_agent().is_enabled()) {
-        auto adc = Model::get_adc_agent()->adc_agent_data_by_level[level_id];
+        auto& adc = Model::get_adc_agent()->adc_agent_data_by_level[level_id]; // NOTE: & not copy
 
-        adc.current_tf_by_unit[unit_id] += Model::get_mdc()->current_tf_by_location()[location_id];
-        adc.monthly_number_of_tf_by_unit[unit_id] += Model::get_mdc()->monthly_number_of_tf_by_location()[location_id];
-        adc.accumulative_tf_by_unit[unit_id] += Model::get_mdc()->cumulative_tf_by_location()[location_id];
-        adc.accumulative_ntf_by_unit[unit_id] += Model::get_mdc()->cumulative_ntf_by_location()[location_id];
+        // ── Scalar features ────────────────────────────────────────────────
+        adc.monthly_new_infections[unit_id] +=
+            Model::get_mdc()->monthly_number_of_new_infections_by_location()[location_id];
 
-        adc.tf_by_therapy_6_by_unit[unit_id] +=
-            Model::get_mdc()->current_tf_by_therapy()[6];
-        adc.tf_by_therapy_7_by_unit[unit_id] +=
-            Model::get_mdc()->current_tf_by_therapy()[7];
-        adc.tf_by_therapy_8_by_unit[unit_id] +=
-            Model::get_mdc()->current_tf_by_therapy()[8];
-    }
+        adc.monthly_treatment[unit_id] +=
+            Model::get_mdc()->monthly_number_of_treatment_by_location()[location_id];
+
+        adc.monthly_clinical[unit_id] +=
+            Model::get_mdc()->monthly_number_of_clinical_episode_by_location()[location_id];
+
+        adc.current_tf[unit_id] +=
+            Model::get_mdc()->current_tf_by_location()[location_id];
+
+        adc.monthly_tf[unit_id] +=
+            Model::get_mdc()->monthly_number_of_tf_by_location()[location_id];
+
+        adc.monthly_mutation[unit_id] +=
+            Model::get_mdc()->monthly_number_of_mutation_events_by_location()[location_id];
+
+        adc.tf6[unit_id] += Model::get_mdc()->current_tf_by_therapy()[6];
+        adc.tf7[unit_id] += Model::get_mdc()->current_tf_by_therapy()[7];
+        adc.tf8[unit_id] += Model::get_mdc()->current_tf_by_therapy()[8];
+
+        adc.popsize[unit_id] +=
+            static_cast<double>(Model::get_mdc()->popsize_by_location()[location_id]);
+
+        // ── Clinical episodes by age (indices 0..10, stored in NPZ order) ──
+        // AGE_SINGLE_IDX = {0,1,10,2,3,4,5,6,7,8,9} — matches feature_cols ordering
+        // clinical_age[unit][k] corresponds to MDC age index AGE_SINGLE_IDX[k]
+        {
+            static constexpr int AGE_SINGLE_IDX[11] = {0,1,10,2,3,4,5,6,7,8,9};
+            const auto& clin_age =
+                Model::get_mdc()->monthly_number_of_clinical_episode_by_location_age();
+            const int n_age_avail = static_cast<int>(clin_age[location_id].size());
+            for (int k = 0; k < 11; ++k) {
+                const int age_idx = AGE_SINGLE_IDX[k];
+                if (age_idx < n_age_avail)
+                    adc.clinical_age[unit_id][k] += clin_age[location_id][age_idx];
+            }
+        }
+
+        // ── Blood-slide prevalence by age group (indices 0..14, NPZ order) ─
+        // AGE_GROUP_IDX = {0,1,10,11,12,13,14,2,3,4,5,6,7,8,9}
+        {
+            static constexpr int AGE_GROUP_IDX[15] = {0,1,10,11,12,13,14,2,3,4,5,6,7,8,9};
+            const auto& bsp_ag =
+                Model::get_mdc()->blood_slide_prevalence_by_location_age_group();
+            const int n_ag_avail = static_cast<int>(bsp_ag[location_id].size());
+            for (int k = 0; k < 15; ++k) {
+                const int ag_idx = AGE_GROUP_IDX[k];
+                if (ag_idx < n_ag_avail)
+                    adc.bsp_age_group[unit_id][k] += bsp_ag[location_id][ag_idx];
+            }
+        }
+
+        // ── Blood-slide prevalence by single age (indices 0..10, NPZ order) ─
+        {
+            static constexpr int AGE_SINGLE_IDX[11] = {0,1,10,2,3,4,5,6,7,8,9};
+            const auto& bsp_age =
+                Model::get_mdc()->blood_slide_prevalence_by_location_age();
+            const int n_age_avail = static_cast<int>(bsp_age[location_id].size());
+            for (int k = 0; k < 11; ++k) {
+                const int age_idx = AGE_SINGLE_IDX[k];
+                if (age_idx < n_age_avail)
+                    adc.bsp_age[unit_id][k] += bsp_age[location_id][age_idx];
+            }
+        }
+    } // end ADC Agent data collection
 }
 
 void SQLiteValidationReporter::collect_genome_data_for_location(size_t location_id, int level_id) {
@@ -816,7 +872,8 @@ void SQLiteValidationReporter::monthly_report_genome_data(int monthId) {
     insert_monthly_genome_data(level_id, insert_values);
 
     if (Model::get_config()->get_agent_parameters().get_adc_agent().is_enabled()) {
-      Model::get_adc_agent()->finalize_month_580Y_freq(level_id,numGenotypes,monthly_genome_data_by_level);
+      Model::get_adc_agent()->finalize_month_all_features(
+          level_id, numGenotypes, monthly_genome_data_by_level);
     }
   }
 }

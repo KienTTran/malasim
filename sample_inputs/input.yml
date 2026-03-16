@@ -964,16 +964,25 @@ population_events:
 # ---------------------------------------------------------------
 # 17. Agent Parameters
 # ---------------------------------------------------------------
+#agent_parameters:
+#  adc_agent:
+#    enabled: true
+#    model_path: "../../agent_models/adc_model.pt"
+#    manifest_path: "../../agent_models/adc_model.yml"
+#    # Map therapy ids [6,7,8] -> strategy ids in the same order.
+#    # Example: [1, 2, 17] will map therapy 6->1, 7->2, 8->17
+#    strategy_cycle: [2,1,3]
+#    trigger_value: 0.8
+#    trigger_date: 2012/01/01
+
 agent_parameters:
-  adc_agent:
-    enabled: true
-    model_path: "../../agent_models/adc_model.pt"
-    manifest_path: "../../agent_models/adc_model.yml"
-    # Map therapy ids [6,7,8] -> strategy ids in the same order.
-    # Example: [1, 2, 17] will map therapy 6->1, 7->2, 8->17
-    strategy_cycle: [2,1,3]
-    trigger_value: 0.8
-    trigger_date: 2012/01/01
+ adc_agent:
+   enabled: true
+   model_path:    ../agent_models/transformer_strategy_v5_5_scripted.pt
+   manifest_path: ../agent_models/adc_model_v5_5.yml
+   trigger_value: 0.7
+   trigger_date:  2010/1/1      # >= burn_in+W months after sim start
+   strategy_cycle: [4, 5]       # strategy_id for therapy 8, 7 (in that order)
 
 
 # ---------------------------------------------------------------
