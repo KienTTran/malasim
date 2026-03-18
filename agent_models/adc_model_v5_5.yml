@@ -1,0 +1,150 @@
+# adc_model_v5_5.yml
+# ─────────────────────────────────────────────────────────────────────────────
+# Manifest for v5.5 Transformer — feature list verified from checkpoint.
+# Copy to: agent_models/adc_model_v5_5.yml
+# Update your sim config YAML:
+#   agent_parameters:
+#     adc_agent:
+#       enabled: true
+#       model_path:    agent_models/transformer_strategy_v5_5_scripted.pt
+#       manifest_path: agent_models/adc_model_v5_5.yml
+#       trigger_value: 0.7
+#       trigger_date:  2010/1/1      # >= burn_in+W months after sim start
+#       strategy_cycle: [4, 5]       # strategy_id for therapy 8, 7 (in that order)
+
+window:
+  W: 24         # history window in months — predict T+24 ahead
+
+# Optional: allele regex patterns used to identify genotype IDs for ART/PPQ/LUM/AMQ
+# Index mapping: 0=ART, 1=PPQ, 2=LUM, 3=AMQ
+allele_patterns:
+  # ART resistance marker:
+  # match any genotype with Pfkelch13 580Y.
+  # Position 34 in the genotype string corresponds to kelch13 amino acid 580.
+  ART: '^.{34}Y.*$'
+
+  # PPQ resistance marker:
+  # match any genotype with plasmepsin copy number = 2.
+  # The genotype string ends with "|1" or "|2", where the last value is plasmepsin copy number.
+  PPQ: '.*\|2$'
+
+  # LUM-associated marker:
+  # match any genotype carrying at least one of these alleles:
+  # - Pfmdr1 N86   (position 4 = N)
+  # - Pfmdr1 184F  (position 5 = F)
+  # - Pfcrt K76    (position 9 = K)
+  # A genotype is classified as LUM if any one of these loci has the specified allele.
+  LUM: '(^.{4}N.*$)|(^.{5}F.*$)|(^.{9}K.*$)'
+
+  # AMQ-associated marker:
+  # match any genotype carrying at least one of these alleles:
+  # - Pfmdr1 86Y   (position 4 = Y)
+  # - Pfmdr1 184Y  (position 5 = Y)
+  # - Pfcrt 76T    (position 9 = T)
+  # A genotype is classified as AMQ if any one of these loci has the specified allele.
+  AMQ: '(^.{4}Y.*$)|(^.{5}Y.*$)|(^.{9}T.*$)'
+
+# ── 55 input features in EXACT order ─────────────────────────────────────────
+# Positions 0-49: 50 YAML features from MDC/genome data
+# Positions 50-52: switch-timing (computed in C++, not from MDC)
+# Positions 53-54: beta_norm, t_pos (computed in C++)
+input_features:
+  # f[0]   monthly_number_of_new_infections_by_location       log1p(v/pop)
+  - monthly_number_of_new_infections_by_location
+  # f[1]   monthly_number_of_treatment_by_location            log1p(v/pop)
+  - monthly_number_of_treatment_by_location
+  # f[2]   monthly_number_of_clinical_episode_by_location     v/pop
+  - monthly_number_of_clinical_episode_by_location
+  # f[3-13]  monthly_number_of_clinical_episode_by_location_age
+  # NOTE: age ordering is {0,1,10,2,3,4,5,6,7,8,9} — lexicographic from NPZ
+  - monthly_number_of_clinical_episode_by_location_age_0
+  - monthly_number_of_clinical_episode_by_location_age_1
+  - monthly_number_of_clinical_episode_by_location_age_10
+  - monthly_number_of_clinical_episode_by_location_age_2
+  - monthly_number_of_clinical_episode_by_location_age_3
+  - monthly_number_of_clinical_episode_by_location_age_4
+  - monthly_number_of_clinical_episode_by_location_age_5
+  - monthly_number_of_clinical_episode_by_location_age_6
+  - monthly_number_of_clinical_episode_by_location_age_7
+  - monthly_number_of_clinical_episode_by_location_age_8
+  - monthly_number_of_clinical_episode_by_location_age_9
+  # f[14-28]  blood_slide_prevalence_by_location_age_group
+  # NOTE: age_group ordering is {0,1,10,11,12,13,14,2,3,4,5,6,7,8,9} — lexicographic
+  - blood_slide_prevalence_by_location_age_group_0
+  - blood_slide_prevalence_by_location_age_group_1
+  - blood_slide_prevalence_by_location_age_group_10
+  - blood_slide_prevalence_by_location_age_group_11
+  - blood_slide_prevalence_by_location_age_group_12
+  - blood_slide_prevalence_by_location_age_group_13
+  - blood_slide_prevalence_by_location_age_group_14
+  - blood_slide_prevalence_by_location_age_group_2
+  - blood_slide_prevalence_by_location_age_group_3
+  - blood_slide_prevalence_by_location_age_group_4
+  - blood_slide_prevalence_by_location_age_group_5
+  - blood_slide_prevalence_by_location_age_group_6
+  - blood_slide_prevalence_by_location_age_group_7
+  - blood_slide_prevalence_by_location_age_group_8
+  - blood_slide_prevalence_by_location_age_group_9
+  # f[29-39]  blood_slide_prevalence_by_location_age
+  # NOTE: age ordering is {0,1,10,2,3,4,5,6,7,8,9} — lexicographic
+  - blood_slide_prevalence_by_location_age_0
+  - blood_slide_prevalence_by_location_age_1
+  - blood_slide_prevalence_by_location_age_10
+  - blood_slide_prevalence_by_location_age_2
+  - blood_slide_prevalence_by_location_age_3
+  - blood_slide_prevalence_by_location_age_4
+  - blood_slide_prevalence_by_location_age_5
+  - blood_slide_prevalence_by_location_age_6
+  - blood_slide_prevalence_by_location_age_7
+  - blood_slide_prevalence_by_location_age_8
+  - blood_slide_prevalence_by_location_age_9
+  # f[40]  current_TF_by_location                             raw rate [0,1]
+  - current_TF_by_location
+  # f[41]  monthly_number_of_mutation_events_by_location      log1p(v/pop)
+  - monthly_number_of_mutation_events_by_location
+  # f[42-44]  tf_by_therapy_6/7/8                             raw rate [0,1]
+  - tf_by_therapy_6
+  - tf_by_therapy_7
+  - tf_by_therapy_8
+  # f[45]  monthly_number_of_TF_by_location                   v/pop
+  - monthly_number_of_TF_by_location
+  # f[46-49]  genotype allele frequencies                      [0,1]
+  - ART
+  - PPQ
+  - LUM
+  - AMQ
+  # f[50-52]  switch-timing (computed in build_input_batch, not from MDC)
+  - switch_months_since_last
+  - switch_tf_at_last
+  - switch_mean_interval
+  # f[53-54]  context (computed in build_input_batch)
+  - beta_norm
+  - t_pos
+
+# ── Class / therapy / strategy mapping ───────────────────────────────────────
+# dist output: index 0=d6, index 1=d7, index 2=d8
+adc_class_mapping:
+  class_to_therapy:
+    '0': 6
+    '1': 7
+    '2': 8
+
+# ── Inference constants ───────────────────────────────────────────────────────
+inference:
+  switch_threshold:    0.7    # sw_prob > this → schedule switch
+  adc_dist_threshold:  0.7    # max(dist) > this → strategy is ADC-like
+  beta_min:            0.089
+  beta_max:            0.630
+  burn_in:             120
+  t_active:            241
+  horizon_months:      24     # event at now + 24*30 days
+  cooldown_months:     24     # months to block re-scheduling after switch
+
+# ── NPZ column indices (diagnostic reference only) ───────────────────────────
+# These are the raw feat_idx values from checkpoint['features']['feat_idx']
+# C++ does NOT use these — feature values come directly from MDC.
+npz_feat_idx: [46,47,33,34,35,36,37,38,39,40,41,42,43,44,
+               11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,
+               0,1,2,3,4,5,6,7,8,9,10,
+               30,45,85,86,87,32,92,93,94,95]
+npz_dist_idx: [96,97,98]   # dist_6, dist_7, dist_8
