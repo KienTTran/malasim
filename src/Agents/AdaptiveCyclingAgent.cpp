@@ -2,63 +2,247 @@
 
 #include <algorithm>
 #include <cmath>
+#include <date/date.h>
 #include <iomanip>
-#include <iostream>
 #include <regex>
 #include <sstream>
 #include <stdexcept>
-#include <date/date.h>
 
 #include "Events/Population/ChangeTreatmentStrategyEvent.h"
 #include "Parasites/Genotype.h"
+#include "Reporters/SQLiteMonthlyReporter.h"
 #include "Reporters/SQLiteValidationReporter.h"
 #include "Simulation/Model.h"
 
-// ============================================================
-// AdaptiveCyclingAgent
-// ============================================================
+// ── Simulation constants (must match training script) ─────────────────────────
+static constexpr int   BURN_IN         = 120;
+static constexpr int   T_ACTIVE        = 241;
+static constexpr float BETA_MIN        = 0.089f;
+static constexpr float BETA_MAX        = 0.630f;
+static constexpr int   SMOOTH_HW       = 6;
+static constexpr int   COOLDOWN_MONTHS = 24;
+static constexpr int   DAYS_PER_MONTH  = 30;
+static constexpr int   THERAPY_6       = 6;
+static constexpr int   THERAPY_7       = 7;
+static constexpr int   THERAPY_8       = 8;
 
+// ── Allele regex patterns are loaded from the manifest YAML (allele_patterns section)
+// into allele_names_ and allele_patterns_ in load_manifest().
+// The lazy build in finalize_month_all_features() compiles them into std::regex.
+// No hardcoded patterns here — edit the YAML to change matching behaviour.
+
+// ── Age sub-indices present in NPZ (verified from checkpoint) ─────────────────
+// blood_slide_prevalence_by_location_age and monthly_clinical_age:
+//   NPZ ordering (feature_cols indices): 0,1,10,2,3,4,5,6,7,8,9
+//   i.e. MDC age indices: {0,1,10,2,3,4,5,6,7,8,9} in that order
+// blood_slide_prevalence_by_location_age_group:
+//   NPZ ordering: 0,1,10,11,12,13,14,2,3,4,5,6,7,8,9
+//   i.e. MDC age_group indices: {0,1,10,11,12,13,14,2,3,4,5,6,7,8,9}
+//
+// IMPORTANT: the deque stores these in the NPZ ordering, NOT 0..10 sequential.
+// Each [unit][k] slot corresponds to the k-th age in the ordering above.
+
+static constexpr int N_AGE_SINGLE  = 11;   // age indices in bsp_age / clinical_age
+static constexpr int N_AGE_GROUP   = 15;   // age-group indices in bsp_age_group
+
+// MDC age index for each slot k in bsp_age and clinical_age
+static const int AGE_SINGLE_IDX[N_AGE_SINGLE]  = {0,1,10,2,3,4,5,6,7,8,9};
+// MDC age-group index for each slot k in bsp_age_group
+static const int AGE_GROUP_IDX[N_AGE_GROUP]    = {0,1,10,11,12,13,14,2,3,4,5,6,7,8,9};
+
+
+// ── Constructor ───────────────────────────────────────────────────────────────
 AdaptiveCyclingAgent::AdaptiveCyclingAgent() = default;
 
-// ============================================================
-// Static helpers
-// ============================================================
-
+// ── YAML helpers ──────────────────────────────────────────────────────────────
 int AdaptiveCyclingAgent::as_int_or_throw(const YAML::Node& n, const char* path) {
     if (!n || !n.IsScalar())
-        throw std::runtime_error(std::string("Missing or non-scalar YAML node: ") + path);
+        throw std::runtime_error(std::string("Missing/non-scalar: ") + path);
     try { return n.as<int>(); }
-    catch (...) { throw std::runtime_error(std::string("Cannot parse int from YAML node: ") + path); }
+    catch (...) { throw std::runtime_error(std::string("Bad int at ") + path); }
 }
 
 std::string AdaptiveCyclingAgent::as_str_or_throw(const YAML::Node& n, const char* path) {
     if (!n || !n.IsScalar())
-        throw std::runtime_error(std::string("Missing or non-scalar YAML node: ") + path);
+        throw std::runtime_error(std::string("Missing/non-scalar: ") + path);
     return n.as<std::string>();
 }
 
-// Majority-vote smoothing over a rolling window of raw argmax values
-int AdaptiveCyclingAgent::smoothed_therapy(SwitchState& sw, int raw_argmax) {
-    constexpr int SMOOTH_WIN = 3;
-    sw.raw_buf.push_back(raw_argmax);
-    if (static_cast<int>(sw.raw_buf.size()) > SMOOTH_WIN)
-        sw.raw_buf.erase(sw.raw_buf.begin());
-    int counts[3] = {0, 0, 0};
-    for (int v : sw.raw_buf)
-        if (v >= 0 && v < 3) ++counts[v];
-    return static_cast<int>(std::max_element(counts, counts + 3) - counts);
+// ── Load model ────────────────────────────────────────────────────────────────
+void AdaptiveCyclingAgent::load_model() {
+    const auto& path = Model::get_config()
+        ->get_agent_parameters().get_adc_agent().get_model_path();
+    agent_raw_model_ = ModelLoader::load_model(path);
+    agent_raw_model_.eval();
+    agent_model_ = { agent_meta_, agent_raw_model_, torch::kCPU };
+    spdlog::info("[ADC] v5.5 model loaded: {}", path);
 }
 
-// Update switch state after a therapy decision at absolute month t_pb
-void AdaptiveCyclingAgent::update_switch_state(SwitchState& sw, int t_pb, int sm, float tf) {
+// ── Load manifest ─────────────────────────────────────────────────────────────
+void AdaptiveCyclingAgent::load_manifest() {
+    const auto& path = Model::get_config()
+        ->get_agent_parameters().get_adc_agent().get_manifest_path();
+    agent_raw_manifest_ = ModelLoader::load_manifest(path);
+
+    // Accept window.W (v5.5 manifest) or window.L (old manifest)
+    const YAML::Node win = agent_raw_manifest_["window"];
+    if (win["W"] && win["W"].IsScalar())
+        agent_meta_.W = win["W"].as<int>();
+    else if (win["L"] && win["L"].IsScalar())
+        agent_meta_.W = win["L"].as<int>();
+    else
+        throw std::runtime_error("manifest window: neither 'W' nor 'L' found");
+
+    const YAML::Node feats = agent_raw_manifest_["input_features"];
+    if (!feats || !feats.IsSequence())
+        throw std::runtime_error("input_features missing in manifest");
+    agent_meta_.input_features.clear();
+    for (size_t i = 0; i < feats.size(); ++i)
+        agent_meta_.input_features.push_back(
+            as_str_or_throw(feats[i], "input_features[i]"));
+    agent_meta_.F = static_cast<int>(agent_meta_.input_features.size());
+
+    // v5.5 model expects exactly 55 input features (50 YAML + 3 switch + 2 context)
+    if (agent_meta_.W <= 0)
+        throw std::runtime_error("[ADC] manifest window W must be > 0");
+    if (agent_meta_.F != 55)
+        throw std::runtime_error(
+            "[ADC] manifest input_features must list all 55 features "
+            "(50 YAML + 3 switch-timing + beta_norm + t_pos), got F=" +
+            std::to_string(agent_meta_.F) + ". Are you loading the new adc_model_v5_5.yml?");
+
+    // Load allele_patterns section — order must be ART, PPQ, LUM, AMQ
+    // to match model feature slots f[46..49].
+    const YAML::Node ap = agent_raw_manifest_["allele_patterns"];
+    if (!ap || !ap.IsMap())
+        throw std::runtime_error(
+            "[ADC] manifest missing 'allele_patterns' map. "
+            "Expected keys: ART, PPQ, LUM, AMQ in that order.");
+
+    // Required key order — must match training feature order f[46..49]
+    static const std::vector<std::string> REQUIRED_ALLELES = {"ART","PPQ","LUM","AMQ"};
+    allele_names_.clear();
+    allele_patterns_.clear();
+    for (const auto& name : REQUIRED_ALLELES) {
+        if (!ap[name] || !ap[name].IsScalar())
+            throw std::runtime_error(
+                "[ADC] manifest allele_patterns missing key: " + name);
+        allele_names_.push_back(name);
+        allele_patterns_.push_back(ap[name].as<std::string>());
+    }
+
+    // Reset lazy build so next call to finalize_month_all_features()
+    // will recompile regex from the newly loaded patterns.
+    allele_genotype_ids_.clear();
+    allele_genotype_ids_built_  = false;
+    allele_genotype_ids_n_geno_ = 0;
+
+    spdlog::info("[ADC] Manifest: W={} F={}", agent_meta_.W, agent_meta_.F);
+    for (size_t a = 0; a < allele_names_.size(); ++a)
+        spdlog::info("[ADC]   allele_patterns[{}] {}=\'{}\'",
+                     a, allele_names_[a], allele_patterns_[a]);
+}
+
+// ── Initialize ────────────────────────────────────────────────────────────────
+void AdaptiveCyclingAgent::initialize() {
+    load_manifest();
+    load_model();
+
+    // Beta normalisation from config
+    const float beta_raw = static_cast<float>(Model::get_config()->location_db()[0].beta);
+    beta_norm_ = std::clamp((beta_raw - BETA_MIN) / (BETA_MAX - BETA_MIN), 0.f, 1.f);
+    spdlog::info("[ADC] beta={:.4f}  beta_norm={:.4f}", beta_raw, beta_norm_);
+
+    // Trigger date → trigger_day_ and trigger_month_
+    const auto& adc_cfg   = Model::get_config()->get_agent_parameters().get_adc_agent();
+    trigger_value_         = adc_cfg.get_trigger_value();
+    const auto starting    = Model::get_config()->get_simulation_timeframe().get_starting_date();
+    trigger_day_           = (date::sys_days{adc_cfg.get_trigger_date()} -
+                              date::sys_days{starting}).count();
+    trigger_month_         = static_cast<int>(trigger_day_) / DAYS_PER_MONTH;
+    sim_start_year_        = static_cast<int>(starting.year());
+    sim_start_month_       = 0;
+
+    if (trigger_day_ < 0)
+        throw std::runtime_error("[ADC] trigger_date before simulation start");
+    if (trigger_month_ < agent_meta_.W)
+        throw std::runtime_error("[ADC] trigger_date too early: need >= W months of history");
+    spdlog::info("[ADC] trigger_value={:.3f} trigger_day={} trigger_month={}",
+                 trigger_value_, trigger_day_, trigger_month_);
+
+    // therapy → strategy mapping from config strategy_cycle
+    // strategy_cycle in config YAML: list of strategy_ids, one per therapy in order [th8, th7, th6]
+    // Example: strategy_cycle: [2, 1, 3]  →  th8→strategy2, th7→strategy1, th6→strategy3
+    // If fewer than 3 entries, remaining therapies reuse the last entry.
+    const auto& cycle = adc_cfg.get_strategy_cycle();
+    spdlog::info("[ADC] strategy_cycle from config: {} entries", cycle.size());
+    for (size_t i = 0; i < cycle.size(); ++i)
+        spdlog::info("[ADC]   cycle[{}] = strategy_id {}", i, cycle[i]);
+
+    if (cycle.empty()) {
+        spdlog::warn("[ADC] strategy_cycle is empty — strategy switching disabled. "
+                     "Add 'strategy_cycle: [id8, id7, id6]' to your config adc_agent section.");
+    } else {
+        // Map therapy 8, 7, 6 → strategy ids using cycle in order
+        // If cycle has fewer than 3 entries, repeat the last one
+        const std::vector<int> therapy_order = {THERAPY_8, THERAPY_7, THERAPY_6};
+        for (size_t i = 0; i < therapy_order.size(); ++i) {
+            const int strat = cycle[std::min(i, cycle.size() - 1)];
+            therapy_to_strategy_[therapy_order[i]] = strat;
+        }
+        spdlog::info("[ADC] therapy→strategy map: th8→{} th7→{} th6→{}",
+                     therapy_to_strategy_[THERAPY_8],
+                     therapy_to_strategy_[THERAPY_7],
+                     therapy_to_strategy_[THERAPY_6]);
+    }
+
+    // Resize per-level data structures
+    const auto* admin  = Model::get_spatial_data()->get_admin_level_manager();
+    const int n_levels = static_cast<int>(admin->get_level_names().size());
+    adc_agent_data_by_level.resize(n_levels + 1);
+
+    for (int lv = 0; lv < n_levels + 1; ++lv) {
+        const bool is_cell = (lv == n_levels);
+        if (is_cell && n_levels > 0) continue;
+        const int vsz = is_cell
+            ? Model::get_config()->number_of_locations()
+            : [&]() -> int {
+                const auto* b = admin->get_boundary(admin->get_level_names()[lv]);
+                return b ? b->max_unit_id + 1 : 0;
+              }();
+        if (vsz <= 0) continue;
+        auto& d = adc_agent_data_by_level[lv];
+        d.set_history_cap(agent_meta_.W);
+        d.reset_month(vsz);
+        d.ensure_state_size(vsz);
+    }
+
+    spdlog::info("[ADC] Initialized. W={} F={}", agent_meta_.W, agent_meta_.F);
+    // Allele genotype ID sets are built lazily on first call to
+    // finalize_month_all_features(), once the full genotype DB is populated.
+    allele_genotype_ids_built_ = false;
+}
+
+// ── Switch-timing helpers ─────────────────────────────────────────────────────
+int AdaptiveCyclingAgent::smoothed_therapy(SwitchState& sw, int raw) {
+    sw.raw_buf.push_back(raw);
+    // Trim to the window we actually vote over
+    const int cap = 2 * SMOOTH_HW + 1;
+    if (static_cast<int>(sw.raw_buf.size()) > cap)
+        sw.raw_buf.erase(sw.raw_buf.begin());
+    int cnt[3] = {0, 0, 0};
+    for (int v : sw.raw_buf) cnt[v]++;
+    return static_cast<int>(std::max_element(cnt, cnt + 3) - cnt);
+}
+
+void AdaptiveCyclingAgent::update_switch_state(
+    SwitchState& sw, int t_pb, int sm, float tf)
+{
     if (sw.prev_smoothed >= 0 && sm != sw.prev_smoothed) {
         if (sw.last_switch_t >= 0) {
-            const int interval = t_pb - sw.last_switch_t;
-            if (interval > 0) {
-                sw.n_intervals++;
-                sw.mean_interval += (static_cast<float>(interval) - sw.mean_interval)
-                                     / static_cast<float>(sw.n_intervals);
-            }
+            const int iv = t_pb - sw.last_switch_t;
+            sw.n_intervals++;
+            sw.mean_interval += (iv - sw.mean_interval) / sw.n_intervals;
         }
         sw.last_switch_t = t_pb;
         sw.tf_at_switch  = tf;
@@ -66,672 +250,313 @@ void AdaptiveCyclingAgent::update_switch_state(SwitchState& sw, int t_pb, int sm
     sw.prev_smoothed = sm;
 }
 
-// Build the 3 switch-timing features (f[50], f[51], f[52])
-std::array<float, 3> AdaptiveCyclingAgent::switch_feats(int t_pb, const SwitchState& sw) {
-    const float months_since = (sw.last_switch_t >= 0)
-                               ? static_cast<float>(t_pb - sw.last_switch_t) / 24.f
-                               : 0.f;
-    return { months_since, sw.tf_at_switch, sw.mean_interval / 24.f };
-}
-
-// ============================================================
-// load_manifest
-// ============================================================
-
-void AdaptiveCyclingAgent::load_manifest() {
-    const auto manifest_path =
-        Model::get_config()->get_agent_parameters().get_adc_agent().get_manifest_path();
-
-    spdlog::info("[ADC] Loading manifest from: {}", manifest_path);
-    agent_raw_manifest_ = ModelLoader::load_manifest(manifest_path);
-
-    // --- window W ---
-    agent_meta_.W = as_int_or_throw(agent_raw_manifest_["window"]["W"], "window.W");
-
-    // --- input_features ---
-    const YAML::Node feats = agent_raw_manifest_["input_features"];
-    if (!feats || !feats.IsSequence())
-        throw std::runtime_error("[ADC] input_features missing or not a sequence in manifest");
-    agent_meta_.input_features.clear();
-    agent_meta_.input_features.reserve(feats.size());
-    for (std::size_t i = 0; i < feats.size(); ++i)
-        agent_meta_.input_features.push_back(as_str_or_throw(feats[i], "input_features[i]"));
-    agent_meta_.F = static_cast<int>(agent_meta_.input_features.size());
-
-    if (agent_meta_.W <= 0 || agent_meta_.F <= 0)
-        throw std::runtime_error("[ADC] Invalid manifest: W or F <= 0");
-
-    // --- allele_patterns (override defaults from YAML if present) ---
-    const YAML::Node ap = agent_raw_manifest_["allele_patterns"];
-    if (ap && ap.IsMap()) {
-        const std::array<const char*, 4> keys = {"ART", "PPQ", "LUM", "AMQ"};
-        for (int i = 0; i < 4; ++i) {
-            if (ap[keys[i]] && ap[keys[i]].IsScalar())
-                allele_patterns_[i] = ap[keys[i]].as<std::string>();
-        }
-    }
-
-    // --- inference constants (optional overrides) ---
-    const YAML::Node inf = agent_raw_manifest_["inference"];
-    if (inf && inf["switch_threshold"] && inf["switch_threshold"].IsScalar())
-        trigger_value_ = inf["switch_threshold"].as<double>();
-
-    spdlog::info("[ADC] Manifest loaded: W={} F={}", agent_meta_.W, agent_meta_.F);
-    spdlog::info("[ADC] Allele patterns: ART='{}' PPQ='{}' LUM='{}' AMQ='{}'",
-                 allele_patterns_[0], allele_patterns_[1],
-                 allele_patterns_[2], allele_patterns_[3]);
-}
-
-// ============================================================
-// load_model
-// ============================================================
-
-void AdaptiveCyclingAgent::load_model() {
-    const auto model_path =
-        Model::get_config()->get_agent_parameters().get_adc_agent().get_model_path();
-
-    agent_raw_model_ = ModelLoader::load_model(model_path);
-    agent_raw_model_.eval();
-
-    agent_model_ = ADCTorchModel{
-        .meta   = agent_meta_,
-        .module = agent_raw_model_,
-        .device = torch::kCPU
+std::array<float,3> AdaptiveCyclingAgent::switch_feats(int t_pb, const SwitchState& sw) {
+    return {
+        sw.last_switch_t >= 0
+            ? std::log1p(static_cast<float>(t_pb - sw.last_switch_t))
+            : std::log1p(static_cast<float>(t_pb)),
+        sw.tf_at_switch,
+        sw.n_intervals >= 1 ? std::log1p(sw.mean_interval) : 0.f
     };
-
-    spdlog::info("[ADC] Model loaded: {}", model_path);
 }
 
-// ============================================================
-// initialize
-// ============================================================
-
-void AdaptiveCyclingAgent::initialize() {
-    load_manifest();
-    load_model();
-
-    const auto* admin_mgr        = Model::get_spatial_data()->get_admin_level_manager();
-    const int   admin_level_count = static_cast<int>(admin_mgr->get_level_names().size());
-    const int   n_levels          = admin_level_count + 1;   // +1 for cell level
-
-    adc_agent_data_by_level.resize(n_levels);
-
-    // --- therapy -> strategy mapping from config strategy_cycle ---
-    // strategy_cycle order: [strat_for_th8, strat_for_th7, strat_for_th6]
-    const auto strategy_cycle =
-        Model::get_config()->get_agent_parameters().get_adc_agent().get_strategy_cycle();
-
-    therapy_to_strategy_.clear();
-    if (strategy_cycle.size() >= 2) {
-        therapy_to_strategy_[8] = strategy_cycle[0];
-        therapy_to_strategy_[7] = strategy_cycle[1];
-        therapy_to_strategy_[6] = strategy_cycle.size() >= 3 ? strategy_cycle[2] : strategy_cycle[0];
-        spdlog::info("[ADC] therapy_to_strategy: 6->{}  7->{}  8->{}",
-                     therapy_to_strategy_[6], therapy_to_strategy_[7], therapy_to_strategy_[8]);
-    } else if (!strategy_cycle.empty()) {
-        therapy_to_strategy_[6] = strategy_cycle[0];
-        therapy_to_strategy_[7] = strategy_cycle[0];
-        therapy_to_strategy_[8] = strategy_cycle[0];
-        spdlog::info("[ADC] therapy_to_strategy: all->{}", strategy_cycle[0]);
-    } else {
-        spdlog::warn("[ADC] No strategy_cycle in config; therapy_to_strategy_ will be empty");
-    }
-
-    // Validate strategy ids against strategy_db
-    const auto& strategy_db = Model::get_strategy_db();
-    for (auto it = therapy_to_strategy_.begin(); it != therapy_to_strategy_.end(); ) {
-        const int sid = it->second;
-        if (sid < 0 || sid >= static_cast<int>(strategy_db.size())) {
-            spdlog::error("[ADC] strategy_id={} for therapy={} invalid (strategy_db.size={}), removing",
-                          sid, it->first, strategy_db.size());
-            it = therapy_to_strategy_.erase(it);
-        } else {
-            ++it;
-        }
-    }
-    if (therapy_to_strategy_.empty())
-        spdlog::warn("[ADC] therapy_to_strategy_ empty after validation; no strategy changes will fire");
-
-    // --- trigger parameters ---
-    const auto& adc_cfg       = Model::get_config()->get_agent_parameters().get_adc_agent();
-    trigger_value_             = adc_cfg.get_trigger_value();
-    const auto adc_trigger_ymd = adc_cfg.get_trigger_date();
-    const auto starting_date   = Model::get_config()->get_simulation_timeframe().get_starting_date();
-
-    const std::string adc_date_str = date::format("%Y/%m/%d", adc_trigger_ymd);
-    trigger_day_   = static_cast<long>(
-        (date::sys_days{adc_trigger_ymd} - date::sys_days{starting_date}).count());
-    trigger_month_ = static_cast<int>(trigger_day_) / 30;
-
-    if (trigger_day_ < 0)
-        throw std::runtime_error("[ADC] trigger_date is before simulation starting_date");
-    if (trigger_month_ < agent_meta_.W)
-        throw std::runtime_error("[ADC] trigger_date requires more history; increase it by >= W months");
-
-    // --- beta_norm ---
-    const YAML::Node inf = agent_raw_manifest_["inference"];
-    double beta_min = 0.089, beta_max = 0.630;
-    if (inf) {
-        if (inf["beta_min"] && inf["beta_min"].IsScalar()) beta_min = inf["beta_min"].as<double>();
-        if (inf["beta_max"] && inf["beta_max"].IsScalar()) beta_max = inf["beta_max"].as<double>();
-    }
-    const double beta_val = Model::get_config()->location_db()[0].beta;
-    beta_norm_ = static_cast<float>(
-        (beta_max > beta_min)
-        ? std::clamp((beta_val - beta_min) / (beta_max - beta_min), 0.0, 1.0)
-        : 0.5);
-
-    // --- simulation start ---
-    sim_start_year_  = static_cast<int>(starting_date.year());
-    sim_start_month_ = 0;
-
-    spdlog::info("[ADC] trigger_value={} trigger_date={} trigger_month={} beta_norm={:.4f}",
-                 trigger_value_, adc_date_str, trigger_month_, beta_norm_);
-
-    // --- per-level ADCAgentData init ---
-    for (int level_id = 0; level_id < n_levels; ++level_id) {
-        const bool is_cell_level = (level_id == admin_level_count);
-        if (is_cell_level && admin_level_count != 0) continue;
-
-        int vector_size = 0;
-        if (is_cell_level) {
-            vector_size = Model::get_config()->number_of_locations();
-        } else {
-            const auto* bnd = admin_mgr->get_boundary(admin_mgr->get_level_names()[level_id]);
-            vector_size = bnd ? (bnd->max_unit_id + 1) : 0;
-        }
-        if (vector_size <= 0) {
-            spdlog::warn("[ADC] level={} vector_size={}, skipping", level_id, vector_size);
-            continue;
-        }
-
-        auto& adc = adc_agent_data_by_level[level_id];
-        adc.set_history_cap(agent_meta_.W);
-        adc.reset_month(vector_size);
-        adc.ensure_state_size(vector_size);
-    }
-
-    spdlog::info("[ADC] Initialized: W={} F={} levels={}", agent_meta_.W, agent_meta_.F, n_levels);
-}
-
-// ============================================================
-// reset_adc_data  (called from SQLiteValidationReporter each month)
-// ============================================================
-
+// ── reset_adc_data ────────────────────────────────────────────────────────────
 void AdaptiveCyclingAgent::reset_adc_data(int level_id, int vector_size) {
     auto& d = adc_agent_data_by_level[level_id];
-    d.ensure_state_size(vector_size);   // guards / switch-state survive reset
-    d.reset_month(vector_size);         // zero monthly accumulators
+    d.ensure_state_size(vector_size);
+    d.reset_month(vector_size);
 }
 
-// ============================================================
-// finalize_month_all_features
-//   Replaces the old finalize_month_580Y_freq().
-//   1. Computes ART/PPQ/LUM/AMQ allele freqs via regex-matched genotype IDs.
-//   2. Pushes this month's data into all history deques.
-//   3. Triggers inference when enough history and past the trigger date.
-// ============================================================
-
+// ── finalize_month_all_features ───────────────────────────────────────────────
 void AdaptiveCyclingAgent::finalize_month_all_features(
     int level_id,
     int numGenotypes,
-    const std::vector<SQLiteValidationReporter::MonthlyGenomeData>& monthly_genome_data_by_level
-) {
-    auto& data    = adc_agent_data_by_level[level_id];
-    const int n_units = static_cast<int>(data.freq_ART.size());
+    const std::vector<SQLiteValidationReporter::MonthlyGenomeData>& genome_data)
+{
+    auto& d   = adc_agent_data_by_level[level_id];
+    const int n   = static_cast<int>(d.freq_ART.size());
 
-    // ---- Build allele genotype-ID sets lazily; rebuild if genotype count changes ----
-    if (!allele_genotype_ids_built_ || allele_genotype_ids_n_geno_ != numGenotypes) {
+    // ── Lazy-build allele genotype ID sets ────────────────────────────────────
+    // Done here (not in initialize()) because the full genotype DB — including
+    // mutants introduced via population events — is only complete once the
+    // simulation is running. Rebuilds if new genotypes have been added since
+    // last call (numGenotypes > last known count).
+    if (!allele_genotype_ids_built_ || numGenotypes > allele_genotype_ids_n_geno_) {
         auto* gdb = Model::get_genotype_db();
-        for (int ai = 0; ai < 4; ++ai) {
-            allele_genotype_ids_[ai].clear();
-            const std::regex re(allele_patterns_[ai]);
-            for (int g = 0; g < numGenotypes; ++g) {
-                if (std::regex_match(gdb->at(g)->aa_sequence,re))
-                    allele_genotype_ids_[ai].insert(g);
+        const int n_geno = static_cast<int>(gdb->size());
+
+        const int n_alleles = static_cast<int>(allele_patterns_.size());
+        if (n_alleles == 0)
+            throw std::runtime_error(
+                "[ADC] allele_patterns_ is empty — was load_manifest() called?");
+
+        // Compile regex for each allele pattern loaded from manifest
+        std::vector<std::regex> compiled(n_alleles);
+        for (int a = 0; a < n_alleles; ++a)
+            compiled[a] = std::regex(allele_patterns_[a]);
+
+        allele_genotype_ids_.assign(n_alleles, std::unordered_set<int>{});
+        std::vector<int> matched(n_alleles, 0);
+
+        for (int g = 0; g < n_geno; ++g) {
+            const std::string name =
+                Genotype::convert_pf_genotype_str_to_string(gdb->at(g)->pf_genotype_str);
+            for (int a = 0; a < n_alleles; ++a) {
+                if (std::regex_search(name, compiled[a])) {
+                    allele_genotype_ids_[a].insert(g);
+                    matched[a]++;
+                }
             }
-            spdlog::debug("[ADC] allele[{}] pattern='{}' matched {} genotypes",
-                          ai, allele_patterns_[ai],
-                          static_cast<int>(allele_genotype_ids_[ai].size()));
         }
+
+        for (int a = 0; a < n_alleles; ++a) {
+            spdlog::info("[ADC] Allele {} pattern='{}' matched {} / {} genotypes",
+                         allele_names_[a], allele_patterns_[a], matched[a], n_geno);
+            if (matched[a] == 0)
+                spdlog::warn("[ADC] Allele {} matched 0 genotypes — "
+                             "check pattern against genotype names in your config",
+                             allele_names_[a]);
+        }
+
         allele_genotype_ids_built_  = true;
-        allele_genotype_ids_n_geno_ = numGenotypes;
+        allele_genotype_ids_n_geno_ = n_geno;
     }
 
-    // ---- Compute allele frequencies per unit (one pass over weighted_occurrences) ----
-    const auto& mgd = monthly_genome_data_by_level[level_id];
-
-    for (int u = 0; u < n_units; ++u) {
-        double total_w           = 0.0;
-        std::array<double, 4> aw = {0.0, 0.0, 0.0, 0.0};
-
+    // Compute allele frequencies using pre-computed genotype ID sets.
+    // allele_genotype_ids_[a] corresponds to allele_names_[a] in manifest order.
+    // Feature slots: [0]=ART f[46], [1]=PPQ f[47], [2]=LUM f[48], [3]=AMQ f[49].
+    const int n_alleles = static_cast<int>(allele_genotype_ids_.size());
+    for (int u = 0; u < n; ++u) {
+        double tot = 0.0;
+        std::vector<double> sums(n_alleles, 0.0);
         for (int g = 0; g < numGenotypes; ++g) {
-            const double w = mgd.weighted_occurrences[u][g];
-            total_w += w;
-            for (int ai = 0; ai < 4; ++ai)
-                if (allele_genotype_ids_[ai].count(g))
-                    aw[ai] += w;
+            const double w = genome_data[level_id].weighted_occurrences[u][g];
+            if (w <= 0.0) continue;
+            tot += w;
+            for (int a = 0; a < n_alleles; ++a)
+                if (allele_genotype_ids_[a].count(g)) sums[a] += w;
         }
-
-        const double denom = (total_w > 0.0) ? total_w : 1.0;
-        data.freq_ART[u] = aw[0] / denom;
-        data.freq_PPQ[u] = aw[1] / denom;
-        data.freq_LUM[u] = aw[2] / denom;
-        data.freq_AMQ[u] = aw[3] / denom;
+        const double denom = tot > 0.0 ? tot : 1.0;
+        // Store in fixed members — order guaranteed by REQUIRED_ALLELES in load_manifest()
+        if (n_alleles > 0) d.freq_ART[u] = sums[0] / denom;
+        if (n_alleles > 1) d.freq_PPQ[u] = sums[1] / denom;
+        if (n_alleles > 2) d.freq_LUM[u] = sums[2] / denom;
+        if (n_alleles > 3) d.freq_AMQ[u] = sums[3] / denom;
     }
 
-    // ---- Push this month's accumulators into all history deques ----
-    data.push_month_all();
+    // tf6/7/8 are global rates — read once here, just before pushing history.
+    // This avoids the monthly_report_site_data / monthly_report_genome_data
+    // call-order dependency.
+    for (int u = 0; u < n; ++u) {
+        d.tf6[u] = Model::get_mdc()->current_tf_by_therapy()[6];
+        d.tf7[u] = Model::get_mdc()->current_tf_by_therapy()[7];
+        d.tf8[u] = Model::get_mdc()->current_tf_by_therapy()[8];
+    }
 
-    // ---- Run inference when enough history has accumulated and past trigger date ----
-    const int  now_day      = Model::get_scheduler()->current_time();
-    const bool enough_hist  = (data.history_len() >= agent_meta_.W);
-    const bool past_trigger = (now_day >= trigger_day_);
+    d.push_month_all();
 
-    if (enough_hist && past_trigger)
+    const int now_day = Model::get_scheduler()->current_time();
+    if (d.history_len() >= agent_meta_.W && now_day >= trigger_day_)
         inference_from_adc_data(level_id);
 }
 
-// ============================================================
-// inference_from_adc_data
-//
-// Model TorchScript interface (predict_cpp):
-//   Input:  Tensor (B, W=24, F=55)  float32
-//   Output: Tuple(dist[B,3], switch_prob[B])
-//     dist[:,0..2] = [d6, d7, d8]  Dirichlet expected, sums to 1
-//     switch_prob  = sigmoid P(dominant therapy changes at T+24)
-//
-// Falls back to forward() if predict_cpp is unavailable; in that case the
-// output may be a plain Tensor[B,3] (dist only) and switch_prob is derived
-// as max(dist) per row.
-// ============================================================
-
-void AdaptiveCyclingAgent::inference_from_adc_data(int level_id) {
-    auto& data    = adc_agent_data_by_level[level_id];
-    const int W   = agent_meta_.W;
-    const int F   = agent_meta_.F;
-    const int now_day = Model::get_scheduler()->current_time();
-
-    if (data.history_len() < W) return;
-    if (now_day < trigger_day_)  return;
-
-    // ---- Read inference constants from manifest ----
-    const YAML::Node inf      = agent_raw_manifest_["inference"];
-    const int burn_in         = inf && inf["burn_in"]         ? inf["burn_in"].as<int>()         : 120;
-    const int t_active        = inf && inf["t_active"]        ? inf["t_active"].as<int>()        : 241;
-    const int horizon_months  = inf && inf["horizon_months"]  ? inf["horizon_months"].as<int>()  : 24;
-    const int cooldown_months = inf && inf["cooldown_months"] ? inf["cooldown_months"].as<int>() : 24;
-    const int cooldown_days   = cooldown_months * 30;
-    const float sw_threshold  = static_cast<float>(trigger_value_);
-
-    // Absolute month index of the most-recently-pushed history step
-    const int t_pb    = data.history_len() - 1;
-    const int n_units = static_cast<int>(data.switch_state.size());
-    if (n_units == 0) return;
-
-    // ---- Global guard: unit 0 holds the simulation-wide cooldown ----
-    const int GU = 0;
-    {
-        auto& g = data.guard[GU];
-        // If a previously scheduled switch has now passed, clear it and start cooldown
-        if (g.pending_day != -1 && now_day >= g.pending_day) {
-            g.pending_day      = -1;
-            g.pending_strategy = -1;
-            g.block_until_day  = now_day + cooldown_days;
-        }
-        const bool in_cooldown = (g.block_until_day != -1 && now_day < g.block_until_day);
-        const bool has_pending = (g.pending_day     != -1 && g.pending_day > now_day);
-        if (in_cooldown || has_pending) return;
-    }
-
-    // ---- Build (N, W, F) input tensor ----
-    const std::vector<std::vector<float>> input_batch =
-        data.build_input_batch(W, F, beta_norm_, t_pb, burn_in, t_active);
-
-    const int N = static_cast<int>(input_batch.size());
-    if (N == 0) return;
-    if (static_cast<int>(input_batch[0].size()) != W * F)
-        throw std::runtime_error("[ADC] build_input_batch returned wrong row size");
-
-    torch::Tensor x = torch::zeros({N, W, F}, torch::kFloat32);
-    {
-        auto acc = x.accessor<float, 3>();
-        for (int i = 0; i < N; ++i)
-            for (int t = 0; t < W; ++t)
-                for (int f = 0; f < F; ++f)
-                    acc[i][t][f] = input_batch[i][t * F + f];
-    }
-    x = x.to(agent_model_.device);
-
-    // ---- Forward pass: try predict_cpp, fall back to forward() ----
-    //
-    // predict_cpp is the TorchScript-exported named method that returns
-    // Tuple(dist[N,3], switch_prob[N]).  forward() returns only dist[N,3]
-    // or the same tuple depending on the export.
-    torch::NoGradGuard no_grad;
-    torch::jit::IValue out;
-    bool used_predict_cpp = false;
-
-    try {
-        out = agent_model_.module.run_method("predict_cpp", x);
-        used_predict_cpp = true;
-    } catch (const std::exception&) {
-        try {
-            std::vector<torch::jit::IValue> fwd_inputs{x};
-            out = agent_model_.module.forward(fwd_inputs);
-        } catch (const std::exception& e2) {
-            spdlog::error("[ADC] Model forward failed: {}", e2.what());
-            return;
-        }
-    }
-
-    // ---- Unpack output ----
-    // Handles all known TorchScript wrapping patterns:
-    //   Tuple(Tensor[N,3], Tensor[N])     <- predict_cpp normal
-    //   Tuple(Tuple(Tensor[N,3],Tensor[N]))  <- rare extra wrapper
-    //   Tensor[N,3]                        <- forward-only export
-    torch::Tensor dist, switch_prob;
-
-    if (out.isTuple()) {
-        const auto& elems = out.toTuple()->elements();
-
-        // Extra outer wrapper: ((dist, sw),)
-        if (elems.size() == 1 && elems[0].isTuple()) {
-            const auto& inner = elems[0].toTuple()->elements();
-            if (inner.size() >= 2 && inner[0].isTensor() && inner[1].isTensor()) {
-                dist        = inner[0].toTensor().to(torch::kCPU).contiguous();
-                switch_prob = inner[1].toTensor().to(torch::kCPU).contiguous();
-            } else if (!inner.empty() && inner[0].isTensor()) {
-                dist = inner[0].toTensor().to(torch::kCPU).contiguous();
-            }
-        }
-        // Normal (dist, switch_prob)
-        else if (elems.size() >= 2 && elems[0].isTensor() && elems[1].isTensor()) {
-            dist        = elems[0].toTensor().to(torch::kCPU).contiguous();
-            switch_prob = elems[1].toTensor().to(torch::kCPU).contiguous();
-        }
-        // Tuple with only dist
-        else if (!elems.empty() && elems[0].isTensor()) {
-            dist = elems[0].toTensor().to(torch::kCPU).contiguous();
-        }
-    } else if (out.isTensor()) {
-        dist = out.toTensor().to(torch::kCPU).contiguous();
-    }
-
-    if (!dist.defined()) {
-        spdlog::error("[ADC] Could not extract dist tensor from model output "
-                      "(used_predict_cpp={})", used_predict_cpp);
-        return;
-    }
-
-    // Validate dist shape [N, 3]
-    if (dist.dim() != 2 || dist.size(0) != N || dist.size(1) != 3) {
-        std::ostringstream ss; ss << dist.sizes();
-        spdlog::error("[ADC] dist shape unexpected (expected [{},3]): {}", N, ss.str());
-        return;
-    }
-
-    // If switch_prob was not provided by the model, derive from max(dist):
-    // high confidence in any single therapy is treated as a switch signal
-    if (!switch_prob.defined()) {
-        switch_prob = std::get<0>(dist.max(/*dim=*/1));   // (N,)  values in [0,1]
-    }
-
-    if (switch_prob.dim() != 1 || switch_prob.size(0) != N) {
-        std::ostringstream ss; ss << switch_prob.sizes();
-        spdlog::error("[ADC] switch_prob shape unexpected (expected [{}]): {}", N, ss.str());
-        return;
-    }
-
-    // ---- Per-unit: smoothing, switch-state update, diagnostic logging ----
-    for (int u = 0; u < N; ++u) {
-        const float d6 = dist[u][0].item<float>();
-        const float d7 = dist[u][1].item<float>();
-        const float d8 = dist[u][2].item<float>();
-        const float sp = switch_prob[u].item<float>();
-
-        const float dists3[3] = {d6, d7, d8};
-        const int raw_cls = static_cast<int>(
-            std::max_element(dists3, dists3 + 3) - dists3);
-        // raw_cls: 0->th6, 1->th7, 2->th8
-
-        const float tf_now = data.h_current_tf.empty()
-                             ? 0.f
-                             : static_cast<float>(data.h_current_tf.back()[u]);
-
-        auto& sw  = data.switch_state[u];
-        const int sm = smoothed_therapy(sw, raw_cls);
-        update_switch_state(sw, t_pb, sm, tf_now);
-
-        if (u < 3) {
-            spdlog::info(
-                "[ADC INFERENCE] level={} unit={} t={} "
-                "dist=[{:.3f},{:.3f},{:.3f}] argmax=th{} sw_prob={:.3f} smoothed=th{}",
-                level_id, u, t_pb, d6, d7, d8, raw_cls + 6, sp, sm + 6);
-        }
-    }
-
-    // ---- Global scheduling decision using unit 0 ----
-    {
-        const int   u  = 0;
-        const float sp = switch_prob[u].item<float>();
-
-        if (sp < sw_threshold) {
-            spdlog::debug("[ADC] sw_prob={:.3f} below threshold={:.3f}, no switch scheduled",
-                          sp, sw_threshold);
-            return;
-        }
-
-        const float d6 = dist[u][0].item<float>();
-        const float d7 = dist[u][1].item<float>();
-        const float d8 = dist[u][2].item<float>();
-        const float dists3[3] = {d6, d7, d8};
-        const int cls     = static_cast<int>(std::max_element(dists3, dists3 + 3) - dists3);
-        const int therapy = cls + 6;   // 0->6, 1->7, 2->8
-
-        if (!therapy_to_strategy_.count(therapy)) {
-            spdlog::warn("[ADC] therapy={} not in therapy_to_strategy_, skipping", therapy);
-            return;
-        }
-        const int strategy_id  = therapy_to_strategy_.at(therapy);
-        const int forecast_day = now_day + horizon_months * 30;
-
-        if (forecast_day <= now_day) return;
-
-        const auto& strategy_db = Model::get_strategy_db();
-        if (strategy_id < 0 || strategy_id >= static_cast<int>(strategy_db.size())) {
-            spdlog::error("[ADC] strategy_id={} out of range, not scheduling", strategy_id);
-            return;
-        }
-
-        auto event = std::make_unique<ChangeTreatmentStrategyEvent>(strategy_id, forecast_day);
-        event->set_executable(true);
-        Model::get_scheduler()->schedule_population_event(std::move(event));
-
-        spdlog::info("[ADC] Scheduled strategy_id={} at day={} "
-                     "(therapy={} sw_prob={:.3f} dist=[{:.3f},{:.3f},{:.3f}])",
-                     strategy_id, forecast_day, therapy, sp, d6, d7, d8);
-
-        // Record pending switch and start cooldown
-        auto& g            = data.guard[GU];
-        g.pending_day      = forecast_day;
-        g.pending_strategy = strategy_id;
-        g.block_until_day  = now_day + cooldown_days;
-
-        spdlog::info("[ADC] Cooldown until day={}", g.block_until_day);
-    }
-}
-
-// ============================================================
-// ADCAgentData::build_input_batch
-//
-// Returns N rows each of length W*F, laid out as
-//   row[t * F + f]  for t in [0, W), f in [0, F).
-//
-// 55-feature layout (must match adc_model_v5_5.yml input_features exactly):
-//
-//   f[ 0]  monthly_number_of_new_infections_by_location      log1p(v/pop)
-//   f[ 1]  monthly_number_of_treatment_by_location           log1p(v/pop)
-//   f[ 2]  monthly_number_of_clinical_episode_by_location    v/pop
-//   f[ 3-13]  monthly_clinical_episode_by_location_age_{0,1,10,2,3,4,5,6,7,8,9}  v/pop
-//             (lexicographic age ordering from NPZ)
-//   f[14-28]  blood_slide_prevalence_by_location_age_group_{0,1,10,11,12,13,14,2,3,4,5,6,7,8,9}
-//             raw [0,1]  (lexicographic age_group ordering from NPZ)
-//   f[29-39]  blood_slide_prevalence_by_location_age_{0,1,10,2,3,4,5,6,7,8,9}
-//             raw [0,1]  (lexicographic age ordering from NPZ)
-//   f[40]  current_TF_by_location                            raw [0,1]
-//   f[41]  monthly_number_of_mutation_events_by_location     log1p(v/pop)
-//   f[42]  tf_by_therapy_6    raw [0,1]
-//   f[43]  tf_by_therapy_7    raw [0,1]
-//   f[44]  tf_by_therapy_8    raw [0,1]
-//   f[45]  monthly_number_of_TF_by_location                  raw [0,1]  (NOT per-capita)
-//   f[46]  ART   f[47] PPQ   f[48] LUM   f[49] AMQ           allele freq [0,1]
-//   f[50]  switch_months_since_last   normalised by W
-//   f[51]  switch_tf_at_last
-//   f[52]  switch_mean_interval       normalised by W
-//   f[53]  beta_norm                  constant for this run [0,1]
-//   f[54]  t_pos                      position in active period [0,1]
-// ============================================================
-
-std::vector<std::vector<float>> AdaptiveCyclingAgent::ADCAgentData::build_input_batch(
+// ── build_input_batch ─────────────────────────────────────────────────────────
+std::vector<std::vector<float>>
+AdaptiveCyclingAgent::ADCAgentData::build_input_batch(
     int W, int F,
     float beta_norm,
-    int t_pb,
-    int burn_in,
-    int t_active
-) const {
-    const int hist_len = history_len();
-    if (hist_len < W)
-        throw std::runtime_error("[ADC] build_input_batch: not enough history");
+    int month_abs, int burn_in, int t_active) const
+{
+    const int T       = history_len();
+    const int t_start = T - W;
+    if (T < W) throw std::runtime_error("build_input_batch: not enough history");
 
-    // Window covers deque indices [hist_len-W .. hist_len-1]
-    const int deque_start = hist_len - W;
-
-    // Infer n_units from populated deques
-    int n_units = 0;
-    if (!h_current_tf.empty())  n_units = static_cast<int>(h_current_tf.back().size());
-    else if (!h_tf6.empty())    n_units = static_cast<int>(h_tf6.back().size());
-    if (n_units <= 0)
-        throw std::runtime_error("[ADC] build_input_batch: cannot infer n_units from history");
-
-    const float t_active_f = static_cast<float>(std::max(t_active, 1));
-    const float W_f        = static_cast<float>(W);
-
-    // Lexicographic age/age_group sub-index orderings (as stored in NPZ)
-    static const int AGE_ORDER[11] = {0, 1, 10, 2, 3, 4, 5, 6, 7, 8, 9};
-    static const int AG_ORDER[15]  = {0, 1, 10, 11, 12, 13, 14, 2, 3, 4, 5, 6, 7, 8, 9};
+    const int n_units = static_cast<int>(h_current_tf.back().size());
+    if (n_units == 0) throw std::runtime_error("build_input_batch: empty history");
 
     std::vector<std::vector<float>> batch(n_units, std::vector<float>(W * F, 0.f));
 
     for (int u = 0; u < n_units; ++u) {
         const SwitchState& sw = switch_state[u];
 
-        for (int k = 0; k < W; ++k) {
-            const int di        = deque_start + k;
-            const int month_abs = (t_pb - W + 1) + k;
-            const int base      = k * F;
+        for (int w = 0; w < W; ++w) {
+            const int t     = t_start + w;
+            const int t_pb  = (month_abs - burn_in) - (W - 1 - w);
+            const float pop = static_cast<float>(std::max(h_popsize[t][u], 1.0));
+            const float t_pos = std::clamp(
+                static_cast<float>(t_pb) / static_cast<float>(std::max(t_active-1, 1)),
+                0.f, 1.f);
+            const auto sf = switch_feats(t_pb, sw);
 
-            // Bounds-safe scalar accessor
-            auto scalar = [&](const std::deque<std::vector<double>>& dq) -> double {
-                if (di < 0 || di >= static_cast<int>(dq.size())) return 0.0;
-                const auto& v = dq[di];
-                return (u < static_cast<int>(v.size())) ? v[u] : 0.0;
-            };
+            float* row = batch[u].data() + w * F;
 
-            // Bounds-safe 2-D accessor (unit x sub-index)
-            auto age2d = [&](const std::deque<std::vector<std::vector<double>>>& dq,
-                              int sub) -> double {
-                if (di < 0 || di >= static_cast<int>(dq.size())) return 0.0;
-                const auto& v = dq[di];
-                if (u >= static_cast<int>(v.size())) return 0.0;
-                return (sub < static_cast<int>(v[u].size())) ? v[u][sub] : 0.0;
-            };
+            // ── 50 YAML features in exact training order ──────────────────
+            // f[0]  monthly_number_of_new_infections_by_location
+            row[ 0] = std::log1p(static_cast<float>(h_new_infections[t][u]) / pop);
 
-            const double pop = std::max(scalar(h_popsize), 1.0);
+            // f[1]  monthly_number_of_treatment_by_location
+            row[ 1] = std::log1p(static_cast<float>(h_treatment[t][u]) / pop);
 
-            // f[0]  monthly_new_infections   log1p(v/pop)
-            batch[u][base +  0] = static_cast<float>(std::log1p(scalar(h_new_infections) / pop));
+            // f[2]  monthly_number_of_clinical_episode_by_location
+            row[ 2] = static_cast<float>(h_clinical[t][u]) / pop;
 
-            // f[1]  monthly_treatment         log1p(v/pop)
-            batch[u][base +  1] = static_cast<float>(std::log1p(scalar(h_treatment) / pop));
+            // f[3..13]  monthly_clinical_episode_by_location_age_{0,1,10,2,3,4,5,6,7,8,9}
+            for (int k = 0; k < N_AGE_SINGLE; ++k)
+                row[3 + k] = static_cast<float>(h_clinical_age[t][u][k]) / pop;
 
-            // f[2]  monthly_clinical           v/pop
-            batch[u][base +  2] = static_cast<float>(scalar(h_clinical) / pop);
+            // f[14..28]  blood_slide_prevalence_by_location_age_group — divide by pop
+            for (int k = 0; k < N_AGE_GROUP; ++k)
+                row[14 + k] = static_cast<float>(h_bsp_age_group[t][u][k]) / pop;
 
-            // f[3-13]  monthly_clinical_age  v/pop  (lexicographic: 0,1,10,2..9)
-            for (int i = 0; i < 11; ++i)
-                batch[u][base + 3 + i] =
-                    static_cast<float>(age2d(h_clinical_age, AGE_ORDER[i]) / pop);
+            // f[29..39]  blood_slide_prevalence_by_location_age — divide by pop
+            for (int k = 0; k < N_AGE_SINGLE; ++k)
+                row[29 + k] = static_cast<float>(h_bsp_age[t][u][k]) / pop;
 
-            // f[14-28]  bsp_age_group  raw  (lexicographic: 0,1,10,11,12,13,14,2..9)
-            for (int i = 0; i < 15; ++i)
-                batch[u][base + 14 + i] =
-                    static_cast<float>(age2d(h_bsp_age_group, AG_ORDER[i]));
+            // f[40]  current_TF_by_location
+            row[40] = static_cast<float>(h_current_tf[t][u]);
 
-            // f[29-39]  bsp_age  raw  (lexicographic: 0,1,10,2..9)
-            for (int i = 0; i < 11; ++i)
-                batch[u][base + 29 + i] =
-                    static_cast<float>(age2d(h_bsp_age, AGE_ORDER[i]));
+            // f[41]  monthly_number_of_mutation_events_by_location
+            row[41] = std::log1p(static_cast<float>(h_mutation[t][u]) / pop);
 
-            // f[40]  current_TF   raw
-            batch[u][base + 40] = static_cast<float>(scalar(h_current_tf));
+            // f[42..44]  tf_by_therapy_6/7/8
+            row[42] = static_cast<float>(h_tf6[t][u]);
+            row[43] = static_cast<float>(h_tf7[t][u]);
+            row[44] = static_cast<float>(h_tf8[t][u]);
 
-            // f[41]  monthly_mutation   log1p(v/pop)
-            batch[u][base + 41] = static_cast<float>(std::log1p(scalar(h_mutation) / pop));
+            // f[45]  monthly_number_of_TF_by_location
+            row[45] = static_cast<float>(h_monthly_tf[t][u]) / pop;
 
-            // f[42-44]  tf_by_therapy 6/7/8   raw
-            batch[u][base + 42] = static_cast<float>(scalar(h_tf6));
-            batch[u][base + 43] = static_cast<float>(scalar(h_tf7));
-            batch[u][base + 44] = static_cast<float>(scalar(h_tf8));
+            // f[46..49]  ART, PPQ, LUM, AMQ
+            row[46] = static_cast<float>(h_ART[t][u]);
+            row[47] = static_cast<float>(h_PPQ[t][u]);
+            row[48] = static_cast<float>(h_LUM[t][u]);
+            row[49] = static_cast<float>(h_AMQ[t][u]);
 
-            // f[45]  monthly_TF   raw  (already a rate, NOT per-capita)
-            batch[u][base + 45] = static_cast<float>(scalar(h_monthly_tf));
+            // ── Switch-timing + context ───────────────────────────────────
+            row[50] = sf[0];   // log1p(months since last switch)
+            row[51] = sf[1];   // TF at last switch
+            row[52] = sf[2];   // log1p(mean switch interval)
+            row[53] = beta_norm;
+            row[54] = t_pos;
 
-            // f[46-49]  ART / PPQ / LUM / AMQ   allele freq [0,1]
-            batch[u][base + 46] = static_cast<float>(scalar(h_ART));
-            batch[u][base + 47] = static_cast<float>(scalar(h_PPQ));
-            batch[u][base + 48] = static_cast<float>(scalar(h_LUM));
-            batch[u][base + 49] = static_cast<float>(scalar(h_AMQ));
-
-            // f[50]  switch_months_since_last  normalised by W
-            batch[u][base + 50] = (sw.last_switch_t >= 0)
-                ? static_cast<float>(month_abs - sw.last_switch_t) / W_f
-                : 0.f;
-
-            // f[51]  switch_tf_at_last
-            batch[u][base + 51] = sw.tf_at_switch;
-
-            // f[52]  switch_mean_interval  normalised by W
-            batch[u][base + 52] = sw.mean_interval / W_f;
-
-            // f[53]  beta_norm  constant across all timesteps
-            batch[u][base + 53] = beta_norm;
-
-            // f[54]  t_pos  position within active period [0,1]
-            batch[u][base + 54] = static_cast<float>(
-                std::clamp(static_cast<double>(month_abs - burn_in) / t_active_f,
-                           0.0, 1.0));
+            // Clamp all values to finite — guards against zero popsize or
+            // uninitialised MDC fields producing NaN in the model input.
+            for (int f = 0; f < F; ++f)
+                if (!std::isfinite(row[f])) row[f] = 0.f;
         }
     }
-
     return batch;
 }
 
-// ============================================================
-// Date helpers
-// ============================================================
+// ── inference_from_adc_data ───────────────────────────────────────────────────
+void AdaptiveCyclingAgent::inference_from_adc_data(int level_id) {
+    auto& d        = adc_agent_data_by_level[level_id];
+    const int W    = agent_meta_.W;
+    const int F    = agent_meta_.F;
+    const int now  = Model::get_scheduler()->current_time();
+    const int month_abs = now / DAYS_PER_MONTH;
 
-AdaptiveCyclingAgent::YearMonth
-AdaptiveCyclingAgent::add_months(int start_year, int start_month, int offset) {
-    YearMonth result;
-    const int m0 = (start_month - 1) + offset;
-    result.year  = start_year + (m0 / 12);
-    result.month = (m0 % 12) + 1;
-    return result;
+    d.ensure_state_size(static_cast<int>(d.h_current_tf.back().size()));
+
+    // Global guard (unit 0 — strategy is simulation-wide)
+    auto& g = d.guard[0];
+    if (g.pending_day != -1 && now >= g.pending_day) {
+        g.pending_day      = -1;
+        g.pending_strategy = -1;
+        g.block_until_day  = now + COOLDOWN_MONTHS * DAYS_PER_MONTH;
+    }
+    if ((g.block_until_day != -1 && now < g.block_until_day) ||
+        (g.pending_day     != -1 && g.pending_day > now))
+        return;
+
+    // Build input tensor
+    std::vector<std::vector<float>> batch;
+    try {
+        batch = d.build_input_batch(W, F, beta_norm_, month_abs, BURN_IN, T_ACTIVE);
+    } catch (const std::exception& e) {
+        spdlog::warn("[ADC] build_input_batch: {}", e.what());
+        return;
+    }
+    const int N = static_cast<int>(batch.size());
+    if (N == 0) return;
+
+    // Check for NaN/Inf in batch before building tensor — log and abort if found
+    bool has_nan = false;
+    for (int b = 0; b < N && !has_nan; ++b)
+        for (float v : batch[b])
+            if (!std::isfinite(v)) { has_nan = true; break; }
+    if (has_nan) {
+        spdlog::warn("[ADC] month={} input batch contains NaN/Inf — skipping inference. "
+                     "Check that popsize and MDC feature vectors are populated.",
+                     month_abs);
+        return;
+    }
+
+    auto x = torch::zeros({N, W, F}, torch::kFloat32);
+    for (int b = 0; b < N; ++b)
+        for (int w = 0; w < W; ++w)
+            for (int f = 0; f < F; ++f)
+                x[b][w][f] = batch[b][w * F + f];
+
+    // Run model
+    torch::jit::IValue result;
+    try {
+        result = agent_model_.module.get_method("predict_cpp")(
+            std::vector<torch::jit::IValue>{x});
+    } catch (const std::exception& e) {
+        spdlog::error("[ADC] predict_cpp failed: {}", e.what());
+        return;
+    }
+
+    auto tup     = result.toTuple();
+    auto dist_t  = tup->elements()[0].toTensor();   // (N, 3) [d6,d7,d8]
+    auto sw_t    = tup->elements()[1].toTensor();   // (N,)
+
+    // Use unit 0 for global decision
+    const float sw_prob = sw_t[0].item<float>();
+    const float d6 = dist_t[0][0].item<float>();
+    const float d7 = dist_t[0][1].item<float>();
+    const float d8 = dist_t[0][2].item<float>();
+
+    spdlog::info("[ADC] month={} sw_prob={:.3f} dist=[d6={:.3f} d7={:.3f} d8={:.3f}]",
+                 month_abs, sw_prob, d6, d7, d8);
+
+    if (sw_prob < static_cast<float>(trigger_value_)) return;
+
+    // Dominant therapy
+    int therapy_id;
+    if      (d8 >= d7 && d8 >= d6) therapy_id = THERAPY_8;
+    else if (d7 >= d6)              therapy_id = THERAPY_7;
+    else                            therapy_id = THERAPY_6;
+
+    auto it = therapy_to_strategy_.find(therapy_id);
+    if (it == therapy_to_strategy_.end()) {
+        spdlog::warn("[ADC] therapy {} not in therapy_to_strategy map", therapy_id);
+        return;
+    }
+    const int strategy_id  = it->second;
+    const int forecast_day = now + W * DAYS_PER_MONTH;  // now + 24 months
+
+    auto event = std::make_unique<ChangeTreatmentStrategyEvent>(strategy_id, forecast_day);
+    event->set_executable(true);
+    Model::get_scheduler()->schedule_population_event(std::move(event));
+
+    spdlog::info("[ADC] Scheduled strategy={} therapy={} at day={} (+{}mo)",
+                 strategy_id, therapy_id, forecast_day, W);
+
+    g.pending_day      = forecast_day;
+    g.pending_strategy = strategy_id;
+    // g.block_until_day  = now + COOLDOWN_MONTHS * DAYS_PER_MONTH;
 }
 
+// ── YearMonth helpers ─────────────────────────────────────────────────────────
+AdaptiveCyclingAgent::YearMonth
+AdaptiveCyclingAgent::add_months(int y, int m, int offset) {
+    int m0 = (m - 1) + offset;
+    return {y + m0 / 12, m0 % 12 + 1};
+}
 std::string AdaptiveCyclingAgent::ym_to_string(const YearMonth& ym) {
-    std::ostringstream os;
-    os << ym.year << "-" << std::setw(2) << std::setfill('0') << ym.month;
-    return os.str();
+    std::ostringstream o;
+    o << ym.year << "-" << std::setw(2) << std::setfill('0') << ym.month;
+    return o.str();
 }

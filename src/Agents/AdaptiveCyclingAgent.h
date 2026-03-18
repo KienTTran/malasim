@@ -234,23 +234,18 @@ public:
     // therapy_id (6/7/8) → strategy_id
     std::unordered_map<int,int> therapy_to_strategy_;
 
-    // Pre-computed genotype ID sets for allele frequency calculation.
-    // Built lazily on first call to finalize_month_all_features() once the
-    // full genotype DB is populated. Rebuilt if new genotypes are added.
-    // Index: 0=ART, 1=PPQ, 2=LUM, 3=AMQ
-    std::unordered_set<int> allele_genotype_ids_[4];
+    // Allele names and regex patterns loaded from manifest allele_patterns section.
+    // Order must match model feature slots f[46..49]: ART, PPQ, LUM, AMQ.
+    // Loaded in load_manifest() — no recompilation needed when patterns change.
+    std::vector<std::string> allele_names_;
+    std::vector<std::string> allele_patterns_;
+
+    // Pre-computed genotype ID sets — one per allele, same order as above.
+    // Built lazily on first finalize_month_all_features() call once the full
+    // genotype DB is populated. Rebuilt whenever numGenotypes grows.
+    std::vector<std::unordered_set<int>> allele_genotype_ids_;
     bool allele_genotype_ids_built_  = false;
     int  allele_genotype_ids_n_geno_ = 0;
-
-    // Allele regex patterns (can be overridden in the ADC manifest)
-    // Default patterns match the original hard-coded behavior.
-    // Index mapping: 0=ART, 1=PPQ, 2=LUM, 3=AMQ
-    std::array<std::string,4> allele_patterns_ = {
-        std::string(".*PRPYRA\\|.*"),   // ART (index 0)
-        std::string(".*\\|2$"),         // PPQ (index 1)
-        std::string("^.{4}NY.{3}K"),      // LUM (index 2)
-        std::string("^.{4}YY.{3}T")       // AMQ (index 3)
-    };
 
 public:
     AdaptiveCyclingAgent(const AdaptiveCyclingAgent&)            = delete;

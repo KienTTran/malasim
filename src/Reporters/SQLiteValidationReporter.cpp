@@ -52,7 +52,7 @@ void SQLiteValidationReporter::initialize(int jobNumber, const std::string& path
         return;
     }
 
-    adc_agent->adc_agent_data_by_level.resize(n_levels_including_cell);
+    // adc_agent->adc_agent_data_by_level.resize(n_levels_including_cell);
 
     for (int level_id = 0; level_id < n_levels_including_cell; ++level_id) {
         const bool is_cell_level = (level_id == CELL_LEVEL_ID);
@@ -73,9 +73,11 @@ void SQLiteValidationReporter::initialize(int jobNumber, const std::string& path
             continue;
         }
 
+        if (level_id >= static_cast<int>(adc_agent->adc_agent_data_by_level.size())) {
+            spdlog::warn("ADC init: level {} out of range, skipping.", level_id);
+            continue;
+        }
         auto& adc = adc_agent->adc_agent_data_by_level[level_id];
-
-        // monthly buffers
         adc.reset_month(vector_size);
     }
 }
@@ -467,6 +469,12 @@ void SQLiteValidationReporter::monthly_report_site_data(int monthId) {
       collect_site_data_for_location(location, level_id);
     }
 
+    auto n_therapies = Model::get_config()->get_therapy_parameters().get_therapy_db_raw().size();
+    for (int therapy_index = 0; therapy_index < n_therapies; therapy_index++) {
+      monthly_site_data_by_level[level_id].tf_by_therapy[therapy_index] =
+          Model::get_mdc()->current_tf_by_therapy()[therapy_index];  // = not +=
+    }
+
     // Calculate and insert data for this admin level
     calculate_and_build_up_site_data_insert_values(monthId, level_id);
     insert_monthly_site_data(level_id, insert_values);
@@ -589,10 +597,11 @@ void SQLiteValidationReporter::collect_site_data_for_location(int location_id, i
       (Model::get_mdc()->blood_slide_prevalence_by_location()[location_id] * locationPopulation);
     }
 
-    auto n_therapies = Model::get_config()->get_therapy_parameters().get_therapy_db_raw().size();
-    for (int therapy_index = 0; therapy_index < n_therapies; therapy_index++) {
-        monthly_site_data_by_level[level_id].tf_by_therapy[therapy_index] += Model::get_mdc()->current_tf_by_therapy()[therapy_index];
-    }
+    // auto n_therapies = Model::get_config()->get_therapy_parameters().get_therapy_db_raw().size();
+    // for (int therapy_index = 0; therapy_index < n_therapies; therapy_index++) {
+    //     monthly_site_data_by_level[level_id].tf_by_therapy[therapy_index] += Model::get_mdc()->current_tf_by_therapy()[therapy_index];
+    // }
+
     /* Collecting data for ADC Agent v5.5 */
     if (Model::get_config()->get_agent_parameters().get_adc_agent().is_enabled()) {
         auto& adc = Model::get_adc_agent()->adc_agent_data_by_level[level_id]; // NOTE: & not copy
@@ -616,9 +625,9 @@ void SQLiteValidationReporter::collect_site_data_for_location(int location_id, i
         adc.monthly_mutation[unit_id] +=
             Model::get_mdc()->monthly_number_of_mutation_events_by_location()[location_id];
 
-        adc.tf6[unit_id] += Model::get_mdc()->current_tf_by_therapy()[6];
-        adc.tf7[unit_id] += Model::get_mdc()->current_tf_by_therapy()[7];
-        adc.tf8[unit_id] += Model::get_mdc()->current_tf_by_therapy()[8];
+        // adc.tf6[unit_id] += Model::get_mdc()->current_tf_by_therapy()[6];
+        // adc.tf7[unit_id] += Model::get_mdc()->current_tf_by_therapy()[7];
+        // adc.tf8[unit_id] += Model::get_mdc()->current_tf_by_therapy()[8];
 
         adc.popsize[unit_id] +=
             static_cast<double>(Model::get_mdc()->popsize_by_location()[location_id]);
@@ -638,30 +647,33 @@ void SQLiteValidationReporter::collect_site_data_for_location(int location_id, i
             }
         }
 
-        // ── Blood-slide prevalence by age group (indices 0..14, NPZ order) ─
-        // AGE_GROUP_IDX = {0,1,10,11,12,13,14,2,3,4,5,6,7,8,9}
+        // ── Blood-slide prevalence by age group — population-weighted average ─
         {
             static constexpr int AGE_GROUP_IDX[15] = {0,1,10,11,12,13,14,2,3,4,5,6,7,8,9};
             const auto& bsp_ag =
                 Model::get_mdc()->blood_slide_prevalence_by_location_age_group();
             const int n_ag_avail = static_cast<int>(bsp_ag[location_id].size());
+            const double loc_pop = static_cast<double>(
+                Model::get_mdc()->popsize_by_location()[location_id]);
             for (int k = 0; k < 15; ++k) {
                 const int ag_idx = AGE_GROUP_IDX[k];
                 if (ag_idx < n_ag_avail)
-                    adc.bsp_age_group[unit_id][k] += bsp_ag[location_id][ag_idx];
+                    adc.bsp_age_group[unit_id][k] += bsp_ag[location_id][ag_idx] * loc_pop;
             }
         }
 
-        // ── Blood-slide prevalence by single age (indices 0..10, NPZ order) ─
+        // ── Blood-slide prevalence by single age — population-weighted average ─
         {
             static constexpr int AGE_SINGLE_IDX[11] = {0,1,10,2,3,4,5,6,7,8,9};
             const auto& bsp_age =
                 Model::get_mdc()->blood_slide_prevalence_by_location_age();
             const int n_age_avail = static_cast<int>(bsp_age[location_id].size());
+            const double loc_pop = static_cast<double>(
+                Model::get_mdc()->popsize_by_location()[location_id]);
             for (int k = 0; k < 11; ++k) {
                 const int age_idx = AGE_SINGLE_IDX[k];
                 if (age_idx < n_age_avail)
-                    adc.bsp_age[unit_id][k] += bsp_age[location_id][age_idx];
+                    adc.bsp_age[unit_id][k] += bsp_age[location_id][age_idx] * loc_pop;
             }
         }
     } // end ADC Agent data collection
