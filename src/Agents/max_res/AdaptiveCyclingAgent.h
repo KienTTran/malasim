@@ -2,15 +2,13 @@
 #define ADAPTIVECYCLINGAGENT_H
 
 /**
- * AdaptiveCyclingAgent.h  —  v5.5 Transformer integration (tf_excess_t)
- * ──────────────────────────────────────────────────────────────────────
+ * AdaptiveCyclingAgent.h  —  v5.5 Transformer integration
+ * ─────────────────────────────────────────────────────────
  * Model interface (predict_cpp in TorchScript):
- *   Input:  (B, W=24, F=56)
+ *   Input:  (B, W=24, F=55)
  *   Output: tuple(dist[B,3], switch_prob[B])
  *     dist[0..2] = [d6, d7, d8], sums to 1
  *     switch_prob = P(dominant therapy changes at T+24)
- *
- * Feature layout: 50 YAML + 3 switch-timing + 2 context + 1 tf_excess = 56
  *
  * Exact 50 YAML features (from checkpoint, in order):
  *   f[ 0]  monthly_number_of_new_infections_by_location      log1p(v/pop)
@@ -32,7 +30,6 @@
  *   f[50..52]  switch-timing (computed, not MDC)
  *   f[53]  beta_norm
  *   f[54]  t_pos
- *   f[55]  tf_excess = ReLU(max(tf6,tf7,tf8) - 0.10)        computed
  *
  * Age sub-indices present in NPZ (NOT the full range):
  *   _age:       0,1,2,3,4,5,6,7,8,9,10   (11 values)

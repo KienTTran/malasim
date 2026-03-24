@@ -102,14 +102,13 @@ void AdaptiveCyclingAgent::load_manifest() {
             as_str_or_throw(feats[i], "input_features[i]"));
     agent_meta_.F = static_cast<int>(agent_meta_.input_features.size());
 
-    // v5.5 tf_excess_t model expects exactly 56 input features
-    // (50 YAML + 3 switch-timing + 2 context + 1 tf_excess)
+    // v5.5 model expects exactly 55 input features (50 YAML + 3 switch + 2 context)
     if (agent_meta_.W <= 0)
         throw std::runtime_error("[ADC] manifest window W must be > 0");
-    if (agent_meta_.F != 56)
+    if (agent_meta_.F != 55)
         throw std::runtime_error(
-            "[ADC] manifest input_features must list all 56 features "
-            "(50 YAML + 3 switch-timing + beta_norm + t_pos + tf_excess), got F=" +
+            "[ADC] manifest input_features must list all 55 features "
+            "(50 YAML + 3 switch-timing + beta_norm + t_pos), got F=" +
             std::to_string(agent_meta_.F) + ". Are you loading the new adc_model_v5_5.yml?");
 
     // Load allele_patterns section — order must be ART, PPQ, LUM, AMQ
@@ -440,16 +439,6 @@ AdaptiveCyclingAgent::ADCAgentData::build_input_batch(
             row[53] = beta_norm;
             row[54] = t_pos;
 
-            // f[55]  tf_excess = ReLU(max(tf6, tf7, tf8) - 0.10)
-            // Replicates the ADC trigger signal the manual rule uses.
-            // Trained as: np.clip(max_therapy_TF - 0.10, 0, None)
-            {
-                const float tf_max = std::max({static_cast<float>(h_tf6[t][u]),
-                                               static_cast<float>(h_tf7[t][u]),
-                                               static_cast<float>(h_tf8[t][u])});
-                row[55] = std::max(tf_max - 0.10f, 0.f);
-            }
-
             // Clamp all values to finite — guards against zero popsize or
             // uninitialised MDC fields producing NaN in the model input.
             for (int f = 0; f < F; ++f)
@@ -533,17 +522,6 @@ void AdaptiveCyclingAgent::inference_from_adc_data(int level_id) {
                  month_abs, sw_prob, d6, d7, d8);
 
     if (sw_prob < static_cast<float>(trigger_value_)) return;
-
-    // Require a clearly dominant therapy before switching
-    static constexpr float DOMINANCE_THRESHOLD = 0.85f;   // try 0.70 first
-    // static constexpr float DOMINANCE_THRESHOLD = 0.80f; // stricter option
-
-    const float max_dist = std::max({d6, d7, d8});
-    if (max_dist < DOMINANCE_THRESHOLD) {
-        spdlog::info("[ADC] No dominant therapy (max_dist={:.3f} < {:.3f}) — skip switch",
-                     max_dist, DOMINANCE_THRESHOLD);
-        return;
-    }
 
     // Dominant therapy
     int therapy_id;
