@@ -20,7 +20,6 @@ void SQLiteValidationReporter::initialize(int jobNumber, const std::string& path
     const auto& level_names = admin_mgr->get_level_names();
     const int admin_level_count = static_cast<int>(level_names.size());
 
-    // Cell-level handling
     enable_cell_level_reporting = (admin_level_count == 0) ? true : enable_cell_level_reporting;
     if (admin_level_count == 0) {
         spdlog::info("No admin levels found, cell level reporting will be enabled.");
@@ -34,7 +33,6 @@ void SQLiteValidationReporter::initialize(int jobNumber, const std::string& path
 
     SQLiteDbReporter::initialize(jobNumber, path + "validation_");
 
-    // +1 slot reserved for cell level
     const int n_levels_including_cell = admin_level_count + 1;
     CELL_LEVEL_ID = admin_level_count;
 
@@ -43,45 +41,56 @@ void SQLiteValidationReporter::initialize(int jobNumber, const std::string& path
     insert_site_query_prefixes_.resize(n_levels_including_cell);
     insert_genome_query_prefixes_.resize(n_levels_including_cell);
 
-    // -----------------------------
-    // ADC Agent init per level
-    // -----------------------------
+    // Shared level-size resolution — used by both agents below
+    auto get_vector_size = [&](int level_id) -> int {
+        if (level_id == CELL_LEVEL_ID)
+            return Model::get_config()->number_of_locations();
+        const auto* boundary = admin_mgr->get_boundary(level_names[level_id]);
+        return boundary ? (boundary->max_unit_id + 1) : 0;
+    };
+
+    // ── ADC Agent init ────────────────────────────────────────────────────────
     auto* adc_agent = Model::get_adc_agent();
     if (!adc_agent) {
         spdlog::warn("ADC agent is null; skipping ADC initialization.");
-        return;
+    } else {
+        for (int level_id = 0; level_id < n_levels_including_cell; ++level_id) {
+            if (level_id == CELL_LEVEL_ID && !enable_cell_level_reporting) continue;
+
+            const int vector_size = get_vector_size(level_id);
+            if (vector_size <= 0) {
+                spdlog::warn("ADC init: level {} has invalid vector_size={}, skipping.", level_id, vector_size);
+                continue;
+            }
+            if (level_id >= static_cast<int>(adc_agent->adc_agent_data_by_level.size())) {
+                spdlog::warn("ADC init: level {} out of range, skipping.", level_id);
+                continue;
+            }
+            adc_agent->adc_agent_data_by_level[level_id].reset_month(vector_size);
+        }
     }
 
-    // adc_agent->adc_agent_data_by_level.resize(n_levels_including_cell);
+    // ── Auto Agent init ───────────────────────────────────────────────────────
+    auto* auto_agent = Model::get_auto_agent();
+    if (!auto_agent) {
+        spdlog::warn("Auto agent is null; skipping Auto Agent initialization.");
+    } else {
+        for (int level_id = 0; level_id < n_levels_including_cell; ++level_id) {
+            if (level_id == CELL_LEVEL_ID && !enable_cell_level_reporting) continue;
 
-    for (int level_id = 0; level_id < n_levels_including_cell; ++level_id) {
-        const bool is_cell_level = (level_id == CELL_LEVEL_ID);
-        if (is_cell_level && !enable_cell_level_reporting) {
-            continue;
+            const int vector_size = get_vector_size(level_id);
+            if (vector_size <= 0) {
+                spdlog::warn("Auto Agent init: level {} has invalid vector_size={}, skipping.", level_id, vector_size);
+                continue;
+            }
+            if (level_id >= static_cast<int>(auto_agent->auto_agent_data_by_level.size())) {
+                spdlog::warn("Auto Agent init: level {} out of range, skipping.", level_id);
+                continue;
+            }
+            auto_agent->reset_auto_data(level_id, vector_size);
         }
-
-        int vector_size = 0;
-        if (is_cell_level) {
-            vector_size = Model::get_config()->number_of_locations();
-        } else {
-            const auto* boundary = admin_mgr->get_boundary(level_names[level_id]);
-            vector_size = boundary ? (boundary->max_unit_id + 1) : 0;
-        }
-
-        if (vector_size <= 0) {
-            spdlog::warn("ADC init: level {} has invalid vector_size={}, skipping.", level_id, vector_size);
-            continue;
-        }
-
-        if (level_id >= static_cast<int>(adc_agent->adc_agent_data_by_level.size())) {
-            spdlog::warn("ADC init: level {} out of range, skipping.", level_id);
-            continue;
-        }
-        auto& adc = adc_agent->adc_agent_data_by_level[level_id];
-        adc.reset_month(vector_size);
     }
 }
-
 
 std::string SQLiteValidationReporter::get_site_table_name(int level_id) const {
   if (level_id == CELL_LEVEL_ID) { return "monthly_site_data_cell"; }
@@ -677,6 +686,122 @@ void SQLiteValidationReporter::collect_site_data_for_location(int location_id, i
             }
         }
     } // end ADC Agent data collection
+
+    // ── AutoAgent data collection ─────────────────────────────────────────────
+    if (Model::get_config()->get_agent_parameters().get_auto_agent().is_enabled()
+        && Model::get_auto_agent() != nullptr) {
+        auto& aa = Model::get_auto_agent()->auto_agent_data_by_level[level_id];
+
+        // Scalar features
+        aa.monthly_new_infections[unit_id] +=
+            Model::get_mdc()->monthly_number_of_new_infections_by_location()[location_id];
+        aa.monthly_treatment[unit_id] +=
+            Model::get_mdc()->monthly_number_of_treatment_by_location()[location_id];
+        aa.monthly_clinical[unit_id] +=
+            Model::get_mdc()->monthly_number_of_clinical_episode_by_location()[location_id];
+        aa.current_tf[unit_id] +=
+            Model::get_mdc()->current_tf_by_location()[location_id];
+        aa.monthly_tf[unit_id] +=
+            Model::get_mdc()->monthly_number_of_tf_by_location()[location_id];
+        aa.monthly_mutation[unit_id] +=
+            Model::get_mdc()->monthly_number_of_mutation_events_by_location()[location_id];
+        aa.total_immune[unit_id] +=
+            Model::get_mdc()->total_immune_by_location()[location_id];
+        aa.popsize[unit_id] +=
+            static_cast<double>(Model::get_mdc()->popsize_by_location()[location_id]);
+
+        // Bites (guarded by recording_data() like the existing EIR block)
+        if (Model::get_mdc()->recording_data()) {
+            aa.total_bites[unit_id] +=
+                Model::get_mdc()->total_number_of_bites_by_location()[location_id];
+            aa.total_bites_year[unit_id] +=
+                Model::get_mdc()->total_number_of_bites_by_location_year()[location_id];
+        }
+
+        // today_number_of_treatments and current_number_of_mutation_events_in_this_year
+        // are daily counters — use the MDC accessor matching your MDC API.
+        aa.today_treatments[unit_id] +=
+            Model::get_mdc()->today_number_of_treatments_by_location()[location_id];
+        aa.current_mutation_year[unit_id] +=
+            Model::get_mdc()->monthly_number_of_mutation_events_by_location()[location_id];
+
+        // Clinical episodes by age — NPZ slot order {0,1,10,2,3,4,5,6,7,8,9}
+        {
+            static constexpr int AGE_IDX[11] = {0,1,10,2,3,4,5,6,7,8,9};
+            const auto& ca = Model::get_mdc()
+                ->monthly_number_of_clinical_episode_by_location_age();
+            const int n_avail = static_cast<int>(ca[location_id].size());
+            for (int k = 0; k < 11; ++k) {
+                const int idx = AGE_IDX[k];
+                if (idx < n_avail)
+                    aa.clinical_age[unit_id][k] += ca[location_id][idx];
+            }
+        }
+
+        // BSP by age group — NPZ slot order {0,1,10,11,12,13,14,2,3,4,5,6,7,8,9}
+        {
+            static constexpr int AG_IDX[15] = {0,1,10,11,12,13,14,2,3,4,5,6,7,8,9};
+            const auto& bsp_ag =
+                Model::get_mdc()->blood_slide_prevalence_by_location_age_group();
+            const int n_avail = static_cast<int>(bsp_ag[location_id].size());
+            const double loc_pop = static_cast<double>(
+                Model::get_mdc()->popsize_by_location()[location_id]);
+            for (int k = 0; k < 15; ++k) {
+                const int idx = AG_IDX[k];
+                if (idx < n_avail)
+                    aa.bsp_age_group[unit_id][k] += bsp_ag[location_id][idx] * loc_pop;
+            }
+        }
+
+        // BSP by single age — NPZ slot order {0,1,10,2,3,4,5,6,7,8,9}
+        {
+            static constexpr int AGE_IDX[11] = {0,1,10,2,3,4,5,6,7,8,9};
+            const auto& bsp_age =
+                Model::get_mdc()->blood_slide_prevalence_by_location_age();
+            const int n_avail = static_cast<int>(bsp_age[location_id].size());
+            const double loc_pop = static_cast<double>(
+                Model::get_mdc()->popsize_by_location()[location_id]);
+            for (int k = 0; k < 11; ++k) {
+                const int idx = AGE_IDX[k];
+                if (idx < n_avail)
+                    aa.bsp_age[unit_id][k] += bsp_age[location_id][idx] * loc_pop;
+            }
+        }
+
+        // Popsize by age — NPZ slot order {0,1,10,2,3,4,5,6,7,8,9}
+        {
+            static constexpr int AGE_IDX[11] = {0,1,10,2,3,4,5,6,7,8,9};
+            const auto& pa = Model::get_mdc()->popsize_by_location_age();
+            const int n_avail = static_cast<int>(pa[location_id].size());
+            for (int k = 0; k < 11; ++k) {
+                const int idx = AGE_IDX[k];
+                if (idx < n_avail)
+                    aa.popsize_age[unit_id][k] += pa[location_id][idx];
+            }
+        }
+
+        // Clinical episodes by age group — NPZ slot order {0,1,10,11,12,13,14,2,3,4,5,6,7,8,9}
+        {
+            static constexpr int AG_IDX[15] = {0,1,10,11,12,13,14,2,3,4,5,6,7,8,9};
+            const auto& cag = Model::get_mdc()
+                ->number_of_clinical_by_location_age_group();
+            const int n_avail = static_cast<int>(cag[location_id].size());
+            for (int k = 0; k < 15; ++k) {
+                const int idx = AG_IDX[k];
+                if (idx < n_avail)
+                    aa.clinical_ag[unit_id][k] += cag[location_id][idx];
+            }
+        }
+
+        // Multiple-of-infection buckets 0..9
+        {
+            const auto& moi_vec =
+                Model::get_mdc()->multiple_of_infection_by_location();
+            const int n_avail = static_cast<int>(moi_vec[location_id].size());
+            for (int k = 0; k < AutoAgent::N_MOI && k < n_avail; ++k)
+                aa.moi[unit_id][k] += moi_vec[location_id][k];
+        }
+    } // end AutoAgent data collection
 }
 
 void SQLiteValidationReporter::collect_genome_data_for_location(size_t location_id, int level_id) {
@@ -757,6 +882,11 @@ void SQLiteValidationReporter::reset_genome_data_structures(int level_id, int ve
     /* For ADC Agent */
     if (Model::get_config()->get_agent_parameters().get_adc_agent().is_enabled()) {
         Model::get_adc_agent()->reset_adc_data(level_id, vector_size);
+    }
+    // ── ADD: AutoAgent monthly reset ──────────────────────────────────────────────
+    if (Model::get_config()->get_agent_parameters().get_auto_agent().is_enabled()
+        && Model::get_auto_agent() != nullptr) {
+        Model::get_auto_agent()->reset_auto_data(level_id, vector_size);
     }
 }
 
@@ -885,6 +1015,12 @@ void SQLiteValidationReporter::monthly_report_genome_data(int monthId) {
 
     if (Model::get_config()->get_agent_parameters().get_adc_agent().is_enabled()) {
       Model::get_adc_agent()->finalize_month_all_features(
+          level_id, numGenotypes, monthly_genome_data_by_level);
+    }
+    // ── ADD: AutoAgent inference trigger ─────────────────────────────────────
+    if (Model::get_config()->get_agent_parameters().get_auto_agent().is_enabled()
+        && Model::get_auto_agent() != nullptr) {
+      Model::get_auto_agent()->finalize_month_all_features(
           level_id, numGenotypes, monthly_genome_data_by_level);
     }
   }

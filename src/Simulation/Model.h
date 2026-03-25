@@ -18,7 +18,8 @@
 #include "Treatment/Strategies/IStrategy.h"
 #include "Treatment/Therapies/DrugDatabase.h"
 
-#include "Agents/AdaptiveCyclingAgent.h"
+#include "../Agents/max_res_lc_t/AdaptiveCyclingAgent.h"
+#include "Agents/AutoAgent.h"
 
 namespace Spatial {
 class Location;
@@ -70,6 +71,7 @@ private:
   std::vector<std::unique_ptr<Therapy>> therapy_db_;
 
   std::unique_ptr<AdaptiveCyclingAgent> adaptive_cycling_agent_{nullptr};
+  std::unique_ptr<AutoAgent> auto_agent_{nullptr};
 
   IStrategy* treatment_strategy_{nullptr};
 
@@ -170,6 +172,10 @@ public:
 
   static AdaptiveCyclingAgent* get_adc_agent() {
     return get_instance()->adaptive_cycling_agent_.get();
+  }
+
+  static AutoAgent* get_auto_agent() {
+    return get_instance()->auto_agent_.get();
   }
 
   void build_initial_treatment_coverage();

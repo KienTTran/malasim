@@ -7,7 +7,8 @@
 #include <memory>
 #include <stdexcept>
 
-#include "Agents/AdaptiveCyclingAgent.h"
+#include "../Agents/max_res_lc_t/AdaptiveCyclingAgent.h"
+#include "../Agents/AutoAgent.h"
 #include "Configuration/Config.h"
 #include "MDC/ModelDataCollector.h"
 #include "Mosquito/Mosquito.h"
@@ -63,6 +64,15 @@ bool Model::initialize() {
       spdlog::info("Adaptive Cycling Agent enabled and initialized.");
     } else {
       spdlog::info("Adaptive Cycling Agent is disabled in configuration.");
+    }
+
+    // Create and initialize Auto agent only if enabled in configuration
+    if (config_->get_agent_parameters().get_auto_agent().is_enabled()) {
+      auto_agent_ = std::make_unique<AutoAgent>();
+      auto_agent_->initialize();
+      spdlog::info("Auto Agent enabled and initialized.");
+    } else {
+      spdlog::info("Auto Agent is disabled in configuration.");
     }
 
     spdlog::info("Model initialized with seed: " + std::to_string(random_->get_seed()));
