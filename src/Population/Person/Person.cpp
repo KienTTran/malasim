@@ -848,29 +848,79 @@ void Person::schedule_progress_to_clinical_event(ClonalParasitePopulation* paras
 //   schedule_basic_event(std::move(event));
 // }
 
+// void Person::schedule_clinical_recurrence_event(ClonalParasitePopulation* parasite) {
+//   // Clinical recurrence occurs between days 7-54, normally distributed around day 14
+//   int days_to_clinical = Model::get_random()->random_normal_int(14, 5);
+//   days_to_clinical = std::min(std::max(days_to_clinical, 7), 54);
+//
+//   int new_event_time = calculate_future_time(days_to_clinical);
+//
+//   // Log if similar event is already scheduled within ±7 days
+//   for (const auto &[time, existing_event] : get_events()) {
+//     auto* end_clinical_event = dynamic_cast<EndClinicalEvent*>(existing_event.get());
+//     if (end_clinical_event != nullptr) {
+//       int end_clinical_existing_time = end_clinical_event->get_time();
+//       if (new_event_time <= end_clinical_existing_time) {
+//         spdlog::info(
+//             "Model time {}, schedule recurrence event at time {}, clinical end event at time {}",
+//             Model::get_scheduler()->current_time(), new_event_time, end_clinical_existing_time);
+//       }
+//     }
+//     auto* existing_progress_event = dynamic_cast<ProgressToClinicalEvent*>(existing_event.get());
+//     if (existing_progress_event != nullptr && existing_progress_event->is_executable()) {
+//       int existing_time = existing_progress_event->get_time();
+//
+//       // If events are within 7 days, don't schedule a new one
+//       if (std::abs(existing_time - new_event_time) <= 7) {
+//         Model::get_mdc()->progress_to_clinical_in_7d_counter[location_].total++;
+//         if (existing_progress_event->clinical_caused_parasite() == parasite) {
+//           Model::get_mdc()->progress_to_clinical_in_7d_counter[location_].recrudescence++;
+//         } else {
+//           Model::get_mdc()->progress_to_clinical_in_7d_counter[location_].new_infection++;
+//         }
+//         // Don't schedule the new event - use existing one
+//         return;  // EXIT HERE TO PREVENT DOUBLE SCHEDULING
+//       }
+//     }
+//   }
+//   // Schedule the new event only if no conflicts found
+//   auto event = std::make_unique<ProgressToClinicalEvent>(this);
+//   event->set_time(new_event_time);
+//   event->set_clinical_caused_parasite(parasite);
+//   schedule_basic_event(std::move(event));
+// }
 void Person::schedule_clinical_recurrence_event(ClonalParasitePopulation* parasite) {
-  // Clinical recurrence occurs between days 7-54, normally distributed around day 14
   int days_to_clinical = Model::get_random()->random_normal_int(14, 5);
   days_to_clinical = std::min(std::max(days_to_clinical, 7), 54);
 
   int new_event_time = calculate_future_time(days_to_clinical);
 
-  // Log if similar event is already scheduled within ±7 days
   for (const auto &[time, existing_event] : get_events()) {
+    // Bug fix: if recurrence would fire before or at EndClinicalEvent,
+    // the episode is within the current clinical period — discard it.
     auto* end_clinical_event = dynamic_cast<EndClinicalEvent*>(existing_event.get());
-    if (end_clinical_event != nullptr) {
+    if (end_clinical_event != nullptr && end_clinical_event->is_executable()) {
       int end_clinical_existing_time = end_clinical_event->get_time();
       if (new_event_time <= end_clinical_existing_time) {
-        spdlog::info(
-            "Model time {}, schedule recurrence event at time {}, clinical end event at time {}",
+        spdlog::debug(
+            "Model time {}, recurrence at {} discarded (within clinical episode ending at {})",
             Model::get_scheduler()->current_time(), new_event_time, end_clinical_existing_time);
+        // MUST reset the parasite update function — determine_symptomatic_recrudescence
+        // already set it to progress_to_clinical_update_function before calling here.
+        // Without this reset the parasite is stuck in that state forever with no event.
+        if (drugs_in_blood_->size() > 0) {
+          parasite->set_update_function(Model::having_drug_update_function());
+        } else {
+          parasite->set_update_function(Model::immunity_clearance_update_function());
+        }
+        return;
       }
     }
+
+    // Existing dedup: if another ProgressToClinicalEvent is already within ±7 days, skip
     auto* existing_progress_event = dynamic_cast<ProgressToClinicalEvent*>(existing_event.get());
     if (existing_progress_event != nullptr && existing_progress_event->is_executable()) {
       int existing_time = existing_progress_event->get_time();
-
-      // If events are within 7 days, don't schedule a new one
       if (std::abs(existing_time - new_event_time) <= 7) {
         Model::get_mdc()->progress_to_clinical_in_7d_counter[location_].total++;
         if (existing_progress_event->clinical_caused_parasite() == parasite) {
@@ -878,12 +928,11 @@ void Person::schedule_clinical_recurrence_event(ClonalParasitePopulation* parasi
         } else {
           Model::get_mdc()->progress_to_clinical_in_7d_counter[location_].new_infection++;
         }
-        // Don't schedule the new event - use existing one
-        return;  // EXIT HERE TO PREVENT DOUBLE SCHEDULING
+        return;
       }
     }
   }
-  // Schedule the new event only if no conflicts found
+
   auto event = std::make_unique<ProgressToClinicalEvent>(this);
   event->set_time(new_event_time);
   event->set_clinical_caused_parasite(parasite);

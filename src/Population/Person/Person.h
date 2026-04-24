@@ -303,6 +303,14 @@ public:
 
   void schedule_end_clinical_by_no_treatment_event(ClonalParasitePopulation *clinical_caused_parasite);
 
+  [[nodiscard]] int get_last_counted_clinical_episode_time() const {
+    return last_counted_clinical_episode_time_;
+  }
+
+  void set_last_counted_clinical_episode_time(int last_counted_clinical_episode_time) {
+    last_counted_clinical_episode_time_ = last_counted_clinical_episode_time;
+  }
+
 private:
   int age_{-1};
   Population* population_{nullptr};
@@ -329,6 +337,7 @@ private:
   int latest_time_received_public_treatment_{-30};
   RecurrenceStatus recurrence_status_{RecurrenceStatus::NONE};
   EventManager<PersonEvent> event_manager_;
+  int last_counted_clinical_episode_time_{-1000000};
 
 #ifdef ENABLE_TRAVEL_TRACKING
   int day_that_last_trip_was_initiated_{-1};

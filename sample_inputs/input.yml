@@ -25,6 +25,12 @@ model_settings:
   # When enabled, parasites above threshold can cause symptomatic recurrence
   enable_recrudescence: true
 
+  # Minimum days for counting new clinical episode (gap between episodes for same person)
+  # Default is 0: No difference in counting from previous code base
+  # Increase this number (7/14/28) will make less clinical episode counting (for report only)
+  # which is somehow true in the real clinical trial
+  minimum_days_for_counting_new_clinical_episode: 0
+
 # ---------------------------------------------------------------
 # 2. Simulation Timeframe
 # ---------------------------------------------------------------

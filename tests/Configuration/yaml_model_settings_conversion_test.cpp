@@ -19,6 +19,7 @@ protected:
 
 // Test encoding functionality
 TEST_F(ModelSettingsTest, EncodeModelSettings) {
+  default_settings.set_minimum_days_for_counting_new_clinical_episode(5);
   YAML::Node node = YAML::convert<ModelSettings>::encode(default_settings);
 
   EXPECT_EQ(node["days_between_stdout_output"].as<int>(),
@@ -29,6 +30,8 @@ TEST_F(ModelSettingsTest, EncodeModelSettings) {
   default_settings.get_record_genome_db());
   EXPECT_EQ(node["cell_level_reporting"].as<bool>(),
             default_settings.get_cell_level_reporting());
+  EXPECT_EQ(node["minimum_days_for_counting_new_clinical_episode"].as<int>(),
+            default_settings.get_minimum_days_for_counting_new_clinical_episode());
 }
 
 // Test decoding functionality
@@ -38,6 +41,7 @@ TEST_F(ModelSettingsTest, DecodeModelSettings) {
   node["initial_seed_number"] = 123;
   node["record_genome_db"] = true;
   node["cell_level_reporting"] = true;
+  node["minimum_days_for_counting_new_clinical_episode"] = 7;
 
   ModelSettings decoded_settings;
   EXPECT_NO_THROW(YAML::convert<ModelSettings>::decode(node, decoded_settings));
@@ -46,6 +50,7 @@ TEST_F(ModelSettingsTest, DecodeModelSettings) {
   EXPECT_EQ(decoded_settings.get_initial_seed_number(), 123);
   EXPECT_EQ(decoded_settings.get_record_genome_db(), true);
   EXPECT_EQ(decoded_settings.get_cell_level_reporting(), true);
+  EXPECT_EQ(decoded_settings.get_minimum_days_for_counting_new_clinical_episode(), 7);
 }
 
 // Test missing fields during decoding
@@ -57,4 +62,3 @@ TEST_F(ModelSettingsTest, DecodeModelSettingsMissingField) {
   EXPECT_THROW(YAML::convert<ModelSettings>::decode(node, decoded_settings),
                std::runtime_error);
 }
-

@@ -150,6 +150,7 @@ void ProgressToClinicalEvent::transition_to_clinical_state(Person* person) {
 
   clinical_caused_parasite_->set_last_update_log10_parasite_density(density);
 
+  person->cancel_all_other_progress_to_clinical_events_except(this);
   // Person change state to Clinical
   person->set_host_state(Person::CLINICAL);
 
@@ -170,8 +171,6 @@ void ProgressToClinicalEvent::transition_to_clinical_state(Person* person) {
   //   spdlog::warn("Person {} has {} ProgressToClinicalEvent, time {}, cancel all but this one",
   //                person->get_age(), count, event_time);
   // }
-  person->cancel_all_other_progress_to_clinical_events_except(this);
-  count = 0;
   std::string event_time = "";
   for (const auto& pair : person->get_events()) {
     if ( typeid(*pair.second).name() == typeid(ProgressToClinicalEvent).name()
@@ -192,8 +191,21 @@ void ProgressToClinicalEvent::transition_to_clinical_state(Person* person) {
   clinical_caused_parasite_->set_update_function(Model::get_instance()->clinical_update_function());
 
   // Statistic collect cumulative clinical episodes
-  Model::get_mdc()->collect_1_clinical_episode(person->get_location(), person->get_age(),
-                                               person->get_age_class());
+  //
+  // Model::get_mdc()->collect_1_clinical_episode(person->get_location(), person->get_age(),
+  //                                              person->get_age_class());
+  const int today = Model::get_scheduler()->current_time();
+  const int min_gap = Model::get_config()->get_model_settings().get_minimum_days_for_counting_new_clinical_episode();
+
+  if (today - person->get_last_counted_clinical_episode_time() >= min_gap) {
+    Model::get_mdc()->collect_1_clinical_episode(
+        person->get_location(),
+        person->get_age(),
+        person->get_age_class()
+    );
+
+    person->set_last_counted_clinical_episode_time(today);
+  }
 
   if (should_receive_treatment(person)) {
     // if ((Model::get_scheduler()->current_time()
