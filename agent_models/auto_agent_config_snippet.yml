@@ -1,0 +1,35 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# AutoAgent config block — paste under agent_parameters in your simulation YAML.
+# Requires AutoAgent to be enabled in CMakeLists.txt and registered in Model.
+# ──────────────────────────────────────────────────────────────────────────────
+agent_parameters:
+  auto_agent:
+    enabled:          true
+    model_path:       ../agent_models/actor_torchscript.pt
+    manifest_path:    ../agent_models/auto_agent_manifest.yml
+
+    # Trigger date: must be >= burn_in (120 mo) + WINDOW (24 mo) after sim start.
+    # Recommended: 10-12 years into a simulation starting in 2000.
+    trigger_date:     2010/1/1
+
+    # Strategy decision threshold.
+    # p_mft >= p_mft_threshold  → activate MFT strategy (strategy_mft below).
+    # p_mft <  p_mft_threshold  → activate ADC strategy (strategy_adc below).
+    p_mft_threshold:  0.5
+
+    # Minimum dominant-therapy confidence before a switch is committed.
+    # max(d_th6, d_th7, d_th8) must exceed this value.
+    min_dist_conf:    0.60
+
+    # strategy_id values that map to ADC and MFT in your simulation config.
+    # Adjust to match your strategy list.
+    strategy_adc:     4
+    strategy_mft:     5
+
+    # Months to block new decisions after a strategy change fires.
+    cooldown_months:  24
+
+  # Keep the original ADC agent block here if you still use it:
+  # adc_agent:
+  #   enabled: true
+  #   ...

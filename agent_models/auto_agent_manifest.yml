@@ -1,0 +1,20 @@
+# auto_agent_manifest.yml  —  IQL Actor (machine-A v1)
+# Consumed by AutoAgent::load_manifest().
+# allele_patterns must be in order ART, PPQ, LUM, AMQ to match feature cols [88..91].
+# window.W must equal AutoAgent::WINDOW (24) — changing it requires recompilation.
+
+allele_patterns:
+  # ART resistance marker (Pfkelch13 580Y)
+  ART: '^.{34}Y.*$'
+
+  # PPQ resistance marker (plasmepsin copy number = 2)
+  PPQ: '.*\|2$'
+
+  # LUM-associated marker (Pfcrt K76 + Pfmdr1 N86 + Pfmdr1 184F -> KNF haplotype)
+  LUM: '^.{4}NF.{3}K.*$'
+
+  # AMQ-associated marker (Pfcrt 76T + Pfmdr1 86Y + Pfmdr1 184Y -> TYY haplotype)
+  AMQ: '^.{4}YY.{3}T.*$'
+
+window:
+  W: 24

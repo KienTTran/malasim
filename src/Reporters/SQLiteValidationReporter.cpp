@@ -758,6 +758,10 @@ void SQLiteValidationReporter::reset_genome_data_structures(int level_id, int ve
     if (Model::get_config()->get_agent_parameters().get_adc_agent().is_enabled()) {
         Model::get_adc_agent()->reset_adc_data(level_id, vector_size);
     }
+    /* For World Model Agent */
+    if (Model::get_config()->get_agent_parameters().get_world_model_agent().is_enabled()) {
+        Model::get_world_model_agent()->reset_month_data();
+    }
 }
 
 void SQLiteValidationReporter::collect_genome_data_for_a_person(Person* person, int unit_id,
@@ -886,6 +890,10 @@ void SQLiteValidationReporter::monthly_report_genome_data(int monthId) {
     if (Model::get_config()->get_agent_parameters().get_adc_agent().is_enabled()) {
       Model::get_adc_agent()->finalize_month_all_features(
           level_id, numGenotypes, monthly_genome_data_by_level);
+    }
+    if (Model::get_config()->get_agent_parameters().get_world_model_agent().is_enabled()) {
+      Model::get_world_model_agent()->finalize_month_features(
+          numGenotypes, monthly_genome_data_by_level, level_id);
     }
   }
 }

@@ -64,6 +64,14 @@ bool Model::initialize() {
     } else {
       spdlog::info("Adaptive Cycling Agent is disabled in configuration.");
     }
+    if (config_->get_agent_parameters().get_world_model_agent().is_enabled()) {
+      world_model_agent_ = std::make_unique<WorldModelAgent>();
+      world_model_agent_->initialize();
+      spdlog::info("World model agent enabled and initialized.");
+    }
+    else {
+      spdlog::info("World model agent is disabled in configuration.");
+    }
 
     spdlog::info("Model initialized with seed: " + std::to_string(random_->get_seed()));
     // add reporter here

@@ -43,17 +43,52 @@ public:
         date::year_month_day trigger_date_ = date::year_month_day{}; // default / not set
     };
 
+
+    class WorldModelAgentConfig {
+    public:
+        [[nodiscard]] const std::string& get_model_path() const { return model_path_; }
+        void set_model_path(const std::string& v) { model_path_ = v; }
+
+        [[nodiscard]] const std::string& get_manifest_path() const { return manifest_path_; }
+        void set_manifest_path(const std::string& v) { manifest_path_ = v; }
+
+        [[nodiscard]] bool is_enabled() const { return enabled_; }
+        void set_enabled(bool v) { enabled_ = v; }
+
+        [[nodiscard]] date::year_month_day get_trigger_date() const { return trigger_date_; }
+        void set_trigger_date(const date::year_month_day& d) { trigger_date_ = d; }
+
+        [[nodiscard]] const std::vector<int>& get_strategy_cycle() const { return strategy_cycle_; }
+        void set_strategy_cycle(const std::vector<int>& v) { strategy_cycle_ = v; }
+
+    private:
+        std::string model_path_;
+        std::string manifest_path_;
+        bool enabled_ = false;
+        date::year_month_day trigger_date_{};
+        std::vector<int> strategy_cycle_;
+    };
+
+
     // Getter and Setter for adc_agent
     [[nodiscard]] const AdcAgent &get_adc_agent() const { return adc_agent_; }
     void set_adc_agent(const AdcAgent &value) { adc_agent_ = value; }
+
+    // Add getter/setter in AgentParameters (around line 47):
+    [[nodiscard]] const WorldModelAgentConfig& get_world_model_agent() const { return world_model_agent_; }
+    void set_world_model_agent(const WorldModelAgentConfig& v) { world_model_agent_ = v; }
+
+    // Add private member (around line 56):
 
     void process_config() override {
         spdlog::info("Using Adaptive Cycling Agent - enabled={} model_path={}",
                      adc_agent_.is_enabled(), adc_agent_.get_model_path());
     }
 
+
 private:
     AdcAgent adc_agent_;
+    WorldModelAgentConfig world_model_agent_;
 };
 
 // YAML conversion specialization
@@ -65,15 +100,18 @@ struct YAML::convert<AgentParameters> {
         return node;
     }
 
-    static bool decode(const Node &node, AgentParameters &rhs) {
-        if (!node["adc_agent"]) {
-            throw std::runtime_error("Missing 'adc_agent' field in agent_parameters.");
-        }
-        rhs.set_adc_agent(node["adc_agent"].as<AgentParameters::AdcAgent>());
+    // In YAML::convert<AgentParameters>::decode (around line 68):
+    static bool decode(const Node& node, AgentParameters& rhs) {
+        if (node["adc_agent"])
+            rhs.set_adc_agent(node["adc_agent"].as<AgentParameters::AdcAgent>());
+        if (node["world_model_agent"])
+            rhs.set_world_model_agent(node["world_model_agent"].as<AgentParameters::WorldModelAgentConfig>());
+        // At least one must exist
+        if (!node["adc_agent"] && !node["world_model_agent"])
+            throw std::runtime_error("agent_parameters needs adc_agent or world_model_agent");
         return true;
     }
 };
-
 // YAML conversion for AdcAgent
 template <>
 struct YAML::convert<AgentParameters::AdcAgent> {
@@ -116,4 +154,23 @@ struct YAML::convert<AgentParameters::AdcAgent> {
     }
 };
 
+// Add YAML conversion for WorldModelAgentConfig:
+template <>
+struct YAML::convert<AgentParameters::WorldModelAgentConfig> {
+    static Node encode(const AgentParameters::WorldModelAgentConfig& rhs) {
+        Node node;
+        node.force_insert("model_path", rhs.get_model_path());
+        node.force_insert("manifest_path", rhs.get_manifest_path());
+        node.force_insert("enabled", rhs.is_enabled());
+        return node;
+    }
+    static bool decode(const Node& node, AgentParameters::WorldModelAgentConfig& rhs) {
+        if (node["model_path"])    rhs.set_model_path(node["model_path"].as<std::string>());
+        if (node["manifest_path"]) rhs.set_manifest_path(node["manifest_path"].as<std::string>());
+        if (node["enabled"])       rhs.set_enabled(node["enabled"].as<bool>());
+        if (node["trigger_date"])  rhs.set_trigger_date(node["trigger_date"].as<date::year_month_day>());
+        if (node["strategy_cycle"]) rhs.set_strategy_cycle(node["strategy_cycle"].as<std::vector<int>>());
+        return true;
+    }
+};
 #endif //MALASIM_AGENTPARAMETERS_H

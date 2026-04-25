@@ -900,15 +900,21 @@ population_events:
 #    trigger_value: 0.8
 #    trigger_date: 2012/01/01
 
-
 agent_parameters:
   adc_agent:
-    enabled: true
+    enabled: false    # ← disable old agent
     model_path:    ../agent_models/transformer_strategy_v5_5_scripted.pt
     manifest_path: ../agent_models/adc_model_v5_5.yml
     trigger_value: 0.7
-    trigger_date:  2010/1/1      # >= burn_in+W months after sim start
-    strategy_cycle: [3, 2, 1]       # strategy_id for therapy 8, 7 (in that order)
+    trigger_date:  2010/1/1
+    strategy_cycle: [3, 2, 1]
+
+  world_model_agent:
+    enabled: true     # ← enable new agent
+    model_path:    ../agent_models/world_model.pt.ts
+    manifest_path: ../agent_models/world_model_manifest.yml
+    trigger_date:  2010/1/1
+    strategy_cycle: [3, 2, 1]   # strategy_id for therapy 8, 7, 6
 
 
 # ---------------------------------------------------------------
