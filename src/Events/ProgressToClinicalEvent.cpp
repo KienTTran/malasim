@@ -197,6 +197,24 @@ void ProgressToClinicalEvent::transition_to_clinical_state(Person* person) {
   const int today = Model::get_scheduler()->current_time();
   const int min_gap = Model::get_config()->get_model_settings().get_minimum_days_for_counting_new_clinical_episode();
 
+  const int last_time = person->get_last_counted_clinical_episode_time();
+  const int gap = today - last_time;
+
+  if (last_time > -100000 && gap < min_gap) {
+      spdlog::warn(
+        "CLINICAL_COUNT_WITHIN_{}_DAYS person_id={} birthday={} today={} last_time={} gap={} age={} location={} age_class={}",
+        min_gap,
+        person->get_id(),
+        person->get_birthday(),
+        today,
+        last_time,
+        gap,
+        person->get_age(),
+        person->get_location(),
+        person->get_age_class()
+    );
+  }
+
   if (today - person->get_last_counted_clinical_episode_time() >= min_gap) {
     Model::get_mdc()->collect_1_clinical_episode(
         person->get_location(),

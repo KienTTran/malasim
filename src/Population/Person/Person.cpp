@@ -34,6 +34,9 @@
 #include "Utils/Constants.h"
 
 Person::Person() {
+  static int next_person_id = 0;
+  id_ = next_person_id++;
+
   immune_system_ = std::make_unique<ImmuneSystem>(this);
   drugs_in_blood_ = std::make_unique<DrugsInBlood>(this);
   all_clonal_parasite_populations_ = std::make_unique<SingleHostClonalParasitePopulations>(this);

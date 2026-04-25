@@ -38,7 +38,10 @@ public:
   bool get_enable_recrudescence() const { return enable_recrudescence_; }
   void set_enable_recrudescence(const bool value) { enable_recrudescence_ = value; }
 
-  void process_config() override { spdlog::info("Processing ModelSettings"); }
+  void process_config() override {
+    spdlog::info("Processing ModelSettings");
+    spdlog::info("Minimum days between clinical episodes: {}", minimum_days_for_counting_new_clinical_episode_);
+  }
 
 private:
   int days_between_stdout_output_ = 30;

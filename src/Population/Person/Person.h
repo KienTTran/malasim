@@ -310,6 +310,8 @@ public:
   void set_last_counted_clinical_episode_time(int last_counted_clinical_episode_time) {
     last_counted_clinical_episode_time_ = last_counted_clinical_episode_time;
   }
+  [[nodiscard]] int get_id() const { return id_; }
+  void set_id(int id) { id_ = id; }
 
 private:
   int age_{-1};
@@ -338,6 +340,7 @@ private:
   RecurrenceStatus recurrence_status_{RecurrenceStatus::NONE};
   EventManager<PersonEvent> event_manager_;
   int last_counted_clinical_episode_time_{-1000000};
+  int id_{-1};
 
 #ifdef ENABLE_TRAVEL_TRACKING
   int day_that_last_trip_was_initiated_{-1};
