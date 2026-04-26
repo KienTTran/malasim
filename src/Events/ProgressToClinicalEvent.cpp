@@ -11,6 +11,7 @@
 
 #include "Configuration/Config.h"
 #include "Core/Scheduler/Scheduler.h"
+#include "Debug/DebugMonthlyStats.h"
 #include "Events/ReportTreatmentFailureDeathEvent.h"
 #include "MDC/ModelDataCollector.h"
 #include "Population/ClinicalUpdateFunction.h"
@@ -190,6 +191,23 @@ void ProgressToClinicalEvent::transition_to_clinical_state(Person* person) {
       Model::get_instance()->immunity_clearance_update_function());
 
   clinical_caused_parasite_->set_update_function(Model::get_instance()->clinical_update_function());
+
+  if (person->get_age() == 0) {
+    switch (source_) {
+      case ClinicalEventSource::NormalProgression:
+        DEBUG_MONTHLY_STATS.record_clinical_count_age0_normal(person->get_id());
+        break;
+
+      case ClinicalEventSource::Recurrence:
+        DEBUG_MONTHLY_STATS.record_clinical_count_age0_recurrence(person->get_id());
+        break;
+
+      case ClinicalEventSource::Unknown:
+      default:
+        DEBUG_MONTHLY_STATS.record_clinical_count_age0_unknown(person->get_id());
+        break;
+    }
+  }
 
   // Statistic collect cumulative clinical episodes
   Model::get_mdc()->collect_1_clinical_episode(person->get_location(), person->get_age(),

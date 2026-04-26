@@ -10,6 +10,7 @@
 #include <memory>
 
 #include "Core/Scheduler/Scheduler.h"
+#include "Debug/DebugMonthlyStats.h"
 #include "Events/BirthdayEvent.h"
 #include "Events/CirculateToTargetLocationNextDayEvent.h"
 #include "Events/EndClinicalEvent.h"
@@ -33,7 +34,11 @@
 #include "Treatment/Therapies/MACTherapy.h"
 #include "Utils/Constants.h"
 
+std::uint64_t Person::next_person_id_ = 0;
+
 Person::Person() {
+  person_id_ = next_person_id_++;
+
   immune_system_ = std::make_unique<ImmuneSystem>(this);
   drugs_in_blood_ = std::make_unique<DrugsInBlood>(this);
   all_clonal_parasite_populations_ = std::make_unique<SingleHostClonalParasitePopulations>(this);
@@ -397,6 +402,7 @@ void Person::determine_symptomatic_recrudescence(
   // const auto probability_develop_symptom =
   //     calculate_symptomatic_recrudescence_probability(pfpr, is_young_children);
 
+
   const auto probability_develop_symptom = get_probability_progress_to_clinical();
 
   // becase the current model does not have within host dynamics, so we
@@ -476,22 +482,49 @@ void Person::determine_clinical_or_not(ClonalParasitePopulation* clinical_caused
   if (all_clonal_parasite_populations_->contain(clinical_caused_parasite)) {
     // spdlog::info("Person::determine_clinical_or_not: Person has the parasite");
     const auto prob = Model::get_random()->random_flat(0.0, 1.0);
-    if (prob <= get_probability_progress_to_clinical()) {
-      // spdlog::info("Person::determine_clinical_or_not: Person will progress to clinical");
-      // progress to clinical after several days
+
+    // if (prob <= get_probability_progress_to_clinical()) {
+    //   // spdlog::info("Person::determine_clinical_or_not: Person will progress to clinical");
+    //   // progress to clinical after several days
+    //   clinical_caused_parasite->set_update_function(Model::progress_to_clinical_update_function());
+    //   clinical_caused_parasite->set_last_update_log10_parasite_density(
+    //       Model::get_config()
+    //           ->get_parasite_parameters()
+    //           .get_parasite_density_levels()
+    //           .get_log_parasite_density_asymptomatic());
+    //   schedule_progress_to_clinical_event(clinical_caused_parasite);
+    //   /* Old in V5 below (without recurence, schedule_relapse_event makes FOI match FOI in v5 */
+    //   // schedule_relapse_event(clinical_caused_parasite,
+    //   //                        Model::get_config()->get_epidemiological_parameters().get_relapse_duration());
+    // } else {
+    //   // spdlog::info("Person::determine_clinical_or_not: Person will progress to clearance");
+    //   // progress to clearance
+    //   clinical_caused_parasite->set_update_function(Model::immunity_clearance_update_function());
+    // }
+
+    const double p_clinical = get_probability_progress_to_clinical();
+    const double immunity = get_immune_system()->get_current_value();
+
+    if (get_age() == 0) {
+      DEBUG_MONTHLY_STATS.record_clinical_decision_age0(p_clinical, immunity);
+    }
+
+    if (prob <= p_clinical) {
+      if (get_age() == 0) {
+        DEBUG_MONTHLY_STATS.record_clinical_will_schedule_age0();
+        DEBUG_MONTHLY_STATS.record_clinical_scheduled_age0(p_clinical, immunity);
+      }
+
       clinical_caused_parasite->set_update_function(Model::progress_to_clinical_update_function());
       clinical_caused_parasite->set_last_update_log10_parasite_density(
           Model::get_config()
               ->get_parasite_parameters()
               .get_parasite_density_levels()
               .get_log_parasite_density_asymptomatic());
+
       schedule_progress_to_clinical_event(clinical_caused_parasite);
-      /* Old in V5 below (without recurence, schedule_relapse_event makes FOI match FOI in v5 */
-      // schedule_relapse_event(clinical_caused_parasite,
-      //                        Model::get_config()->get_epidemiological_parameters().get_relapse_duration());
+
     } else {
-      // spdlog::info("Person::determine_clinical_or_not: Person will progress to clearance");
-      // progress to clearance
       clinical_caused_parasite->set_update_function(Model::immunity_clearance_update_function());
     }
   }
@@ -823,7 +856,6 @@ void Person::schedule_end_clinical_event(ClonalParasitePopulation* parasite) {
 }
 
 void Person::schedule_progress_to_clinical_event(ClonalParasitePopulation* parasite) {
-  // Time to clinical varies by age
   const int days_to_clinical =
       (age_ <= 5)
           ? Model::get_config()->get_epidemiological_parameters().get_days_to_clinical_under_five()
@@ -832,6 +864,8 @@ void Person::schedule_progress_to_clinical_event(ClonalParasitePopulation* paras
   auto event = std::make_unique<ProgressToClinicalEvent>(this);
   event->set_time(calculate_future_time(days_to_clinical));
   event->set_clinical_caused_parasite(parasite);
+  event->set_source(ClinicalEventSource::NormalProgression);
+
   schedule_basic_event(std::move(event));
 }
 
@@ -887,6 +921,8 @@ void Person::schedule_clinical_recurrence_event(ClonalParasitePopulation* parasi
   auto event = std::make_unique<ProgressToClinicalEvent>(this);
   event->set_time(new_event_time);
   event->set_clinical_caused_parasite(parasite);
+  event->set_source(ClinicalEventSource::Recurrence);
+
   schedule_basic_event(std::move(event));
 }
 
@@ -994,6 +1030,8 @@ void Person::schedule_relapse_event(ClonalParasitePopulation* clinical_caused_pa
   auto event = std::make_unique<ProgressToClinicalEvent>(this);
   event->set_clinical_caused_parasite(clinical_caused_parasite);
   event->set_time(Model::get_scheduler()->current_time() + duration);
+  event->set_source(ClinicalEventSource::Recurrence);
+
   schedule_basic_event(std::move(event));
 }
 

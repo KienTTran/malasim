@@ -10,6 +10,7 @@
 #include "ClinicalUpdateFunction.h"
 #include "Configuration/Config.h"
 #include "Core/Scheduler/Scheduler.h"
+#include "Debug/DebugMonthlyStats.h"
 #include "Events/BirthdayEvent.h"
 #include "Events/SwitchImmuneComponentEvent.h"
 #include "ImmuneSystem/ImmuneSystem.h"
@@ -233,6 +234,10 @@ void Population::perform_infection_event() {
     const double poisson_means = new_beta * foi;
     const int number_of_bites = Model::get_random()->random_poisson(poisson_means);
     if (number_of_bites <= 0) continue;
+    DEBUG_MONTHLY_STATS.record_foi(foi);
+    DEBUG_MONTHLY_STATS.record_new_beta(new_beta);
+    DEBUG_MONTHLY_STATS.record_poisson_mean(poisson_means);
+    DEBUG_MONTHLY_STATS.record_bites(number_of_bites);
 
     // Stats
     Model::get_mdc()->collect_number_of_bites(loc, number_of_bites);
@@ -266,45 +271,68 @@ void Population::perform_infection_event() {
 
     for (auto* person : persons_bitten_today) {
       assert(person->get_host_state() != Person::DEAD);
+
+      if (person->get_age() == 0) {
+        DEBUG_MONTHLY_STATS.record_bite_attempt_age0();
+      }
+
       if (!use_challenge) {
         person->increase_number_of_times_bitten();
       }
 
       const int genotype_id = Model::get_mosquito()->random_genotype(loc, tracking_index);
-      if (genotype_id < 0) continue; // extra safety
+      if (genotype_id < 0) continue;
 
-      // Draw once per bite
+      if (person->get_age() == 0) {
+        DEBUG_MONTHLY_STATS.record_infectious_bite_age0();
+      }
+
       const double draw = Model::get_random()->random_flat(0.0, 1.0);
 
       bool infected = false;
-      if (use_challenge) {
 
-        double pr = Model::get_config()->get_transmission_settings().get_transmission_parameter();
+      if (use_challenge) {
+        double pr = Model::get_config()
+                        ->get_transmission_settings()
+                        .get_transmission_parameter();
 
         double theta = person->get_immune_system()->get_current_value();
-        double pr_inf = pr * (1 - (theta - 0.2) / 0.6) + 0.1 * ((theta - 0.2) / 0.6);
+
+        double pr_inf =
+            pr * (1 - (theta - 0.2) / 0.6)
+            + 0.1 * ((theta - 0.2) / 0.6);
 
         if (theta > 0.8) pr_inf = 0.1;
         if (theta < 0.2) pr_inf = pr;
 
         infected = (draw < pr_inf);
+
       } else {
         if (Model::get_config()
                 ->get_epidemiological_parameters()
                 .get_using_variable_probability_infectious_bites_cause_infection()) {
           infected = (draw <= person->p_infection_from_an_infectious_bite());
-        } else {
-          infected = (draw <= Model::get_config()
-                               ->get_transmission_settings()
-                               .get_p_infection_from_an_infectious_bite());
-        }
+                } else {
+                  infected = (
+                      draw <= Model::get_config()
+                                  ->get_transmission_settings()
+                                  .get_p_infection_from_an_infectious_bite());
+                }
       }
 
       if (infected &&
           person->get_host_state() != Person::EXPOSED &&
           person->liver_parasite_type() == nullptr) {
+
         person->get_today_infections().push_back(genotype_id);
         today_infections.push_back(person);
+
+        DEBUG_MONTHLY_STATS.record_successful_infection();
+
+        if (person->get_age() == 0) {
+          DEBUG_MONTHLY_STATS.record_successful_infection_age0();
+        }
+
         if (use_challenge) {
           person->increase_number_of_times_bitten();
         }

@@ -13,7 +13,14 @@ class ClonalParasitePopulation;
 
 class Therapy;
 
+enum class ClinicalEventSource {
+  Unknown = 0,
+  NormalProgression = 1,
+  Recurrence = 2
+};
+
 class ProgressToClinicalEvent : public PersonEvent {
+
   // OBJECTPOOL(ProgressToClinicalEvent)
 public:
   // Disallow copy
@@ -48,6 +55,19 @@ public:
 private:
   ClonalParasitePopulation* clinical_caused_parasite_{nullptr};
   void do_execute() override;
+
+private:
+  ClinicalEventSource source_ = ClinicalEventSource::Unknown;
+
+public:
+  void set_source(ClinicalEventSource source) {
+    source_ = source;
+  }
+
+  ClinicalEventSource source() const {
+    return source_;
+  }
+
 };
 
 #endif /* PROGRESSTOCLINICALEVENT_H */

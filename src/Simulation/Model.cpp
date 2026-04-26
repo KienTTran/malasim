@@ -14,6 +14,7 @@
 #include "Treatment/LinearTCM.h"
 #include "Treatment/SteadyTCM.h"
 #include "Utils/Cli.h"
+#include "Debug/DebugMonthlyStats.h"
 
 bool Model::initialize() {
   config_ = std::make_unique<Config>();
@@ -124,6 +125,8 @@ bool Model::initialize() {
     spdlog::error("Failed to load configuration file: "
                   + utils::Cli::get_instance().get_input_path());
   }
+  DEBUG_MONTHLY_STATS.set_version("v6");
+  DEBUG_MONTHLY_STATS.reset_month(0);
   return is_initialized_;
 }
 
