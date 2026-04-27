@@ -5,6 +5,7 @@
 #include <spdlog/spdlog.h>
 
 #include <cfloat>
+#include <iostream>
 #include <memory>
 
 #include "ClinicalUpdateFunction.h"
@@ -47,8 +48,36 @@ Population::~Population() {
   }
 }
 
+static void write_debug_infectivity_grid_v6() {
+  std::ofstream out("debug_relative_infectivity_v6.csv", std::ios::trunc);
+
+  const double sigma =
+      Model::get_config()
+          ->get_epidemiological_parameters()
+          .get_relative_infectivity()
+          .get_sigma();
+
+  const double ro_star =
+      Model::get_config()
+          ->get_epidemiological_parameters()
+          .get_relative_infectivity()
+          .get_ro_star();
+
+  out << "version,sigma,ro_star,log10_density,relative_infectivity\n";
+
+  for (double d = -1.0; d <= 6.0; d += 0.5) {
+    out << "v6,"
+        << sigma << ","
+        << ro_star << ","
+        << d << ","
+        << Person::relative_infectivity(d)
+        << "\n";
+  }
+}
+
 void Population::initialize() {
   if (Model::get_instance() != nullptr) {
+    write_debug_infectivity_grid_v6();
     all_persons_->clear();
     // those vector will be used in the initial infection
     const auto number_of_locations = Model::get_config()->number_of_locations();
@@ -226,13 +255,31 @@ void Population::perform_infection_event() {
     const double foi = force_of_infection_for_n_days_by_location_[tracking_index][loc];
     if (foi <= DBL_EPSILON) continue;
 
-    const double new_beta =
-        Model::get_config()->location_db()[loc].beta *
+    const double beta = Model::get_config()->location_db()[loc].beta;
+
+    const double seasonal_factor =
         Model::get_config()->get_seasonality_settings().get_seasonal_factor(
             Model::get_scheduler()->get_calendar_date(), loc);
 
+        const double new_beta = beta * seasonal_factor;
+
     const double poisson_means = new_beta * foi;
     const int number_of_bites = Model::get_random()->random_poisson(poisson_means);
+
+    DEBUG_MONTHLY_STATS.record_bite_term(
+      Model::get_scheduler()->current_time(),
+      Model::get_scheduler()->current_time() / 30,
+      loc,
+      -1,
+      beta,
+      seasonal_factor,
+      new_beta,
+      foi,
+      poisson_means,
+      number_of_bites,
+      "v6 location-level total FOI"
+    );
+
     if (number_of_bites <= 0) continue;
     DEBUG_MONTHLY_STATS.record_foi(foi);
     DEBUG_MONTHLY_STATS.record_new_beta(new_beta);
@@ -267,12 +314,19 @@ void Population::perform_infection_event() {
     }
 
     const bool use_challenge =
-        Model::get_config()->get_transmission_settings().get_transmission_parameter() > 0.0;
+    Model::get_config()->get_transmission_settings().get_transmission_parameter() > 0.0;
 
     for (auto* person : persons_bitten_today) {
       assert(person->get_host_state() != Person::DEAD);
 
-      if (person->get_age() == 0) {
+      DEBUG_MONTHLY_STATS.record_bite_selected_person(
+          person->get_current_relative_biting_rate(),
+          person->get_age()
+      );
+
+      const bool is_age0 = person->get_age() == 0;
+
+      if (is_age0) {
         DEBUG_MONTHLY_STATS.record_bite_attempt_age0();
       }
 
@@ -281,55 +335,79 @@ void Population::perform_infection_event() {
       }
 
       const int genotype_id = Model::get_mosquito()->random_genotype(loc, tracking_index);
-      if (genotype_id < 0) continue;
 
-      if (person->get_age() == 0) {
+      if (genotype_id < 0) {
+        if (is_age0) {
+          DEBUG_MONTHLY_STATS.record_genotype_draw_failed_age0();
+        }
+        continue;
+      }
+
+      if (is_age0) {
         DEBUG_MONTHLY_STATS.record_infectious_bite_age0();
       }
 
       const double draw = Model::get_random()->random_flat(0.0, 1.0);
 
       bool infected = false;
+      double infection_probability = 0.0;
 
       if (use_challenge) {
-        double pr = Model::get_config()
-                        ->get_transmission_settings()
-                        .get_transmission_parameter();
+        const double pr =
+            Model::get_config()
+                ->get_transmission_settings()
+                .get_transmission_parameter();
 
-        double theta = person->get_immune_system()->get_current_value();
+        const double theta = person->get_immune_system()->get_current_value();
 
         double pr_inf =
             pr * (1 - (theta - 0.2) / 0.6)
             + 0.1 * ((theta - 0.2) / 0.6);
 
-        if (theta > 0.8) pr_inf = 0.1;
-        if (theta < 0.2) pr_inf = pr;
+        if (theta > 0.8) {
+          pr_inf = 0.1;
+        }
 
-        infected = (draw < pr_inf);
+        if (theta < 0.2) {
+          pr_inf = pr;
+        }
+
+        infection_probability = std::clamp(pr_inf, 0.0, 1.0);
+        infected = draw < infection_probability;
 
       } else {
         if (Model::get_config()
                 ->get_epidemiological_parameters()
                 .get_using_variable_probability_infectious_bites_cause_infection()) {
-          infected = (draw <= person->p_infection_from_an_infectious_bite());
-                } else {
-                  infected = (
-                      draw <= Model::get_config()
-                                  ->get_transmission_settings()
-                                  .get_p_infection_from_an_infectious_bite());
-                }
+          infection_probability = person->p_infection_from_an_infectious_bite();
+        } else {
+          infection_probability =
+              Model::get_config()
+                  ->get_transmission_settings()
+                  .get_p_infection_from_an_infectious_bite();
+        }
+
+        infection_probability = std::clamp(infection_probability, 0.0, 1.0);
+        infected = draw <= infection_probability;
+      }
+
+      if (is_age0) {
+        DEBUG_MONTHLY_STATS.record_relative_biting_rate_age0(
+            person->get_current_relative_biting_rate());
+
+        DEBUG_MONTHLY_STATS.record_infection_probability_age0(
+            infection_probability);
       }
 
       if (infected &&
           person->get_host_state() != Person::EXPOSED &&
           person->liver_parasite_type() == nullptr) {
-
         person->get_today_infections().push_back(genotype_id);
         today_infections.push_back(person);
 
         DEBUG_MONTHLY_STATS.record_successful_infection();
 
-        if (person->get_age() == 0) {
+        if (is_age0) {
           DEBUG_MONTHLY_STATS.record_successful_infection_age0();
         }
 
@@ -441,6 +519,21 @@ void Population::generate_individual(int location, int age_class) {
 
 void Population::introduce_initial_cases() {
   if (Model::get_instance() != nullptr) {
+
+    std::cout << "[DEBUG_INFECTIVITY_PARAMS] version=v6 "
+          << "sigma="
+          << Model::get_config()
+                 ->get_epidemiological_parameters()
+                 .get_relative_infectivity()
+                 .get_sigma()
+          << " ro_star="
+          << Model::get_config()
+                 ->get_epidemiological_parameters()
+                 .get_relative_infectivity()
+                 .get_ro_star()
+          << std::endl;
+
+
     for (const auto p_info :
          Model::get_config()->get_genotype_parameters().get_initial_parasite_info()) {
       auto num_of_infections = Model::get_random()->random_poisson(
@@ -811,11 +904,27 @@ void Population::update_current_foi() {
           double log_10_total_infectious_density =
               person->get_all_clonal_parasite_populations()->log10_total_infectious_density();
           const auto person_relative_biting_rate = person->get_current_relative_biting_rate();
-          auto individual_foi =
-              log_10_total_infectious_density == ClonalParasitePopulation::LOG_ZERO_PARASITE_DENSITY
-                  ? 0.0
-                  : person_relative_biting_rate
-                        * Person::relative_infectivity(log_10_total_infectious_density);
+          DEBUG_MONTHLY_STATS.record_bite_eligible_person(
+              person_relative_biting_rate,
+              person->get_age()
+          );
+          double rel_inf = 0.0;
+          double individual_foi = 0.0;
+
+          if (log_10_total_infectious_density != ClonalParasitePopulation::LOG_ZERO_PARASITE_DENSITY) {
+            rel_inf = Person::relative_infectivity(log_10_total_infectious_density);
+            individual_foi = person_relative_biting_rate * rel_inf;
+          }
+
+          if (individual_foi > 0.0) {
+            DEBUG_MONTHLY_STATS.record_foi_term_aggregate(
+                person_relative_biting_rate,
+                log_10_total_infectious_density,
+                rel_inf,
+                1.0,
+                individual_foi
+            );
+          }
 
           individual_foi_by_location_[location].push_back(individual_foi);
           individual_relative_biting_by_location_[location].push_back(person_relative_biting_rate);

@@ -38,7 +38,10 @@ public:
   bool get_enable_recrudescence() const { return enable_recrudescence_; }
   void set_enable_recrudescence(const bool value) { enable_recrudescence_ = value; }
 
-  void process_config() override { spdlog::info("Processing ModelSettings"); }
+  void process_config() override {
+    spdlog::info("Processing ModelSettings");
+    spdlog::info("Minimum days between clinical episodes: {}", minimum_days_for_counting_new_clinical_episode_);
+  }
 
 private:
   int days_between_stdout_output_ = 30;
@@ -46,6 +49,11 @@ private:
   bool record_genome_db_ = true;
   bool cell_level_reporting_ = true;
   bool enable_recrudescence_ = true;
+  int minimum_days_for_counting_new_clinical_episode_ = 0;
+
+public:
+  [[nodiscard]] int get_minimum_days_for_counting_new_clinical_episode() const { return minimum_days_for_counting_new_clinical_episode_; }
+  void set_minimum_days_for_counting_new_clinical_episode(int value) { minimum_days_for_counting_new_clinical_episode_ = value; }
 };
 
 template <>
@@ -57,6 +65,7 @@ struct YAML::convert<ModelSettings> {
     node["record_genome_db"] = rhs.get_record_genome_db();
     node["cell_level_reporting"] = rhs.get_cell_level_reporting();
     node["enable_recrudescence"] = rhs.get_enable_recrudescence();
+    node["minimum_days_for_counting_new_clinical_episode"] = rhs.get_minimum_days_for_counting_new_clinical_episode();
     return node;
   }
 
@@ -78,10 +87,11 @@ struct YAML::convert<ModelSettings> {
     rhs.set_initial_seed_number(node["initial_seed_number"].as<long>());
     rhs.set_record_genome_db(node["record_genome_db"].as<bool>());
     rhs.set_cell_level_reporting(node["cell_level_reporting"].as<bool>());
-
-    // enable_recrudescence is optional, defaults to true for backward compatibility
     if (node["enable_recrudescence"]) {
       rhs.set_enable_recrudescence(node["enable_recrudescence"].as<bool>());
+    }
+    if (node["minimum_days_for_counting_new_clinical_episode"]) {
+      rhs.set_minimum_days_for_counting_new_clinical_episode(node["minimum_days_for_counting_new_clinical_episode"].as<int>());
     }
 
     return true;

@@ -11,7 +11,6 @@
 #include "Utils/Index/PersonIndexAllHandler.h"
 #include "Utils/Index/PersonIndexByLocationMovingLevelHandler.h"
 #include "Utils/Index/PersonIndexByLocationStateAgeClassHandler.h"
-#include <cstdint>
 
 class SCTherapy;
 
@@ -303,7 +302,16 @@ public:
   void schedule_relapse_event(ClonalParasitePopulation *clinical_caused_parasite, const int &time_until_relapse);
 
   void schedule_end_clinical_by_no_treatment_event(ClonalParasitePopulation *clinical_caused_parasite);
+
+  [[nodiscard]] int get_last_counted_clinical_episode_time() const {
+    return last_counted_clinical_episode_time_;
+  }
+
+  void set_last_counted_clinical_episode_time(int last_counted_clinical_episode_time) {
+    last_counted_clinical_episode_time_ = last_counted_clinical_episode_time;
+  }
   std::uint64_t get_id() const { return person_id_; }
+
 private:
   int age_{-1};
   Population* population_{nullptr};
@@ -330,6 +338,7 @@ private:
   int latest_time_received_public_treatment_{-30};
   RecurrenceStatus recurrence_status_{RecurrenceStatus::NONE};
   EventManager<PersonEvent> event_manager_;
+  int last_counted_clinical_episode_time_{-1000000};
   static std::uint64_t next_person_id_;
   std::uint64_t person_id_ = 0;
 

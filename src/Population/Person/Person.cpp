@@ -402,7 +402,6 @@ void Person::determine_symptomatic_recrudescence(
   // const auto probability_develop_symptom =
   //     calculate_symptomatic_recrudescence_probability(pfpr, is_young_children);
 
-
   const auto probability_develop_symptom = get_probability_progress_to_clinical();
 
   // becase the current model does not have within host dynamics, so we
@@ -512,7 +511,28 @@ void Person::determine_clinical_or_not(ClonalParasitePopulation* clinical_caused
     if (prob <= p_clinical) {
       if (get_age() == 0) {
         DEBUG_MONTHLY_STATS.record_clinical_will_schedule_age0();
-        DEBUG_MONTHLY_STATS.record_clinical_scheduled_age0(p_clinical, immunity);
+        DEBUG_MONTHLY_STATS.record_clinical_scheduled_age0();
+      }
+
+      if (get_age() == 0) {
+        const int today = Model::get_scheduler()->current_time();
+        const int month = today / 30;
+
+        DEBUG_MONTHLY_STATS.record_age0_clinical_event(
+            month,
+            today,
+            get_id(),
+            get_age(),
+            get_location(),
+            "decision_schedule_normal",
+            "normal_progression",
+            static_cast<int>(get_host_state()),
+            static_cast<int>(all_clonal_parasite_populations_->size()),
+            get_last_counted_clinical_episode_time(),
+            p_clinical,
+            immunity,
+            p_clinical,
+            "determine_clinical_or_not: prob <= p_clinical, normal clinical event will be scheduled");
       }
 
       clinical_caused_parasite->set_update_function(Model::progress_to_clinical_update_function());
@@ -523,7 +543,6 @@ void Person::determine_clinical_or_not(ClonalParasitePopulation* clinical_caused
               .get_log_parasite_density_asymptomatic());
 
       schedule_progress_to_clinical_event(clinical_caused_parasite);
-
     } else {
       clinical_caused_parasite->set_update_function(Model::immunity_clearance_update_function());
     }
@@ -866,6 +885,28 @@ void Person::schedule_progress_to_clinical_event(ClonalParasitePopulation* paras
   event->set_clinical_caused_parasite(parasite);
   event->set_source(ClinicalEventSource::NormalProgression);
 
+  if (get_age() == 0) {
+    const int today = Model::get_scheduler()->current_time();
+    const int month = today / 30;
+    const int event_time = event->get_time();
+
+    DEBUG_MONTHLY_STATS.record_age0_clinical_event(
+        month,
+        today,
+        get_id(),
+        get_age(),
+        get_location(),
+        "schedule_normal",
+        "normal_progression",
+        static_cast<int>(get_host_state()),
+        static_cast<int>(all_clonal_parasite_populations_->size()),
+        get_last_counted_clinical_episode_time(),
+        -1.0,
+        get_immune_system()->get_current_value(),
+        -1.0,
+        "schedule_progress_to_clinical_event: scheduled for day " + std::to_string(event_time));
+  }
+
   schedule_basic_event(std::move(event));
 }
 
@@ -922,6 +963,27 @@ void Person::schedule_clinical_recurrence_event(ClonalParasitePopulation* parasi
   event->set_time(new_event_time);
   event->set_clinical_caused_parasite(parasite);
   event->set_source(ClinicalEventSource::Recurrence);
+
+  if (get_age() == 0) {
+    const int today = Model::get_scheduler()->current_time();
+    const int month = today / 30;
+
+    DEBUG_MONTHLY_STATS.record_age0_clinical_event(
+        month,
+        today,
+        get_id(),
+        get_age(),
+        get_location(),
+        "schedule_recurrence",
+        "recurrence",
+        static_cast<int>(get_host_state()),
+        static_cast<int>(all_clonal_parasite_populations_->size()),
+        get_last_counted_clinical_episode_time(),
+        -1.0,
+        get_immune_system()->get_current_value(),
+        -1.0,
+        "schedule_clinical_recurrence_event: scheduled for day " + std::to_string(new_event_time));
+  }
 
   schedule_basic_event(std::move(event));
 }
