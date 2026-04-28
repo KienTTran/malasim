@@ -1092,7 +1092,7 @@ void Person::schedule_relapse_event(ClonalParasitePopulation* clinical_caused_pa
   auto event = std::make_unique<ProgressToClinicalEvent>(this);
   event->set_clinical_caused_parasite(clinical_caused_parasite);
   event->set_time(Model::get_scheduler()->current_time() + duration);
-  event->set_source(ClinicalEventSource::Recurrence);
+  event->set_source(ClinicalEventSource::Relapse);
 
   schedule_basic_event(std::move(event));
 }

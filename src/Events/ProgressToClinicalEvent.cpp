@@ -216,6 +216,12 @@ void ProgressToClinicalEvent::transition_to_clinical_state(Person* person) {
         event_type = "count_recurrence";
         break;
 
+      case ClinicalEventSource::Relapse:
+        DEBUG_MONTHLY_STATS.record_clinical_count_age0_relapse(person->get_id());
+        source_text = "relapse";
+        event_type = "count_relapse";
+        break;
+
       case ClinicalEventSource::Unknown:
       default:
         DEBUG_MONTHLY_STATS.record_clinical_count_age0_unknown(person->get_id());

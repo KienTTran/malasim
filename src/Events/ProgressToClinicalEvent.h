@@ -16,7 +16,8 @@ class Therapy;
 enum class ClinicalEventSource {
   Unknown = 0,
   NormalProgression = 1,
-  Recurrence = 2
+  Recurrence = 2,
+  Relapse = 3,
 };
 
 class ProgressToClinicalEvent : public PersonEvent {
