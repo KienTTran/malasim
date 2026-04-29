@@ -193,38 +193,41 @@ void ProgressToClinicalEvent::transition_to_clinical_state(Person* person) {
 
   clinical_caused_parasite_->set_update_function(Model::get_instance()->clinical_update_function());
 
-  if (person->get_age() == 0) {
-    const int today = Model::get_scheduler()->current_time();
-    const int month = today / 30;
-    const int min_gap = Model::get_config()->get_model_settings().get_minimum_days_for_counting_new_clinical_episode();
-    const int last_time = person->get_last_counted_clinical_episode_time();
-    const int gap = today - last_time;
+  // Compute gap info ONCE — used by both debug recording and MDC gate
+  const int today = Model::get_scheduler()->current_time();
+  const int month = today / 30;
+  const int min_gap = Model::get_config()->get_model_settings().get_minimum_days_for_counting_new_clinical_episode();
+  const int last_time = person->get_last_counted_clinical_episode_time();
+  const int gap = today - last_time;
+  const bool will_be_rejected = (last_time > -100000) && (gap < min_gap);
 
+  // --- Age-0 debug recording ---
+  if (person->get_age() == 0) {
     std::string source_text = "unknown";
     std::string event_type = "count_unknown";
 
     switch (source_) {
       case ClinicalEventSource::NormalProgression:
-        DEBUG_MONTHLY_STATS.record_clinical_count_age0_normal(person->get_id());
+        DEBUG_MONTHLY_STATS.record_clinical_count_age0_normal(will_be_rejected);
         source_text = "normal_progression";
         event_type = "count_normal";
         break;
 
       case ClinicalEventSource::Recurrence:
-        DEBUG_MONTHLY_STATS.record_clinical_count_age0_recurrence(person->get_id());
+        DEBUG_MONTHLY_STATS.record_clinical_count_age0_recurrence(will_be_rejected);
         source_text = "recurrence";
         event_type = "count_recurrence";
         break;
 
       case ClinicalEventSource::Relapse:
-        DEBUG_MONTHLY_STATS.record_clinical_count_age0_relapse(person->get_id());
+        DEBUG_MONTHLY_STATS.record_clinical_count_age0_relapse(will_be_rejected);
         source_text = "relapse";
         event_type = "count_relapse";
         break;
 
       case ClinicalEventSource::Unknown:
       default:
-        DEBUG_MONTHLY_STATS.record_clinical_count_age0_unknown(person->get_id());
+        DEBUG_MONTHLY_STATS.record_clinical_count_age0_unknown(will_be_rejected);
         source_text = "unknown";
         event_type = "count_unknown";
         break;
@@ -246,14 +249,14 @@ void ProgressToClinicalEvent::transition_to_clinical_state(Person* person) {
         -1.0,
         "transition_to_clinical_state: event executed and person became CLINICAL");
 
-    if (last_time > -100000 && gap < min_gap) {
+    if (will_be_rejected) {
       DEBUG_MONTHLY_STATS.record_age0_clinical_event(
           month,
           today,
           person->get_id(),
           person->get_age(),
           person->get_location(),
-          "duplicate_" + event_type,
+          "rejected_" + event_type,
           source_text,
           static_cast<int>(person->get_host_state()),
           static_cast<int>(person->get_all_clonal_parasite_populations()->size()),
@@ -261,33 +264,12 @@ void ProgressToClinicalEvent::transition_to_clinical_state(Person* person) {
           -1.0,
           person->get_immune_system()->get_current_value(),
           -1.0,
-          "same age-0 person counted again within min_gap days");
+          "same age-0 person within min_gap days — rejected by min_gap filter");
     }
   }
 
-  // Statistic collect cumulative clinical episodes
-  // Model::get_mdc()->collect_1_clinical_episode(person->get_location(), person->get_age(),
-  //                                              person->get_age_class());
-  // if (last_time > -100000 && gap < min_gap) {
-  //     spdlog::warn(
-  //       "CLINICAL_COUNT_WITHIN_{}_DAYS person_id={} birthday={} today={} last_time={} gap={} age={} location={} age_class={}",
-  //       min_gap,
-  //       person->get_id(),
-  //       person->get_birthday(),
-  //       today,
-  //       last_time,
-  //       gap,
-  //       person->get_age(),
-  //       person->get_location(),
-  //       person->get_age_class()
-  //   );
-  // }
-  const int today = Model::get_scheduler()->current_time();
-  const int month = today / 30;
-  const int min_gap = Model::get_config()->get_model_settings().get_minimum_days_for_counting_new_clinical_episode();
-  const int last_time = person->get_last_counted_clinical_episode_time();
-  const int gap = today - last_time;
-  if (today - person->get_last_counted_clinical_episode_time() >= min_gap) {
+  // --- MDC official incidence count ---
+  if (!will_be_rejected) {
     if (person->get_age() == 0) {
       DEBUG_MONTHLY_STATS.record_clinical_count_age0_after_min_gap();
     }
