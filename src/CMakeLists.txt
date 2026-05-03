@@ -6,15 +6,6 @@ find_package(date CONFIG REQUIRED)
 find_package(CLI11 CONFIG REQUIRED)
 find_package(unofficial-sqlite3 CONFIG REQUIRED)
 
-option(ENABLE_TRAVEL_TRACKING "Enable tracking of individual travel data and generating travel reports" OFF)
-
-if(ENABLE_TRAVEL_TRACKING)
-  message(STATUS "Travel tracking feature is enabled")
-  # Add definitions or configurations specific to the travel tracking feature
-  # add_definitions(-DENABLE_TRAVEL_TRACKING)
-  target_compile_definitions(MalaSimCore PUBLIC ENABLE_TRAVEL_TRACKING)
-endif()
-
 # include_directories(
 #   ${PROJECT_SOURCE_DIR}/src
 # )
@@ -43,6 +34,21 @@ add_library(MalaSimCore STATIC
     ${MALASIM_CORE_SOURCES}
 )
 target_include_directories(MalaSimCore PUBLIC "${PROJECT_SOURCE_DIR}/src")
+
+option(ENABLE_TRAVEL_TRACKING "Enable tracking of individual travel data and generating travel reports" OFF)
+
+if(ENABLE_TRAVEL_TRACKING)
+  message(STATUS "Travel tracking feature is enabled")
+  # Add definitions or configurations specific to the travel tracking feature
+  # add_definitions(-DENABLE_TRAVEL_TRACKING)
+  target_compile_definitions(MalaSimCore PUBLIC ENABLE_TRAVEL_TRACKING)
+endif()
+
+option(ENABLE_FOLLOWUP_28D_DEBUG "Enable debug output for follow-up 28-day efficacy estimation" ON)
+if (ENABLE_FOLLOWUP_28D_DEBUG)
+  message(STATUS "Follow-up 28-day debug output is enabled")
+  target_compile_definitions(MalaSimCore PUBLIC ENABLE_FOLLOWUP_28D_DEBUG)
+endif()
 
 # Add coverage flags to MalaSimCore if enabled
 if(ENABLE_COVERAGE)

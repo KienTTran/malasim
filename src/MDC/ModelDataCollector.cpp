@@ -294,6 +294,40 @@ void ModelDataCollector::initialize() {
     monthly_number_of_people_seeking_treatment_by_location_age_index_ =
         IntVector2(Model::get_config()->number_of_locations(),
                    IntVector((ages_count>0)?ages_count:1, 0));
+
+    // Initialize 28-day follow-up counters
+    const int n_loc = Model::get_config()->number_of_locations();
+    const int n_ac = Model::get_config()->number_of_age_classes();
+
+    followup_clinical_episodes_28d_by_location_outcome_ =
+        LongVector2(n_loc, LongVector(FOLLOWUP_OUTCOMES, 0));
+    followup_clinical_episodes_28d_by_location_outcome_source_ =
+        LongVector3(n_loc, LongVector2(FOLLOWUP_OUTCOMES, LongVector(FOLLOWUP_SOURCES, 0)));
+    followup_clinical_episodes_28d_by_location_outcome_age_ =
+        LongVector3(n_loc, LongVector2(FOLLOWUP_OUTCOMES, LongVector(FOLLOWUP_AGE_BINS, 0)));
+    followup_clinical_episodes_28d_by_location_outcome_source_age_.assign(
+        FOLLOWUP_SOURCES,
+        LongVector3(n_loc, LongVector2(FOLLOWUP_OUTCOMES, LongVector(FOLLOWUP_AGE_BINS, 0))));
+    followup_clinical_episodes_28d_by_location_outcome_age_class_ =
+        LongVector3(n_loc, LongVector2(FOLLOWUP_OUTCOMES, LongVector(n_ac, 0)));
+    followup_clinical_episodes_28d_by_location_outcome_source_age_class_.assign(
+        FOLLOWUP_SOURCES,
+        LongVector3(n_loc, LongVector2(FOLLOWUP_OUTCOMES, LongVector(n_ac, 0))));
+
+    followup_treatments_28d_by_location_outcome_ =
+        LongVector2(n_loc, LongVector(FOLLOWUP_OUTCOMES, 0));
+    followup_treatments_28d_by_location_outcome_source_ =
+        LongVector3(n_loc, LongVector2(FOLLOWUP_OUTCOMES, LongVector(FOLLOWUP_SOURCES, 0)));
+    followup_treatments_28d_by_location_outcome_age_ =
+        LongVector3(n_loc, LongVector2(FOLLOWUP_OUTCOMES, LongVector(FOLLOWUP_AGE_BINS, 0)));
+    followup_treatments_28d_by_location_outcome_source_age_.assign(
+        FOLLOWUP_SOURCES,
+        LongVector3(n_loc, LongVector2(FOLLOWUP_OUTCOMES, LongVector(FOLLOWUP_AGE_BINS, 0))));
+    followup_treatments_28d_by_location_outcome_age_class_ =
+        LongVector3(n_loc, LongVector2(FOLLOWUP_OUTCOMES, LongVector(n_ac, 0)));
+    followup_treatments_28d_by_location_outcome_source_age_class_.assign(
+        FOLLOWUP_SOURCES,
+        LongVector3(n_loc, LongVector2(FOLLOWUP_OUTCOMES, LongVector(n_ac, 0))));
 }
 
 void ModelDataCollector::perform_population_statistic() {
@@ -1024,6 +1058,26 @@ void ModelDataCollector::monthly_update() {
       if (!monthly_number_of_people_seeking_treatment_by_location_age_index_.empty()) {
         zero_fill(monthly_number_of_people_seeking_treatment_by_location_age_index_[loc]);
       }
+
+      // Reset 28-day follow-up counters for this location
+      zero_fill(followup_clinical_episodes_28d_by_location_outcome_[loc]);
+      zero_fill(followup_treatments_28d_by_location_outcome_[loc]);
+      for (int outcome = 0; outcome < FOLLOWUP_OUTCOMES; outcome++) {
+        zero_fill(followup_clinical_episodes_28d_by_location_outcome_source_[loc][outcome]);
+        zero_fill(followup_clinical_episodes_28d_by_location_outcome_age_[loc][outcome]);
+        zero_fill(followup_clinical_episodes_28d_by_location_outcome_age_class_[loc][outcome]);
+        zero_fill(followup_treatments_28d_by_location_outcome_source_[loc][outcome]);
+        zero_fill(followup_treatments_28d_by_location_outcome_age_[loc][outcome]);
+        zero_fill(followup_treatments_28d_by_location_outcome_age_class_[loc][outcome]);
+      }
+      for (int src = 0; src < FOLLOWUP_SOURCES; src++) {
+        for (int outcome = 0; outcome < FOLLOWUP_OUTCOMES; outcome++) {
+          zero_fill(followup_clinical_episodes_28d_by_location_outcome_source_age_[src][loc][outcome]);
+          zero_fill(followup_clinical_episodes_28d_by_location_outcome_source_age_class_[src][loc][outcome]);
+          zero_fill(followup_treatments_28d_by_location_outcome_source_age_[src][loc][outcome]);
+          zero_fill(followup_treatments_28d_by_location_outcome_source_age_class_[src][loc][outcome]);
+        }
+      }
     }
   }
 }
@@ -1097,7 +1151,49 @@ void ModelDataCollector::record_1_person_seeking_treatment_by_location_age_index
   monthly_number_of_people_seeking_treatment_by_location_age_index_[location][idx] += 1;
 }
 
+void ModelDataCollector::record_followup_clinical_episode_28d(int location, int age, int age_class,
+                                                               FollowupEpisodeSource source,
+                                                               FirstTreatmentOutcome outcome) {
+  if (!recording_) return;
+  if (location < 0 || location >= Model::get_config()->number_of_locations()) return;
+  if (source == FollowupEpisodeSource::Unknown || source >= FollowupEpisodeSource::Count) {
+    spdlog::warn("record_followup_clinical_episode_28d: unknown source, ignoring");
+    return;
+  }
+  const int outcome_idx = static_cast<int>(outcome);
+  const int source_idx = static_cast<int>(source);
+  const int age_clamp = std::min(std::max(age, 0), FOLLOWUP_AGE_BINS - 1);
+  const int n_ac = Model::get_config()->number_of_age_classes();
+  const int ac_clamp = std::min(std::max(age_class, 0), n_ac - 1);
 
+  followup_clinical_episodes_28d_by_location_outcome_[location][outcome_idx]++;
+  followup_clinical_episodes_28d_by_location_outcome_source_[location][outcome_idx][source_idx]++;
+  followup_clinical_episodes_28d_by_location_outcome_age_[location][outcome_idx][age_clamp]++;
+  followup_clinical_episodes_28d_by_location_outcome_source_age_[source_idx][location][outcome_idx][age_clamp]++;
+  followup_clinical_episodes_28d_by_location_outcome_age_class_[location][outcome_idx][ac_clamp]++;
+  followup_clinical_episodes_28d_by_location_outcome_source_age_class_[source_idx][location][outcome_idx][ac_clamp]++;
+}
 
+void ModelDataCollector::record_followup_treatment_28d(int location, int age, int age_class,
+                                                        int therapy_id,
+                                                        FollowupEpisodeSource source,
+                                                        FirstTreatmentOutcome outcome) {
+  if (!recording_) return;
+  if (location < 0 || location >= Model::get_config()->number_of_locations()) return;
+  if (source == FollowupEpisodeSource::Unknown || source >= FollowupEpisodeSource::Count) {
+    spdlog::warn("record_followup_treatment_28d: unknown source, ignoring");
+    return;
+  }
+  const int outcome_idx = static_cast<int>(outcome);
+  const int source_idx = static_cast<int>(source);
+  const int age_clamp = std::min(std::max(age, 0), FOLLOWUP_AGE_BINS - 1);
+  const int n_ac = Model::get_config()->number_of_age_classes();
+  const int ac_clamp = std::min(std::max(age_class, 0), n_ac - 1);
 
-
+  followup_treatments_28d_by_location_outcome_[location][outcome_idx]++;
+  followup_treatments_28d_by_location_outcome_source_[location][outcome_idx][source_idx]++;
+  followup_treatments_28d_by_location_outcome_age_[location][outcome_idx][age_clamp]++;
+  followup_treatments_28d_by_location_outcome_source_age_[source_idx][location][outcome_idx][age_clamp]++;
+  followup_treatments_28d_by_location_outcome_age_class_[location][outcome_idx][ac_clamp]++;
+  followup_treatments_28d_by_location_outcome_source_age_class_[source_idx][location][outcome_idx][ac_clamp]++;
+}

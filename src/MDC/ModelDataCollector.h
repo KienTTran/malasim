@@ -9,6 +9,7 @@
 #define MODELDATACOLLECTOR_H
 
 #include "Utils/TypeDef.h"
+#include "Population/Person/FollowupEpisodeTypes.h"
 
 class Model;
 
@@ -1305,6 +1306,86 @@ public:
 
   // Record one person seeking treatment at a location for a given age-index (index into ages vector from config)
   void record_1_person_seeking_treatment_by_location_age_index(const int &location, const int &age_index);
+
+  // -------------------------------------------------------------------
+  // 28-day follow-up counters (split by outcome and source)
+  // Dimension: [location][outcome(0=success,1=failure)]
+  // or [location][outcome][source(0..4)]
+  // or [location][outcome][age(0..80)] / [location][outcome][source][age]
+  // or [location][outcome][age_class] / [location][outcome][source][age_class]
+  // -------------------------------------------------------------------
+private:
+  // Total 28-day follow-up clinical episodes by location and outcome
+  LongVector2 followup_clinical_episodes_28d_by_location_outcome_;
+  // By location, outcome, source
+  LongVector3 followup_clinical_episodes_28d_by_location_outcome_source_;
+  // By location, outcome, age (0..80)
+  LongVector3 followup_clinical_episodes_28d_by_location_outcome_age_;
+  // By location, outcome, source, age
+  std::vector<LongVector3> followup_clinical_episodes_28d_by_location_outcome_source_age_;
+  // By location, outcome, age_class
+  LongVector3 followup_clinical_episodes_28d_by_location_outcome_age_class_;
+  // By location, outcome, source, age_class
+  std::vector<LongVector3> followup_clinical_episodes_28d_by_location_outcome_source_age_class_;
+
+  // Treatment 28-day follow-up counters (same structure)
+  LongVector2 followup_treatments_28d_by_location_outcome_;
+  LongVector3 followup_treatments_28d_by_location_outcome_source_;
+  LongVector3 followup_treatments_28d_by_location_outcome_age_;
+  std::vector<LongVector3> followup_treatments_28d_by_location_outcome_source_age_;
+  LongVector3 followup_treatments_28d_by_location_outcome_age_class_;
+  std::vector<LongVector3> followup_treatments_28d_by_location_outcome_source_age_class_;
+
+public:
+  static constexpr int FOLLOWUP_AGE_BINS = 31;   // ages 0..30
+  static constexpr int FOLLOWUP_OUTCOMES = 2;    // 0=success, 1=failure
+  static constexpr int FOLLOWUP_SOURCES = 6;     // enum FollowupEpisodeSource::Count
+
+  [[nodiscard]] const LongVector2& followup_clinical_episodes_28d_by_location_outcome() const {
+    return followup_clinical_episodes_28d_by_location_outcome_;
+  }
+  [[nodiscard]] const LongVector3& followup_clinical_episodes_28d_by_location_outcome_source() const {
+    return followup_clinical_episodes_28d_by_location_outcome_source_;
+  }
+  [[nodiscard]] const LongVector3& followup_clinical_episodes_28d_by_location_outcome_age() const {
+    return followup_clinical_episodes_28d_by_location_outcome_age_;
+  }
+  [[nodiscard]] const std::vector<LongVector3>& followup_clinical_episodes_28d_by_location_outcome_source_age() const {
+    return followup_clinical_episodes_28d_by_location_outcome_source_age_;
+  }
+  [[nodiscard]] const LongVector3& followup_clinical_episodes_28d_by_location_outcome_age_class() const {
+    return followup_clinical_episodes_28d_by_location_outcome_age_class_;
+  }
+  [[nodiscard]] const std::vector<LongVector3>& followup_clinical_episodes_28d_by_location_outcome_source_age_class() const {
+    return followup_clinical_episodes_28d_by_location_outcome_source_age_class_;
+  }
+
+  [[nodiscard]] const LongVector2& followup_treatments_28d_by_location_outcome() const {
+    return followup_treatments_28d_by_location_outcome_;
+  }
+  [[nodiscard]] const LongVector3& followup_treatments_28d_by_location_outcome_source() const {
+    return followup_treatments_28d_by_location_outcome_source_;
+  }
+  [[nodiscard]] const LongVector3& followup_treatments_28d_by_location_outcome_age() const {
+    return followup_treatments_28d_by_location_outcome_age_;
+  }
+  [[nodiscard]] const std::vector<LongVector3>& followup_treatments_28d_by_location_outcome_source_age() const {
+    return followup_treatments_28d_by_location_outcome_source_age_;
+  }
+  [[nodiscard]] const LongVector3& followup_treatments_28d_by_location_outcome_age_class() const {
+    return followup_treatments_28d_by_location_outcome_age_class_;
+  }
+  [[nodiscard]] const std::vector<LongVector3>& followup_treatments_28d_by_location_outcome_source_age_class() const {
+    return followup_treatments_28d_by_location_outcome_source_age_class_;
+  }
+
+  void record_followup_clinical_episode_28d(int location, int age, int age_class,
+                                             FollowupEpisodeSource source,
+                                             FirstTreatmentOutcome outcome);
+
+  void record_followup_treatment_28d(int location, int age, int age_class, int therapy_id,
+                                      FollowupEpisodeSource source,
+                                      FirstTreatmentOutcome outcome);
 
 };
 

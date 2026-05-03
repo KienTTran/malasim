@@ -156,7 +156,7 @@ void SQLiteMonthlyReporter::calculate_and_build_up_site_data_insert_values(int m
     }
 
     single_row += fmt::format(
-        ", {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})",
+        ", {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}",
         monthly_site_data_by_level[level_id].treatments[unit_id], calculated_eir,
         calculated_pfpr_under5, calculated_pfpr2to10, calculated_pfpr_all,
         monthly_site_data_by_level[level_id].infections_by_unit[unit_id],
@@ -173,6 +173,38 @@ void SQLiteMonthlyReporter::calculate_and_build_up_site_data_insert_values(int m
         monthly_site_data_by_level[level_id].person_days_by_location_year[unit_id],
         monthly_site_data_by_level[level_id].current_foi_by_location[unit_id]);
 
+    // Append 28-day follow-up columns
+    const int n_outcomes = ModelDataCollector::FOLLOWUP_OUTCOMES;
+    const int n_sources = ModelDataCollector::FOLLOWUP_SOURCES;
+    for (int o = 0; o < n_outcomes; o++) {
+      single_row += fmt::format(", {}", monthly_site_data_by_level[level_id]
+                                            .followup_clinical_episodes_28d_total_by_outcome[unit_id][o]);
+      for (int s = 0; s < n_sources; s++) {
+        single_row += fmt::format(", {}", monthly_site_data_by_level[level_id]
+                                              .followup_clinical_episodes_28d_by_outcome_source[unit_id][o][s]);
+      }
+      // source_sum column (sum of 5 sources – redundant but kept for SQL debugging)
+      ul src_sum_ce = 0;
+      for (int s = 0; s < n_sources; s++) {
+        src_sum_ce += monthly_site_data_by_level[level_id]
+                          .followup_clinical_episodes_28d_by_outcome_source[unit_id][o][s];
+      }
+      single_row += fmt::format(", {}", src_sum_ce);
+
+      single_row += fmt::format(", {}", monthly_site_data_by_level[level_id]
+                                            .followup_treatments_28d_total_by_outcome[unit_id][o]);
+      for (int s = 0; s < n_sources; s++) {
+        single_row += fmt::format(", {}", monthly_site_data_by_level[level_id]
+                                              .followup_treatments_28d_by_outcome_source[unit_id][o][s]);
+      }
+      ul src_sum_tx = 0;
+      for (int s = 0; s < n_sources; s++) {
+        src_sum_tx += monthly_site_data_by_level[level_id]
+                          .followup_treatments_28d_by_outcome_source[unit_id][o][s];
+      }
+      single_row += fmt::format(", {}", src_sum_tx);
+    }
+    single_row += ")";
     insert_values.push_back(single_row);
   }
 }
@@ -349,6 +381,63 @@ void SQLiteMonthlyReporter::collect_site_data_for_location(int location_id, int 
           .number_of_people_seeking_treatment_by_location_age_index[unit_id][idx] += vec[idx];
     }
   }
+
+  // Aggregate 28-day follow-up counters
+  const int n_outcomes = ModelDataCollector::FOLLOWUP_OUTCOMES;
+  const int n_sources = ModelDataCollector::FOLLOWUP_SOURCES;
+  const int n_age_bins = ModelDataCollector::FOLLOWUP_AGE_BINS;
+  const auto &mdc_fu_ce = Model::get_mdc()->followup_clinical_episodes_28d_by_location_outcome();
+  const auto &mdc_fu_ce_src = Model::get_mdc()->followup_clinical_episodes_28d_by_location_outcome_source();
+  const auto &mdc_fu_ce_age = Model::get_mdc()->followup_clinical_episodes_28d_by_location_outcome_age();
+  const auto &mdc_fu_ce_src_age = Model::get_mdc()->followup_clinical_episodes_28d_by_location_outcome_source_age();
+  const auto &mdc_fu_ce_ac = Model::get_mdc()->followup_clinical_episodes_28d_by_location_outcome_age_class();
+  const auto &mdc_fu_ce_src_ac = Model::get_mdc()->followup_clinical_episodes_28d_by_location_outcome_source_age_class();
+
+  const auto &mdc_fu_tx = Model::get_mdc()->followup_treatments_28d_by_location_outcome();
+  const auto &mdc_fu_tx_src = Model::get_mdc()->followup_treatments_28d_by_location_outcome_source();
+  const auto &mdc_fu_tx_age = Model::get_mdc()->followup_treatments_28d_by_location_outcome_age();
+  const auto &mdc_fu_tx_src_age = Model::get_mdc()->followup_treatments_28d_by_location_outcome_source_age();
+  const auto &mdc_fu_tx_ac = Model::get_mdc()->followup_treatments_28d_by_location_outcome_age_class();
+  const auto &mdc_fu_tx_src_ac = Model::get_mdc()->followup_treatments_28d_by_location_outcome_source_age_class();
+
+  for (int o = 0; o < n_outcomes; o++) {
+    monthly_site_data_by_level[level_id].followup_clinical_episodes_28d_total_by_outcome[unit_id][o] +=
+        mdc_fu_ce[location_id][o];
+    monthly_site_data_by_level[level_id].followup_treatments_28d_total_by_outcome[unit_id][o] +=
+        mdc_fu_tx[location_id][o];
+    for (int s = 0; s < n_sources; s++) {
+      monthly_site_data_by_level[level_id].followup_clinical_episodes_28d_by_outcome_source[unit_id][o][s] +=
+          mdc_fu_ce_src[location_id][o][s];
+      monthly_site_data_by_level[level_id].followup_treatments_28d_by_outcome_source[unit_id][o][s] +=
+          mdc_fu_tx_src[location_id][o][s];
+    }
+    for (int a = 0; a < n_age_bins; a++) {
+      monthly_site_data_by_level[level_id].followup_clinical_episodes_28d_total_by_outcome_age[unit_id][o][a] +=
+          mdc_fu_ce_age[location_id][o][a];
+      monthly_site_data_by_level[level_id].followup_treatments_28d_total_by_outcome_age[unit_id][o][a] +=
+          mdc_fu_tx_age[location_id][o][a];
+    }
+    for (int ac2 = 0; ac2 < static_cast<int>(age_classes.size()); ac2++) {
+      monthly_site_data_by_level[level_id].followup_clinical_episodes_28d_total_by_outcome_age_class[unit_id][o][ac2] +=
+          mdc_fu_ce_ac[location_id][o][ac2];
+      monthly_site_data_by_level[level_id].followup_treatments_28d_total_by_outcome_age_class[unit_id][o][ac2] +=
+          mdc_fu_tx_ac[location_id][o][ac2];
+    }
+    for (int s = 0; s < n_sources; s++) {
+      for (int a = 0; a < n_age_bins; a++) {
+        monthly_site_data_by_level[level_id].followup_clinical_episodes_28d_by_outcome_source_age[unit_id][o][s][a] +=
+            mdc_fu_ce_src_age[s][location_id][o][a];
+        monthly_site_data_by_level[level_id].followup_treatments_28d_by_outcome_source_age[unit_id][o][s][a] +=
+            mdc_fu_tx_src_age[s][location_id][o][a];
+      }
+      for (int ac2 = 0; ac2 < static_cast<int>(age_classes.size()); ac2++) {
+        monthly_site_data_by_level[level_id].followup_clinical_episodes_28d_by_outcome_source_age_class[unit_id][o][s][ac2] +=
+            mdc_fu_ce_src_ac[s][location_id][o][ac2];
+        monthly_site_data_by_level[level_id].followup_treatments_28d_by_outcome_source_age_class[unit_id][o][s][ac2] +=
+            mdc_fu_tx_src_ac[s][location_id][o][ac2];
+      }
+    }
+  }
 }
 
 void SQLiteMonthlyReporter::collect_genome_data_for_location(size_t location_id, int level_id) {
@@ -419,6 +508,40 @@ void SQLiteMonthlyReporter::reset_site_data_structures(int level_id, int vector_
                                                                                      0);
   monthly_site_data_by_level[level_id].person_days_by_location_year.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].current_foi_by_location.assign(vector_size, 0);
+
+  // Reset 28-day follow-up fields
+  const int n_outcomes = ModelDataCollector::FOLLOWUP_OUTCOMES;
+  const int n_sources = ModelDataCollector::FOLLOWUP_SOURCES;
+  const int n_age_bins = ModelDataCollector::FOLLOWUP_AGE_BINS;
+
+  monthly_site_data_by_level[level_id].followup_clinical_episodes_28d_total_by_outcome.assign(
+      vector_size, std::vector<ul>(n_outcomes, 0));
+  monthly_site_data_by_level[level_id].followup_treatments_28d_total_by_outcome.assign(
+      vector_size, std::vector<ul>(n_outcomes, 0));
+  monthly_site_data_by_level[level_id].followup_clinical_episodes_28d_by_outcome_source.assign(
+      vector_size, std::vector<std::vector<ul>>(n_outcomes, std::vector<ul>(n_sources, 0)));
+  monthly_site_data_by_level[level_id].followup_treatments_28d_by_outcome_source.assign(
+      vector_size, std::vector<std::vector<ul>>(n_outcomes, std::vector<ul>(n_sources, 0)));
+  monthly_site_data_by_level[level_id].followup_clinical_episodes_28d_total_by_outcome_age.assign(
+      vector_size, std::vector<std::vector<ul>>(n_outcomes, std::vector<ul>(n_age_bins, 0)));
+  monthly_site_data_by_level[level_id].followup_treatments_28d_total_by_outcome_age.assign(
+      vector_size, std::vector<std::vector<ul>>(n_outcomes, std::vector<ul>(n_age_bins, 0)));
+  monthly_site_data_by_level[level_id].followup_clinical_episodes_28d_total_by_outcome_age_class.assign(
+      vector_size, std::vector<std::vector<ul>>(n_outcomes, std::vector<ul>(num_age_classes, 0)));
+  monthly_site_data_by_level[level_id].followup_treatments_28d_total_by_outcome_age_class.assign(
+      vector_size, std::vector<std::vector<ul>>(n_outcomes, std::vector<ul>(num_age_classes, 0)));
+  monthly_site_data_by_level[level_id].followup_clinical_episodes_28d_by_outcome_source_age.assign(
+      vector_size, std::vector<std::vector<std::vector<ul>>>(
+          n_outcomes, std::vector<std::vector<ul>>(n_sources, std::vector<ul>(n_age_bins, 0))));
+  monthly_site_data_by_level[level_id].followup_treatments_28d_by_outcome_source_age.assign(
+      vector_size, std::vector<std::vector<std::vector<ul>>>(
+          n_outcomes, std::vector<std::vector<ul>>(n_sources, std::vector<ul>(n_age_bins, 0))));
+  monthly_site_data_by_level[level_id].followup_clinical_episodes_28d_by_outcome_source_age_class.assign(
+      vector_size, std::vector<std::vector<std::vector<ul>>>(
+          n_outcomes, std::vector<std::vector<ul>>(n_sources, std::vector<ul>(num_age_classes, 0))));
+  monthly_site_data_by_level[level_id].followup_treatments_28d_by_outcome_source_age_class.assign(
+      vector_size, std::vector<std::vector<std::vector<ul>>>(
+          n_outcomes, std::vector<std::vector<ul>>(n_sources, std::vector<ul>(num_age_classes, 0))));
 }
 
 void SQLiteMonthlyReporter::reset_genome_data_structures(int level_id, int vector_size,

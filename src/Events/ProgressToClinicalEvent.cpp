@@ -23,6 +23,7 @@
 #include "Treatment/Strategies/IStrategy.h"
 #include "Treatment/Strategies/NestedMFTStrategy.h"
 #include "Utils/Random.h"
+#include "Utils/FollowupDebugLogger.h"
 
 // OBJECTPOOL_IMPL(ProgressToClinicalEvent)
 
@@ -195,6 +196,177 @@ void ProgressToClinicalEvent::transition_to_clinical_state(Person* person) {
   Model::get_mdc()->collect_1_clinical_episode(person->get_location(), person->get_age(),
                                                person->get_age_class());
 
+  // -----------------------------------------------------------------------
+  // 28-day follow-up: if the person is inside an active 28-day window, add
+  // a pending follow-up event.  The outcome (success/failure) will be known
+  // only later, so the event is stored and flushed when the outcome is known.
+  // -----------------------------------------------------------------------
+  const int current_day = Model::get_scheduler()->current_time();
+  const bool in_window = person->is_in_first_treatment_28_day_window(current_day);
+  const bool is_recrudescence_hint =
+      (followup_source_hint_ == FollowupEpisodeSourceHint::Recrudescence);
+
+  // -----------------------------------------------------------------------
+  // PRD 6.2: If this is a recrudescence event inside an active 28-day window,
+  // handle outcome forcing BEFORE classifying source.
+  // -----------------------------------------------------------------------
+  if (in_window && is_recrudescence_hint) {
+    const bool belongs = person->recrudescence_belongs_to_active_first_treatment_window(
+        clinical_caused_parasite_);
+    if (belongs) {
+      // True recrudescence of the active first-treatment parasite.
+      // If outcome is not yet known, force failure now so later flush
+      // records this pending event as failure (not success).
+      if (!person->first_treatment_followup_outcome_known()) {
+        person->mark_first_treatment_followup_outcome_known(FirstTreatmentOutcome::Failure);
+        person->flush_pending_followup_events_with_known_outcome_and_keep_window(
+            FirstTreatmentOutcome::Failure);
+#ifdef ENABLE_FOLLOWUP_28D_DEBUG
+        {
+          FollowupDebugLogger::Row r;
+          r.day = current_day;
+          r.person_id = reinterpret_cast<uintptr_t>(person);
+          r.location = person->get_location();
+          r.age = static_cast<int>(person->get_age());
+          r.host_state = static_cast<int>(person->get_host_state());
+          r.event_stage = "recrudescence_transition_forces_failure";
+          r.first_treatment_day = person->first_treatment_followup_day();
+          r.days_since_first_treatment = current_day - person->first_treatment_followup_day();
+          r.first_treatment_parasite_ptr = reinterpret_cast<uintptr_t>(person->first_treatment_followup_parasite());
+          r.clinical_caused_parasite_ptr = reinterpret_cast<uintptr_t>(clinical_caused_parasite_);
+          r.same_as_first_treatment_parasite = true;
+          r.first_treatment_therapy_id = person->first_treatment_followup_therapy_id();
+          r.source_hint = "Recrudescence";
+          r.in_28d_window = true;
+          r.active_window = true;
+          r.outcome_known = true;
+          r.outcome = "Failure";
+          r.recrudescence_hint_matches_active_window = true;
+          r.recrudescence_forces_failure = true;
+          FollowupDebugLogger::get().write(r);
+        }
+#endif
+      }
+    } else {
+      // Recrudescence hint but not the active first-treatment parasite.
+      // This event must not be classified as recrudescence for this window.
+      // classify_followup_episode_source will return ExistingHostParasite for this case.
+      // (Captured in debug CSV under event_stage = recrudescence_hint_mismatched_active_window)
+#ifdef ENABLE_FOLLOWUP_28D_DEBUG
+      {
+        FollowupDebugLogger::Row r;
+        r.day = current_day;
+        r.person_id = reinterpret_cast<uintptr_t>(person);
+        r.location = person->get_location();
+        r.age = static_cast<int>(person->get_age());
+        r.event_stage = "recrudescence_hint_mismatched_active_window";
+        r.first_treatment_day = person->first_treatment_followup_day();
+        r.days_since_first_treatment = current_day - person->first_treatment_followup_day();
+        r.first_treatment_parasite_ptr = reinterpret_cast<uintptr_t>(person->first_treatment_followup_parasite());
+        r.clinical_caused_parasite_ptr = reinterpret_cast<uintptr_t>(clinical_caused_parasite_);
+        r.same_as_first_treatment_parasite = false;
+        r.source_hint = "Recrudescence";
+        r.in_28d_window = true;
+        r.active_window = true;
+        r.outcome_known = person->first_treatment_followup_outcome_known();
+        r.recrudescence_hint_matches_active_window = false;
+        r.recrudescence_mismatch_action = "classify_as_existing_host";
+        FollowupDebugLogger::get().write(r);
+      }
+#endif
+    }
+  }
+
+  if (in_window) {
+    const auto source = person->classify_followup_episode_source(
+        clinical_caused_parasite_, followup_source_hint_);
+
+    if (person->first_treatment_followup_outcome_known()) {
+      // Outcome (failure) is already known from early recrudescence detection.
+      // Record clinical episode immediately; apply resolver so incompatible bucket is used if needed.
+      const auto outcome = person->first_treatment_followup_outcome();
+      const auto final_source = Person::remap_followup_source_for_outcome(
+          source, followup_source_hint_, outcome);
+      Model::get_mdc()->record_followup_clinical_episode_28d(
+          person->get_location(), static_cast<int>(person->get_age()),
+          person->get_age_class(), final_source, outcome);
+      // Sentinel pending event to record treatment later if treated.
+      Person::PendingFollowupClinicalEvent pending;
+      pending.event_day = current_day;
+      pending.location = person->get_location();
+      pending.age = static_cast<int>(person->get_age());
+      pending.age_class = person->get_age_class();
+      pending.classified_source_before_outcome_rule = source;
+      pending.source_hint = followup_source_hint_;
+      pending.received_treatment = false;
+      pending.clinical_already_recorded = true;
+      person->add_pending_followup_event(pending);
+
+#ifdef ENABLE_FOLLOWUP_28D_DEBUG
+      {
+        FollowupDebugLogger::Row r;
+        r.day = current_day;
+        r.person_id = reinterpret_cast<uintptr_t>(person);
+        r.location = person->get_location();
+        r.age = static_cast<int>(person->get_age());
+        r.host_state = static_cast<int>(person->get_host_state());
+        r.event_stage = "record_followup_immediate_known_outcome";
+        r.first_treatment_day = person->first_treatment_followup_day();
+        r.days_since_first_treatment = current_day - person->first_treatment_followup_day();
+        r.first_treatment_parasite_ptr = reinterpret_cast<uintptr_t>(person->first_treatment_followup_parasite());
+        r.clinical_caused_parasite_ptr = reinterpret_cast<uintptr_t>(clinical_caused_parasite_);
+        r.same_as_first_treatment_parasite = (clinical_caused_parasite_ == person->first_treatment_followup_parasite());
+        r.first_treatment_therapy_id = person->first_treatment_followup_therapy_id();
+        r.source_hint = source_hint_to_str(static_cast<int>(followup_source_hint_));
+        r.classified_source_before_outcome_rule = source_to_str(static_cast<int>(source));
+        r.final_recorded_source = source_to_str(static_cast<int>(final_source));
+        r.in_28d_window = true;
+        r.active_window = true;
+        r.outcome_known = true;
+        r.outcome = outcome_to_str(static_cast<int>(outcome));
+        r.pending_size_after = static_cast<int>(person->get_pending_followup_events().size());
+        FollowupDebugLogger::get().write(r);
+      }
+#endif
+    } else {
+      Person::PendingFollowupClinicalEvent pending;
+      pending.event_day = current_day;
+      pending.location = person->get_location();
+      pending.age = static_cast<int>(person->get_age());
+      pending.age_class = person->get_age_class();
+      pending.classified_source_before_outcome_rule = source;
+      pending.source_hint = followup_source_hint_;
+      pending.received_treatment = false;
+      person->add_pending_followup_event(pending);
+
+#ifdef ENABLE_FOLLOWUP_28D_DEBUG
+      {
+        FollowupDebugLogger::Row r;
+        r.day = current_day;
+        r.person_id = reinterpret_cast<uintptr_t>(person);
+        r.location = person->get_location();
+        r.age = static_cast<int>(person->get_age());
+        r.host_state = static_cast<int>(person->get_host_state());
+        r.event_stage = "add_pending_followup_clinical";
+        r.first_treatment_day = person->first_treatment_followup_day();
+        r.days_since_first_treatment = current_day - person->first_treatment_followup_day();
+        r.first_treatment_parasite_ptr = reinterpret_cast<uintptr_t>(person->first_treatment_followup_parasite());
+        r.clinical_caused_parasite_ptr = reinterpret_cast<uintptr_t>(clinical_caused_parasite_);
+        r.same_as_first_treatment_parasite = (clinical_caused_parasite_ == person->first_treatment_followup_parasite());
+        r.first_treatment_therapy_id = person->first_treatment_followup_therapy_id();
+        r.source_hint = source_hint_to_str(static_cast<int>(followup_source_hint_));
+        r.classified_source_before_outcome_rule = source_to_str(static_cast<int>(source));
+        r.final_recorded_source = "";
+        r.in_28d_window = true;
+        r.active_window = true;
+        r.outcome_known = false;
+        r.pending_size_after = static_cast<int>(person->get_pending_followup_events().size());
+        FollowupDebugLogger::get().write(r);
+      }
+#endif
+    }
+  }
+
   if (should_receive_treatment(person)) {
     // if ((Model::get_scheduler()->current_time()
     //      - person->get_latest_time_received_public_treatment())
@@ -227,6 +399,69 @@ void ProgressToClinicalEvent::transition_to_clinical_state(Person* person) {
         clinical_caused_parasite_,
         Model::get_config()->get_therapy_parameters().get_tf_testing_day(), therapy->get_id());
     apply_therapy(person, therapy, is_public_sector);
+
+    // -----------------------------------------------------------------------
+    // 28-day follow-up window management:
+    // • If this is the FIRST treated clinical episode, start the window.
+    // • If we are inside an existing window, update the last pending event to
+    //   indicate treatment was given (the pending event was added above before
+    //   the treatment decision).
+    // -----------------------------------------------------------------------
+    if (!in_window && !person->has_active_first_treatment_followup_window()) {
+      person->start_first_treatment_followup_window(current_day, clinical_caused_parasite_,
+                                                    therapy->get_id());
+    } else if (in_window) {
+      // Update the last pending follow-up event with treatment info
+      auto& pending_events_ref = person->get_pending_followup_events();
+      if (!pending_events_ref.empty()) {
+        auto& back = pending_events_ref.back();
+        back.received_treatment = true;
+        back.therapy_id = therapy->get_id();
+
+        // If outcome was already known, record treatment immediately instead of deferring.
+        if (person->first_treatment_followup_outcome_known()) {
+          const auto outcome = person->first_treatment_followup_outcome();
+          const auto final_source = Person::remap_followup_source_for_outcome(
+              back.classified_source_before_outcome_rule, back.source_hint, outcome);
+          Model::get_mdc()->record_followup_treatment_28d(
+              back.location, back.age, back.age_class, back.therapy_id,
+              final_source, outcome);
+#ifdef ENABLE_FOLLOWUP_28D_DEBUG
+          {
+            const int pending_size_before = static_cast<int>(pending_events_ref.size());
+            const int pending_size_after = pending_size_before - 1;
+            FollowupDebugLogger::Row r;
+            r.day = current_day;
+            r.person_id = reinterpret_cast<uintptr_t>(person);
+            r.location = person->get_location();
+            r.age = static_cast<int>(person->get_age());
+            r.host_state = static_cast<int>(person->get_host_state());
+            r.event_stage = "record_followup_treatment_28d_known_outcome";
+            r.first_treatment_day = person->first_treatment_followup_day();
+            r.days_since_first_treatment = current_day - person->first_treatment_followup_day();
+            r.first_treatment_parasite_ptr = reinterpret_cast<uintptr_t>(person->first_treatment_followup_parasite());
+            r.clinical_caused_parasite_ptr = reinterpret_cast<uintptr_t>(clinical_caused_parasite_);
+            r.same_as_first_treatment_parasite = (clinical_caused_parasite_ == person->first_treatment_followup_parasite());
+            r.first_treatment_therapy_id = person->first_treatment_followup_therapy_id();
+            r.source_hint = source_hint_to_str(static_cast<int>(back.source_hint));
+            r.classified_source_before_outcome_rule = source_to_str(static_cast<int>(back.classified_source_before_outcome_rule));
+            r.final_recorded_source = source_to_str(static_cast<int>(final_source));
+            r.in_28d_window = true;
+            r.active_window = true;
+            r.outcome_known = true;
+            r.outcome = outcome_to_str(static_cast<int>(outcome));
+            r.pending_size_before = pending_size_before;
+            r.pending_size_after = pending_size_after;
+            r.received_treatment = true;
+            r.note = "treatment";
+            FollowupDebugLogger::get().write(r);
+          }
+#endif
+          // Clear this sentinel entry so flush_and_reset does not double-count treatment.
+          pending_events_ref.pop_back();
+        }
+      }
+    }
   } else {
     // not recieve treatment
     // Model::get_mdc()->record_1_non_treated_case(person->get_location(), person->get_age(),

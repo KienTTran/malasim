@@ -9,6 +9,7 @@
 #include "Population/DrugsInBlood.h"
 #include "Population/ImmuneSystem/ImmuneSystem.h"
 #include "Population/Person/Person.h"
+#include "Population/Person/FollowupEpisodeTypes.h"
 #include "Population/SingleHostClonalParasitePopulations.h"
 #include "Treatment/Therapies/Drug.h"
 
@@ -48,14 +49,14 @@ void MoveParasiteToBloodEvent::do_execute() {
     if (person->get_all_clonal_parasite_populations()->size() > 1) {
       // spdlog::info("person->get_all_clonal_parasite_populations()->size() > 1");
       if (Model::get_config()->get_epidemiological_parameters().get_allow_new_coinfection_to_cause_symptoms()) {
-        person->determine_clinical_or_not(new_parasite);
+        person->determine_clinical_or_not(new_parasite, FollowupEpisodeSourceHint::NewMosquitoInfection);
       } else {
         new_parasite->set_update_function(
             Model::get_instance()->immunity_clearance_update_function());
       }
     } else {
       // spdlog::info("person->get_all_clonal_parasite_populations()->size() <= 1");
-      person->determine_clinical_or_not(new_parasite);
+      person->determine_clinical_or_not(new_parasite, FollowupEpisodeSourceHint::NewMosquitoInfection);
     }
   }
 

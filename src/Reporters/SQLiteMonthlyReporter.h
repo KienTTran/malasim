@@ -48,6 +48,23 @@ protected:
     std::vector<ul> current_foi_by_location;
     std::vector<std::vector<ul>> recrudescence_treatment_by_age_class;
     std::vector<std::vector<ul>> recrudescence_treatment_by_age;
+
+    // 28-day follow-up counters indexed by [unit][outcome] or [unit][outcome][source] etc.
+    // outcome: 0=success, 1=failure  source: 0..4
+    std::vector<std::vector<ul>> followup_clinical_episodes_28d_total_by_outcome;       // [unit][outcome]
+    std::vector<std::vector<ul>> followup_treatments_28d_total_by_outcome;              // [unit][outcome]
+    std::vector<std::vector<std::vector<ul>>> followup_clinical_episodes_28d_by_outcome_source; // [unit][outcome][source]
+    std::vector<std::vector<std::vector<ul>>> followup_treatments_28d_by_outcome_source;        // [unit][outcome][source]
+    std::vector<std::vector<std::vector<ul>>> followup_clinical_episodes_28d_total_by_outcome_age; // [unit][outcome][age]
+    std::vector<std::vector<std::vector<ul>>> followup_treatments_28d_total_by_outcome_age;        // [unit][outcome][age]
+    std::vector<std::vector<std::vector<ul>>> followup_clinical_episodes_28d_total_by_outcome_age_class; // [unit][outcome][age_class]
+    std::vector<std::vector<std::vector<ul>>> followup_treatments_28d_total_by_outcome_age_class;        // [unit][outcome][age_class]
+    // [unit][outcome][source][age]
+    std::vector<std::vector<std::vector<std::vector<ul>>>> followup_clinical_episodes_28d_by_outcome_source_age;
+    std::vector<std::vector<std::vector<std::vector<ul>>>> followup_treatments_28d_by_outcome_source_age;
+    // [unit][outcome][source][age_class]
+    std::vector<std::vector<std::vector<std::vector<ul>>>> followup_clinical_episodes_28d_by_outcome_source_age_class;
+    std::vector<std::vector<std::vector<std::vector<ul>>>> followup_treatments_28d_by_outcome_source_age_class;
   };
 
   struct MonthlyGenomeData {

@@ -37,7 +37,9 @@ private:
     const std::string& age_class_column_definitions,
     const std::string& age_class_columns,
     const std::string& age_column_definitions,
-    const std::string& age_columns
+    const std::string& age_columns,
+    const std::string& followup_column_definitions = "",
+    const std::string& followup_columns = ""
     );
   void populate_db_schema();
   void populate_genotype_table();

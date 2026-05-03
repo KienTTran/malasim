@@ -162,7 +162,9 @@ void SQLiteValidationReporter::create_reporting_tables_for_level(
     int level_id, const std::string &age_class_column_definitions,
     const std::string &age_class_columns,
     const std::string &age_column_definitions,
-    const std::string &age_columns) {
+    const std::string &age_columns,
+    const std::string &followup_column_definitions,
+    const std::string &followup_columns) {
   // Generate table names for this level
   std::string site_table_name = get_site_table_name(level_id);
   std::string genome_table_name = get_genome_table_name(level_id);

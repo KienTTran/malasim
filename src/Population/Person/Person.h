@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "Events/Event.h"
+#include "FollowupEpisodeTypes.h"
 #include "Population/SingleHostClonalParasitePopulations.h"
 #include "Utils/Index/PersonIndexAllHandler.h"
 #include "Utils/Index/PersonIndexByLocationMovingLevelHandler.h"
@@ -225,7 +226,8 @@ public:
 
   void determine_symptomatic_recrudescence(ClonalParasitePopulation* clinical_caused_parasite);
 
-  void determine_clinical_or_not(ClonalParasitePopulation* clinical_caused_parasite);
+  void determine_clinical_or_not(ClonalParasitePopulation* clinical_caused_parasite,
+                                  FollowupEpisodeSourceHint source_hint = FollowupEpisodeSourceHint::ExistingHostParasite);
 
   void update_current_state();
 
@@ -270,7 +272,9 @@ public:
   // Group 1: Clinical Event Scheduling
   // void schedule_clinical_event(ClonalParasitePopulation* parasite, int days_delay);
   void schedule_end_clinical_event(ClonalParasitePopulation* parasite);
-  void schedule_progress_to_clinical_event(ClonalParasitePopulation* parasite);
+  void schedule_progress_to_clinical_event(
+      ClonalParasitePopulation* parasite,
+      FollowupEpisodeSourceHint source_hint = FollowupEpisodeSourceHint::ExistingHostParasite);
   void schedule_clinical_recurrence_event(ClonalParasitePopulation* parasite);
   void schedule_test_treatment_failure_event(ClonalParasitePopulation* parasite, int testing_day,
                                              int therapy_id = 0);
@@ -303,6 +307,76 @@ public:
 
   void schedule_end_clinical_by_no_treatment_event(ClonalParasitePopulation *clinical_caused_parasite);
 
+  // ---------------------------------------------------------------
+  // 28-day follow-up tracking
+  // ---------------------------------------------------------------
+  struct PendingFollowupClinicalEvent {
+    int event_day{-1};
+    int location{-1};
+    int age{-1};
+    int age_class{-1};
+    int therapy_id{-1};
+    bool received_treatment{false};
+    bool clinical_already_recorded{false};  // true when recorded immediately (outcome-known path)
+    FollowupEpisodeSource classified_source_before_outcome_rule{FollowupEpisodeSource::Unknown};
+    FollowupEpisodeSourceHint source_hint{FollowupEpisodeSourceHint::Unknown};  // scheduling-time hint, for final remap
+  };
+
+  void start_first_treatment_followup_window(int day,
+                                             ClonalParasitePopulation* clinical_caused_parasite,
+                                             int therapy_id);
+  [[nodiscard]] bool has_active_first_treatment_followup_window() const;
+  [[nodiscard]] bool is_in_first_treatment_28_day_window(int day) const;
+  void add_pending_followup_event(const PendingFollowupClinicalEvent& event);
+  // Flush pending events and reset the window (used at normal TF-test day).
+  void flush_pending_followup_events_with_first_treatment_outcome_and_reset(
+      FirstTreatmentOutcome outcome);
+  // Mark outcome as known failure but keep window active (early recrudescence path).
+  void mark_first_treatment_followup_outcome_known(FirstTreatmentOutcome outcome);
+  // Flush pre-known-outcome pending events without resetting the window.
+  void flush_pending_followup_events_with_known_outcome_and_keep_window(
+      FirstTreatmentOutcome outcome);
+  [[nodiscard]] bool first_treatment_followup_outcome_known() const {
+    return first_treatment_followup_outcome_known_;
+  }
+  [[nodiscard]] FirstTreatmentOutcome first_treatment_followup_outcome() const {
+    return first_treatment_followup_outcome_;
+  }
+  void reset_first_treatment_followup_window();
+  void expire_first_treatment_followup_window_if_needed(int current_day);
+
+  std::vector<PendingFollowupClinicalEvent>& get_pending_followup_events() {
+    return pending_followup_events_;
+  }
+
+  [[nodiscard]] ClonalParasitePopulation* first_treatment_followup_parasite() const {
+    return first_treatment_followup_parasite_;
+  }
+  [[nodiscard]] int first_treatment_followup_therapy_id() const {
+    return first_treatment_followup_therapy_id_;
+  }
+
+  FollowupEpisodeSource classify_followup_episode_source(
+      ClonalParasitePopulation* clinical_caused_parasite,
+      FollowupEpisodeSourceHint source_hint) const;
+
+  // Remaps source at flush time if outcome/hint combination is incompatible
+  // (e.g. source_hint==Recrudescence but outcome==Success).
+  static FollowupEpisodeSource remap_followup_source_for_outcome(
+      FollowupEpisodeSource source,
+      FollowupEpisodeSourceHint source_hint,
+      FirstTreatmentOutcome outcome);
+
+  // Returns true if clinical_caused_parasite matches the parasite that opened
+  // the currently active first-treatment follow-up window (pointer equality).
+  [[nodiscard]] bool recrudescence_belongs_to_active_first_treatment_window(
+      ClonalParasitePopulation* clinical_caused_parasite) const;
+
+  // Expose first_treatment_followup_day_ for debug logging (always available).
+  [[nodiscard]] int first_treatment_followup_day() const {
+    return first_treatment_followup_day_;
+  }
+
 private:
   int age_{-1};
   Population* population_{nullptr};
@@ -329,6 +403,15 @@ private:
   int latest_time_received_public_treatment_{-30};
   RecurrenceStatus recurrence_status_{RecurrenceStatus::NONE};
   EventManager<PersonEvent> event_manager_;
+
+  // 28-day first-treatment follow-up window
+  int first_treatment_followup_day_{-1};
+  int first_treatment_followup_therapy_id_{-1};
+  bool first_treatment_followup_active_{false};
+  bool first_treatment_followup_outcome_known_{false};
+  FirstTreatmentOutcome first_treatment_followup_outcome_{FirstTreatmentOutcome::Success};
+  ClonalParasitePopulation* first_treatment_followup_parasite_{nullptr};
+  std::vector<PendingFollowupClinicalEvent> pending_followup_events_;
 
 #ifdef ENABLE_TRAVEL_TRACKING
   int day_that_last_trip_was_initiated_{-1};

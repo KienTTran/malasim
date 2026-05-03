@@ -5,6 +5,8 @@
 // #include "Core/ObjectPool.h"
 #include <string>
 
+#include "Population/Person/FollowupEpisodeTypes.h"
+
 class Person;
 
 class Scheduler;
@@ -35,6 +37,9 @@ public:
     clinical_caused_parasite_ = value;
   }
 
+  FollowupEpisodeSourceHint followup_source_hint() const { return followup_source_hint_; }
+  void set_followup_source_hint(FollowupEpisodeSourceHint hint) { followup_source_hint_ = hint; }
+
   static bool should_receive_treatment(Person* person);
 
   static void handle_no_treatment(Person* person);
@@ -47,6 +52,7 @@ public:
 
 private:
   ClonalParasitePopulation* clinical_caused_parasite_{nullptr};
+  FollowupEpisodeSourceHint followup_source_hint_{FollowupEpisodeSourceHint::Unknown};
   void do_execute() override;
 };
 

@@ -6,6 +6,7 @@
 #include "Simulation/Model.h"
 #include "Population/ClonalParasitePopulation.h"
 #include "Population/Person/Person.h"
+#include "Population/Person/FollowupEpisodeTypes.h"
 
 //OBJECTPOOL_IMPL(TestTreatmentFailureEvent)
 
@@ -24,8 +25,24 @@ void TestTreatmentFailureEvent::do_execute() {
              > Model::get_config()->get_parasite_parameters().get_parasite_density_levels().get_log_parasite_density_detectable()) {
     Model::get_mdc()->record_1_treatment_failure_by_therapy(
         person->get_location(), person->get_age_class(), therapy_id_);
+    // Flush pending 28-day follow-up events with failure outcome if this is
+    // the treatment that opened the follow-up window.
+    if (person->has_active_first_treatment_followup_window()
+        && clinical_caused_parasite_ == person->first_treatment_followup_parasite()
+        && therapy_id_ == person->first_treatment_followup_therapy_id()) {
+      person->flush_pending_followup_events_with_first_treatment_outcome_and_reset(
+          FirstTreatmentOutcome::Failure);
+    }
   } else {
     Model::get_mdc()->record_1_treatment_success_by_therapy(
         person->get_location(), person->get_age_class(), therapy_id_);
+    // Flush pending 28-day follow-up events with success outcome if this is
+    // the treatment that opened the follow-up window.
+    if (person->has_active_first_treatment_followup_window()
+        && clinical_caused_parasite_ == person->first_treatment_followup_parasite()
+        && therapy_id_ == person->first_treatment_followup_therapy_id()) {
+      person->flush_pending_followup_events_with_first_treatment_outcome_and_reset(
+          FirstTreatmentOutcome::Success);
+    }
   }
 }

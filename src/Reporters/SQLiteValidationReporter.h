@@ -67,7 +67,9 @@ private:
     const std::string& age_class_column_definitions,
     const std::string& age_class_columns,
     const std::string& age_column_definitions,
-    const std::string& age_columns
+    const std::string& age_columns,
+    const std::string& followup_column_definitions = "",
+    const std::string& followup_columns = ""
     ) override;
   std::string get_site_table_name(int level_id) const override;
   std::string get_genome_table_name(int level_id) const override;

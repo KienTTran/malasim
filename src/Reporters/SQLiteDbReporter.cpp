@@ -135,6 +135,40 @@ void SQLiteDbReporter::create_all_reporting_tables() {
     age_column_definitions += fmt::format("number_of_people_seeking_treatment_by_location_age_index_{} INTEGER, ", idx);
   }
 
+  // 28-day follow-up column definitions and column names
+  const int n_outcomes = ModelDataCollector::FOLLOWUP_OUTCOMES;
+  const int n_sources = ModelDataCollector::FOLLOWUP_SOURCES;
+  static constexpr std::array<const char*, 2> OUTCOME_PREFIXES = {"first_treatment_success", "first_treatment_failure"};
+  static constexpr std::array<const char*, 6> SOURCE_SUFFIXES = {
+      "recurrence_disabled_new_mosquito_infection",
+      "recurrence_disabled_existing_host_parasite",
+      "recurrence_enabled_new_mosquito_infection",
+      "recurrence_enabled_existing_host_parasite",
+      "recurrence_enabled_recrudescence",
+      "recurrence_enabled_recrudescence_hint_success_incompatible"};
+
+  std::string followup_column_definitions;
+  std::string followup_columns;
+  for (int o = 0; o < n_outcomes; o++) {
+    const auto& opfx = OUTCOME_PREFIXES[o];
+    followup_column_definitions += fmt::format("{}_clinical_episodes_28d_total BIGINT NOT NULL, ", opfx);
+    followup_columns += fmt::format("{}_clinical_episodes_28d_total, ", opfx);
+    for (int s = 0; s < n_sources; s++) {
+      followup_column_definitions += fmt::format("{}_clinical_episodes_28d_{} BIGINT NOT NULL, ", opfx, SOURCE_SUFFIXES[s]);
+      followup_columns += fmt::format("{}_clinical_episodes_28d_{}, ", opfx, SOURCE_SUFFIXES[s]);
+    }
+    followup_column_definitions += fmt::format("{}_clinical_episodes_28d_source_sum BIGINT NOT NULL, ", opfx);
+    followup_columns += fmt::format("{}_clinical_episodes_28d_source_sum, ", opfx);
+    followup_column_definitions += fmt::format("{}_treatments_28d_total BIGINT NOT NULL, ", opfx);
+    followup_columns += fmt::format("{}_treatments_28d_total, ", opfx);
+    for (int s = 0; s < n_sources; s++) {
+      followup_column_definitions += fmt::format("{}_treatments_28d_{} BIGINT NOT NULL, ", opfx, SOURCE_SUFFIXES[s]);
+      followup_columns += fmt::format("{}_treatments_28d_{}, ", opfx, SOURCE_SUFFIXES[s]);
+    }
+    followup_column_definitions += fmt::format("{}_treatments_28d_source_sum BIGINT NOT NULL, ", opfx);
+    followup_columns += fmt::format("{}_treatments_28d_source_sum, ", opfx);
+  }
+
   std::string age_columns;
   for (auto age = 0; age < 80; age++) {
     age_columns += fmt::format("clinical_episodes_by_age_{}, ", age);
@@ -167,7 +201,9 @@ void SQLiteDbReporter::create_all_reporting_tables() {
     create_reporting_tables_for_level(level_id,
       age_class_column_definitions, age_class_columns,
       age_column_definitions,
-      age_columns);
+      age_columns,
+      followup_column_definitions,
+      followup_columns);
   }
 }
 
@@ -175,7 +211,9 @@ void SQLiteDbReporter::create_reporting_tables_for_level(
     int level_id, const std::string &age_class_column_definitions,
     const std::string &age_class_columns,
     const std::string &age_column_definitions,
-    const std::string &age_columns) {
+    const std::string &age_columns,
+    const std::string &followup_column_definitions,
+    const std::string &followup_columns) {
   spdlog::info("SQLiteDbReporter Creating reporting tables for level");
   // Generate table names for this level
   std::string site_table_name = get_site_table_name(level_id);
@@ -213,6 +251,9 @@ void SQLiteDbReporter::create_reporting_tables_for_level(
           total_number_of_bites_by_location_year BIGINT NOT NULL,
           person_days_by_location_year BIGINT NOT NULL,
           current_foi_by_location BIGINT NOT NULL,
+          )"""", location_id_column)
+                                    + followup_column_definitions
+                                    + fmt::format(R""""(
           PRIMARY KEY (monthly_data_id, {}),
           FOREIGN KEY (monthly_data_id) REFERENCES monthly_data(id)
       );
@@ -261,7 +302,9 @@ void SQLiteDbReporter::create_reporting_tables_for_level(
       "total_number_of_bites_by_location, "
       "total_number_of_bites_by_location_year, "
       "person_days_by_location_year, "
-      "current_foi_by_location) VALUES";
+      "current_foi_by_location, "
+      + followup_columns.substr(0, followup_columns.size() > 2 ? followup_columns.size() - 2 : 0)
+      + ") VALUES";
 
     insert_genome_query_prefixes_[prefix_index] =
         fmt::format(R"""(
