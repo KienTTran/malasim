@@ -6,10 +6,13 @@
 #include <cstdint>
 #include <fstream>
 #include <string>
+#include "Configuration/Config.h"
+#include "Simulation/Model.h"
 
 // ----------------------------------------------------------------------------
 // Lightweight CSV debug logger for 28-day follow-up counter investigation.
 // Compile with -DENABLE_FOLLOWUP_28D_DEBUG to activate.
+// Also requires model_settings.enable_debug_followup_28d_report: true in config.
 // Output: debug_followup_28d_events.csv in the working directory.
 // ----------------------------------------------------------------------------
 class FollowupDebugLogger {
@@ -57,6 +60,10 @@ public:
   };
 
   void write(const Row& r) {
+    if (Model::get_config() == nullptr ||
+        !Model::get_config()->get_model_settings().get_enable_debug_followup_28d_report()) {
+      return;
+    }
     if (!file_.is_open()) open();
     file_ << r.day << "," << r.month << "," << r.person_id << "," << r.location << ","
           << r.age << "," << r.host_state << ","

@@ -24,6 +24,7 @@ model_settings:
   # Enable symptomatic recrudescence after treatment
   # When enabled, parasites above threshold can cause symptomatic recurrence
   enable_recrudescence: true
+  enable_debug_followup_28d_report: false
 
 # ---------------------------------------------------------------
 # 2. Simulation Timeframe
