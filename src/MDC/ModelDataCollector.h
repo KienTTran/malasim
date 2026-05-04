@@ -1387,6 +1387,41 @@ public:
                                       FollowupEpisodeSource source,
                                       FirstTreatmentOutcome outcome);
 
+  // ---------------------------------------------------------------
+  // v9: Late recrudescence / new presentation counters
+  // ---------------------------------------------------------------
+private:
+  LongVector late_recrudescence_by_location_;
+  LongVector2 late_recrudescence_by_location_age_;
+  LongVector2 late_recrudescence_by_location_age_class_;
+
+  LongVector new_presentation_by_location_;
+  LongVector2 new_presentation_by_location_age_;
+  LongVector2 new_presentation_by_location_age_class_;
+
+public:
+  [[nodiscard]] const LongVector& late_recrudescence_by_location() const {
+    return late_recrudescence_by_location_;
+  }
+  [[nodiscard]] const LongVector& new_presentation_by_location() const {
+    return new_presentation_by_location_;
+  }
+  [[nodiscard]] const LongVector2& late_recrudescence_by_location_age() const {
+    return late_recrudescence_by_location_age_;
+  }
+  [[nodiscard]] const LongVector2& new_presentation_by_location_age() const {
+    return new_presentation_by_location_age_;
+  }
+  [[nodiscard]] const LongVector2& late_recrudescence_by_location_age_class() const {
+    return late_recrudescence_by_location_age_class_;
+  }
+  [[nodiscard]] const LongVector2& new_presentation_by_location_age_class() const {
+    return new_presentation_by_location_age_class_;
+  }
+
+  void record_1_late_recrudescence(int location, int age, int age_class);
+  void record_1_new_presentation(int location, int age, int age_class);
+
 };
 
 #endif /* MODELDATACOLLECTOR_H */

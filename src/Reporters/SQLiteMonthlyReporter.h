@@ -65,6 +65,10 @@ protected:
     // [unit][outcome][source][age_class]
     std::vector<std::vector<std::vector<std::vector<ul>>>> followup_clinical_episodes_28d_by_outcome_source_age_class;
     std::vector<std::vector<std::vector<std::vector<ul>>>> followup_treatments_28d_by_outcome_source_age_class;
+
+    // v9: late recrudescence / new presentation
+    std::vector<ul> late_recrudescence_outside_28d;   // [unit]
+    std::vector<ul> new_presentation_outside_28d;     // [unit]
   };
 
   struct MonthlyGenomeData {

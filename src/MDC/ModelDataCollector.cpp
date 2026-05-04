@@ -328,6 +328,14 @@ void ModelDataCollector::initialize() {
     followup_treatments_28d_by_location_outcome_source_age_class_.assign(
         FOLLOWUP_SOURCES,
         LongVector3(n_loc, LongVector2(FOLLOWUP_OUTCOMES, LongVector(n_ac, 0))));
+
+    // v9: Late recrudescence / new presentation counters
+    late_recrudescence_by_location_.assign(n_loc, 0);
+    late_recrudescence_by_location_age_.assign(n_loc, LongVector(FOLLOWUP_AGE_BINS, 0));
+    late_recrudescence_by_location_age_class_.assign(n_loc, LongVector(n_ac, 0));
+    new_presentation_by_location_.assign(n_loc, 0);
+    new_presentation_by_location_age_.assign(n_loc, LongVector(FOLLOWUP_AGE_BINS, 0));
+    new_presentation_by_location_age_class_.assign(n_loc, LongVector(n_ac, 0));
 }
 
 void ModelDataCollector::perform_population_statistic() {
@@ -1078,6 +1086,13 @@ void ModelDataCollector::monthly_update() {
           zero_fill(followup_treatments_28d_by_location_outcome_source_age_class_[src][loc][outcome]);
         }
       }
+      // v9: reset late recrudescence / new presentation counters
+      late_recrudescence_by_location_[loc] = 0;
+      zero_fill(late_recrudescence_by_location_age_[loc]);
+      zero_fill(late_recrudescence_by_location_age_class_[loc]);
+      new_presentation_by_location_[loc] = 0;
+      zero_fill(new_presentation_by_location_age_[loc]);
+      zero_fill(new_presentation_by_location_age_class_[loc]);
     }
   }
 }
@@ -1197,3 +1212,26 @@ void ModelDataCollector::record_followup_treatment_28d(int location, int age, in
   followup_treatments_28d_by_location_outcome_age_class_[location][outcome_idx][ac_clamp]++;
   followup_treatments_28d_by_location_outcome_source_age_class_[source_idx][location][outcome_idx][ac_clamp]++;
 }
+
+void ModelDataCollector::record_1_late_recrudescence(int location, int age, int age_class) {
+  if (!recording_) return;
+  if (location < 0 || location >= Model::get_config()->number_of_locations()) return;
+  const int age_clamp = std::min(std::max(age, 0), FOLLOWUP_AGE_BINS - 1);
+  const int n_ac = Model::get_config()->number_of_age_classes();
+  const int ac_clamp = std::min(std::max(age_class, 0), n_ac - 1);
+  late_recrudescence_by_location_[location]++;
+  late_recrudescence_by_location_age_[location][age_clamp]++;
+  late_recrudescence_by_location_age_class_[location][ac_clamp]++;
+}
+
+void ModelDataCollector::record_1_new_presentation(int location, int age, int age_class) {
+  if (!recording_) return;
+  if (location < 0 || location >= Model::get_config()->number_of_locations()) return;
+  const int age_clamp = std::min(std::max(age, 0), FOLLOWUP_AGE_BINS - 1);
+  const int n_ac = Model::get_config()->number_of_age_classes();
+  const int ac_clamp = std::min(std::max(age_class, 0), n_ac - 1);
+  new_presentation_by_location_[location]++;
+  new_presentation_by_location_age_[location][age_clamp]++;
+  new_presentation_by_location_age_class_[location][ac_clamp]++;
+}
+

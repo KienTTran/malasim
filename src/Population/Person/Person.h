@@ -4,6 +4,7 @@
 #include <Core/Scheduler/EventManager.h>
 
 #include <memory>
+#include <unordered_set>
 #include <vector>
 
 #include "Events/Event.h"
@@ -377,6 +378,14 @@ public:
     return first_treatment_followup_day_;
   }
 
+  // ---------------------------------------------------------------
+  // v9: Late recrudescence tracking
+  // ---------------------------------------------------------------
+  void register_treated_parasite(ClonalParasitePopulation* parasite);
+  [[nodiscard]] bool was_parasite_previously_treated(ClonalParasitePopulation* parasite) const;
+  void unregister_treated_parasite(ClonalParasitePopulation* parasite);
+  void clear_treated_parasite_tracking();
+
 private:
   int age_{-1};
   Population* population_{nullptr};
@@ -412,6 +421,9 @@ private:
   FirstTreatmentOutcome first_treatment_followup_outcome_{FirstTreatmentOutcome::Success};
   ClonalParasitePopulation* first_treatment_followup_parasite_{nullptr};
   std::vector<PendingFollowupClinicalEvent> pending_followup_events_;
+
+  // v9: previously-treated parasite tracking
+  std::unordered_set<ClonalParasitePopulation*> previously_treated_parasites_;
 
 #ifdef ENABLE_TRAVEL_TRACKING
   int day_that_last_trip_was_initiated_{-1};

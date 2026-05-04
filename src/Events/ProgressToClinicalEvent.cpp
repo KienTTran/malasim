@@ -197,12 +197,26 @@ void ProgressToClinicalEvent::transition_to_clinical_state(Person* person) {
                                                person->get_age_class());
 
   // -----------------------------------------------------------------------
-  // 28-day follow-up: if the person is inside an active 28-day window, add
-  // a pending follow-up event.  The outcome (success/failure) will be known
-  // only later, so the event is stored and flushed when the outcome is known.
+  // v9: Late recrudescence tracking
+  // Classify episodes outside the 28d window as new_presentation or late_recrudescence.
   // -----------------------------------------------------------------------
   const int current_day = Model::get_scheduler()->current_time();
   const bool in_window = person->is_in_first_treatment_28_day_window(current_day);
+
+  if (!in_window) {
+    if (person->was_parasite_previously_treated(clinical_caused_parasite_)) {
+      Model::get_mdc()->record_1_late_recrudescence(
+          person->get_location(),
+          static_cast<int>(person->get_age()),
+          person->get_age_class());
+    } else {
+      Model::get_mdc()->record_1_new_presentation(
+          person->get_location(),
+          static_cast<int>(person->get_age()),
+          person->get_age_class());
+    }
+  }
+
   const bool is_recrudescence_hint =
       (followup_source_hint_ == FollowupEpisodeSourceHint::Recrudescence);
 

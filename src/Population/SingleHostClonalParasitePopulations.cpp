@@ -58,6 +58,11 @@ void SingleHostClonalParasitePopulations::remove(size_t index) {
         "Incorrect index when remove parasite from SingleHostClonalParasitePopulations");
   }
 
+  // v9: unregister from treated-parasite tracking before removal
+  if (person_ != nullptr) {
+    person_->unregister_treated_parasite(bp);
+  }
+
   parasites_.back()->set_index(index);
   parasites_[index] = std::move(parasites_.back());
   parasites_.pop_back();

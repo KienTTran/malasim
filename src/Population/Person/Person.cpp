@@ -85,6 +85,8 @@ void Person::set_host_state(const HostStates &value) {
       // TODO: remove all events
       Model::get_mdc()->record_1_death(location_, birthday_, number_of_times_bitten_, age_class_,
                                        static_cast<int>(age_));
+      // v9: clear treated parasite tracking
+      clear_treated_parasite_tracking();
     }
 
     host_state_ = value;
@@ -280,6 +282,8 @@ void Person::receive_therapy(Therapy* therapy, ClonalParasitePopulation* clinica
   if (is_public_sector) {
     latest_time_received_public_treatment_ = Model::get_scheduler()->current_time();
   }
+  // v9: register the clinical parasite as treated
+  register_treated_parasite(clinical_caused_parasite);
 }
 
 void Person::receive_therapy(SCTherapy* sc_therapy, bool is_mac_therapy) {
@@ -1347,3 +1351,25 @@ bool Person::recrudescence_belongs_to_active_first_treatment_window(
       && clinical_caused_parasite != nullptr
       && clinical_caused_parasite == first_treatment_followup_parasite_;
 }
+
+// ---------------------------------------------------------------
+// v9: Late recrudescence tracking
+// ---------------------------------------------------------------
+void Person::register_treated_parasite(ClonalParasitePopulation* parasite) {
+  if (parasite != nullptr) {
+    previously_treated_parasites_.insert(parasite);
+  }
+}
+
+bool Person::was_parasite_previously_treated(ClonalParasitePopulation* parasite) const {
+  return parasite != nullptr && previously_treated_parasites_.count(parasite) > 0;
+}
+
+void Person::unregister_treated_parasite(ClonalParasitePopulation* parasite) {
+  previously_treated_parasites_.erase(parasite);
+}
+
+void Person::clear_treated_parasite_tracking() {
+  previously_treated_parasites_.clear();
+}
+

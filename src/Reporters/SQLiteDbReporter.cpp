@@ -169,6 +169,14 @@ void SQLiteDbReporter::create_all_reporting_tables() {
     followup_columns += fmt::format("{}_treatments_28d_source_sum, ", opfx);
   }
 
+  // v9: Late recrudescence / new presentation columns
+  std::string late_recrud_column_definitions =
+      "late_recrudescence_outside_28d BIGINT NOT NULL, "
+      "new_presentation_outside_28d BIGINT NOT NULL, ";
+  std::string late_recrud_columns =
+      "late_recrudescence_outside_28d, "
+      "new_presentation_outside_28d, ";
+
   std::string age_columns;
   for (auto age = 0; age < 80; age++) {
     age_columns += fmt::format("clinical_episodes_by_age_{}, ", age);
@@ -197,13 +205,16 @@ void SQLiteDbReporter::create_all_reporting_tables() {
   // insert_genome_query_prefixes_.resize(number_of_levels);
 
   // Now create tables for each admin level including cell level
+  // Combine followup + v9 late recrud column definitions
+  const std::string combined_followup_col_defs = followup_column_definitions + late_recrud_column_definitions;
+  const std::string combined_followup_cols = followup_columns + late_recrud_columns;
   for (size_t level_id = 0; level_id < admin_levels.size() + 1; level_id++) {
     create_reporting_tables_for_level(level_id,
       age_class_column_definitions, age_class_columns,
       age_column_definitions,
       age_columns,
-      followup_column_definitions,
-      followup_columns);
+      combined_followup_col_defs,
+      combined_followup_cols);
   }
 }
 

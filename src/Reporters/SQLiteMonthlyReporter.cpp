@@ -204,6 +204,10 @@ void SQLiteMonthlyReporter::calculate_and_build_up_site_data_insert_values(int m
       }
       single_row += fmt::format(", {}", src_sum_tx);
     }
+    // v9: late recrudescence / new presentation
+    single_row += fmt::format(", {}, {}",
+        monthly_site_data_by_level[level_id].late_recrudescence_outside_28d[unit_id],
+        monthly_site_data_by_level[level_id].new_presentation_outside_28d[unit_id]);
     single_row += ")";
     insert_values.push_back(single_row);
   }
@@ -438,6 +442,12 @@ void SQLiteMonthlyReporter::collect_site_data_for_location(int location_id, int 
       }
     }
   }
+
+  // v9: aggregate late recrudescence / new presentation
+  monthly_site_data_by_level[level_id].late_recrudescence_outside_28d[unit_id] +=
+      Model::get_mdc()->late_recrudescence_by_location()[location_id];
+  monthly_site_data_by_level[level_id].new_presentation_outside_28d[unit_id] +=
+      Model::get_mdc()->new_presentation_by_location()[location_id];
 }
 
 void SQLiteMonthlyReporter::collect_genome_data_for_location(size_t location_id, int level_id) {
@@ -542,6 +552,10 @@ void SQLiteMonthlyReporter::reset_site_data_structures(int level_id, int vector_
   monthly_site_data_by_level[level_id].followup_treatments_28d_by_outcome_source_age_class.assign(
       vector_size, std::vector<std::vector<std::vector<ul>>>(
           n_outcomes, std::vector<std::vector<ul>>(n_sources, std::vector<ul>(num_age_classes, 0))));
+
+  // v9: reset late recrudescence / new presentation
+  monthly_site_data_by_level[level_id].late_recrudescence_outside_28d.assign(vector_size, 0);
+  monthly_site_data_by_level[level_id].new_presentation_outside_28d.assign(vector_size, 0);
 }
 
 void SQLiteMonthlyReporter::reset_genome_data_structures(int level_id, int vector_size,
