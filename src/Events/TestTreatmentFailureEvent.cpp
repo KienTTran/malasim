@@ -16,16 +16,29 @@ void TestTreatmentFailureEvent::do_execute() {
     throw std::runtime_error("Person is nullptr");
   }
 
-  // If the parasite is still present at a detectable level, then it's a
-  // treatment failure
-  if (person->get_all_clonal_parasite_populations()->contain(
-          clinical_caused_parasite())
-      && clinical_caused_parasite_->last_update_log10_parasite_density()
-             > Model::get_config()->get_parasite_parameters().get_parasite_density_levels().get_log_parasite_density_detectable()) {
+  const bool parasite_present =
+      clinical_caused_parasite_ != nullptr &&
+      person->get_all_clonal_parasite_populations()->contain(clinical_caused_parasite_);
+
+  const double detectable_threshold =
+      Model::get_config()
+          ->get_parasite_parameters()
+          .get_parasite_density_levels()
+          .get_log_parasite_density_detectable();
+
+  const bool parasite_detectable =
+      parasite_present &&
+      clinical_caused_parasite_->last_update_log10_parasite_density() > detectable_threshold;
+
+  if (parasite_detectable) {
     Model::get_mdc()->record_1_treatment_failure_by_therapy(
-        person->get_location(), person->get_age_class(), therapy_id_);
+        person->get_location(),
+        person->get_age_class(),
+        therapy_id_);
   } else {
     Model::get_mdc()->record_1_treatment_success_by_therapy(
-        person->get_location(), person->get_age_class(), therapy_id_);
+        person->get_location(),
+        person->get_age_class(),
+        therapy_id_);
   }
 }

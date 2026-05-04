@@ -389,15 +389,15 @@ void Person::determine_symptomatic_recrudescence(
     ClonalParasitePopulation* clinical_caused_parasite) {
   // there are 2 methods to calculate the probability to develop symptom
   // One from the papaer, another from the immune system in the simulation.
-  //
-  // const auto pfpr = Model::get_mdc()->blood_slide_prevalence_by_location()[location_] * 100;
-  //
-  // const auto is_young_children = get_age() <= 6;
-  //
-  // const auto probability_develop_symptom =
-  //     calculate_symptomatic_recrudescence_probability(pfpr, is_young_children);
 
-  const auto probability_develop_symptom = get_probability_progress_to_clinical();
+  const auto pfpr = Model::get_mdc()->blood_slide_prevalence_by_location()[location_] * 100;
+
+  const auto is_young_children = get_age() <= 6;
+
+  const auto probability_develop_symptom =
+      calculate_symptomatic_recrudescence_probability(pfpr, is_young_children);
+
+  // const auto probability_develop_symptom = get_probability_progress_to_clinical();
 
   // becase the current model does not have within host dynamics, so we
   // assume that the threshold for the parasite density to re-appear in
@@ -426,24 +426,19 @@ void Person::determine_symptomatic_recrudescence(
     // clinical_caused_parasite->set_last_update_log10_parasite_density(
     //     Model::CONFIG->parasite_density_level()
     //         .log_parasite_density_asymptomatic);
-    // Schedule a relapse event
+    // Schedule a recurrence event for this parasite
     schedule_clinical_recurrence_event(clinical_caused_parasite);
 
     this->recurrence_status_ = Person::RecurrenceStatus::WITH_SYMPTOM;
-    // mark the test treatment failure event as a failure
-    for (auto &[time, event] : get_events()) {
-      auto* tf_event = dynamic_cast<TestTreatmentFailureEvent*>(event.get());
-      if (tf_event != nullptr && tf_event->clinical_caused_parasite() == clinical_caused_parasite) {
-        event->set_executable(false);
-        Model::get_mdc()->record_1_tf(location_, true);
-        Model::get_mdc()->record_1_treatment_failure_by_therapy(location_, age_class_,
-                                                                tf_event->therapy_id());
-      }
-    }
+
+    // Do NOT record treatment failure here.
+    // This function only predicts/schedules symptomatic recrudescence.
+    // Actual treatment failure should be recorded either:
+    //   1) when the scheduled recrudescence clinical event really occurs, or
+    //   2) when TestTreatmentFailureEvent executes at tf_testing_day.
 
   } else {
-    // continue the assymptomatic state with either having drug or immunity
-
+    // continue the asymptomatic state with either having drug or immunity
     this->recurrence_status_ = Person::RecurrenceStatus::WITHOUT_SYMPTOM;
 
     // If the last update parasite density is greater than the asymptomatic
