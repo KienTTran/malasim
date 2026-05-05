@@ -334,6 +334,11 @@ void Person::add_drug_to_blood(DrugType* dt, const int &dosing_days, bool is_par
 }
 
 void Person::change_state_when_no_parasite_in_blood() {
+  // Fix 1: a dead person's parasite vector was cleared by set_host_state(DEAD).
+  // Without this guard the size()==0 branch below would call set_host_state(SUSCEPTIBLE),
+  // resurrecting the person and letting them accumulate extra clinical episodes.
+  if (host_state_ == DEAD) { return; }
+
   if (all_clonal_parasite_populations_->size() == 0) {
     if (liver_parasite_type_ == nullptr) {
       set_host_state(SUSCEPTIBLE);

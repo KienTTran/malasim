@@ -11,6 +11,7 @@
 
 #include "Configuration/Config.h"
 #include "Core/Scheduler/Scheduler.h"
+#include "Events/EndClinicalEvent.h"
 #include "Events/ReportTreatmentFailureDeathEvent.h"
 #include "MDC/ModelDataCollector.h"
 #include "Population/ClinicalUpdateFunction.h"
@@ -112,7 +113,6 @@ void ProgressToClinicalEvent::apply_therapy(Person* person, Therapy* therapy,
 }
 
 void ProgressToClinicalEvent::do_execute() {
-  // spdlog::info("ProgressToClinicalEvent::do_execute");
   auto* person = get_person();
 
   if (person == nullptr) { throw std::runtime_error("Person is nullptr"); }
@@ -134,6 +134,10 @@ void ProgressToClinicalEvent::do_execute() {
     return;
   }
 
+  // Fix 1: person may have died (e.g. from a concurrent event on the same tick)
+  // before this ProgressToClinicalEvent fires.  Skip silently.
+  if (person->get_host_state() == Person::DEAD) { return; }
+
   transition_to_clinical_state(person);
 }
 
@@ -153,37 +157,18 @@ void ProgressToClinicalEvent::transition_to_clinical_state(Person* person) {
   // Person change state to Clinical
   person->set_host_state(Person::CLINICAL);
 
-  // TODO: what is the best option to apply here?
-  // on one hand we don't what an individual have multiple clinical episodes
-  // consecutively, on the other hand we don't want all the other clinical
-  // episode to be cancled (i.e recrudescence epidsodes)
-  int count = 0;
-  // std::string event_time;
-  // for (const auto& pair : person->get_events()) {
-  //   if ( typeid(*(pair.second)).name() == typeid(ProgressToClinicalEvent).name()
-  //     && pair.second->is_executable()) {
-  //     event_time += std::to_string(pair.first) + " ";
-  //     count++;
-  //   }
-  // }
-  // if (count > 1) {
-  //   spdlog::warn("Person {} has {} ProgressToClinicalEvent, time {}, cancel all but this one",
-  //                person->get_age(), count, event_time);
-  // }
+  // Cancel competing ProgressToClinicalEvents from other infections.
   person->cancel_all_other_progress_to_clinical_events_except(this);
-  count = 0;
-  std::string event_time = "";
-  for (const auto& pair : person->get_events()) {
-    if ( typeid(*pair.second).name() == typeid(ProgressToClinicalEvent).name()
-     && pair.second->is_executable()) {
-      event_time += std::to_string(pair.first) + " ";
-      count++;
-     }
-  }
-  if (count > 1) {
-    spdlog::warn("Person {} has {} ProgressToClinicalEvent, time {} after canceling",
-      person->get_age(), count, event_time);
-  }
+
+  // Fix 2 (root cause): cancel any stale EndClinicalEvent that belongs to a
+  // previous clinical episode.  Without this, a leftover EndClinicalEvent can
+  // fire while the new episode is active and (a) forcibly set the person
+  // CLINICAL→ASYMPTOMATIC, prematurely ending the current episode, and (b)
+  // trigger determine_symptomatic_recrudescence for the old parasite, opening
+  // a spurious extra recurrence pathway.
+  // A fresh EndClinicalEvent is scheduled for this episode at the end of this
+  // function, so cancelling old ones here is always safe.
+  person->cancel_all_events<EndClinicalEvent>();
 
   person->change_all_parasite_update_function(
       Model::get_instance()->progress_to_clinical_update_function(),
@@ -196,28 +181,6 @@ void ProgressToClinicalEvent::transition_to_clinical_state(Person* person) {
                                                person->get_age_class());
 
   if (should_receive_treatment(person)) {
-    // if ((Model::get_scheduler()->current_time()
-    //      - person->get_latest_time_received_public_treatment())
-    //     < 30) {
-    //   const auto [therapy, is_public_sector] = determine_therapy(person, true);
-    //   // record 1 treatement for recrudescence
-    //   Model::get_mdc()->record_1_recrudescence_treatment(person->get_location(), person->get_age(),
-    //                                                      person->get_age_class(), 0);
-    //
-    //   apply_therapy(person, therapy, is_public_sector);
-    //     } else {
-    //       // this is normal routine for clinical cases
-    //       const auto [therapy, is_public_sector] = determine_therapy(person, false);
-    //
-    //       Model::get_mdc()->record_1_treatment(person->get_location(), person->get_age(),
-    //                                            person->get_age_class(), therapy->get_id());
-    //
-    //       person->schedule_test_treatment_failure_event(
-    //           clinical_caused_parasite_,
-    //           Model::get_config()->get_therapy_parameters().get_tf_testing_day(), therapy->get_id());
-    //       apply_therapy(person, therapy, is_public_sector);
-    // }
-    // this is normal routine for clinical cases
     const auto [therapy, is_public_sector] = determine_therapy(person, false);
 
     Model::get_mdc()->record_1_treatment(person->get_location(), person->get_age(),
@@ -228,13 +191,16 @@ void ProgressToClinicalEvent::transition_to_clinical_state(Person* person) {
         Model::get_config()->get_therapy_parameters().get_tf_testing_day(), therapy->get_id());
     apply_therapy(person, therapy, is_public_sector);
   } else {
-    // not recieve treatment
-    // Model::get_mdc()->record_1_non_treated_case(person->get_location(), person->get_age(),
-    // person->get_age_class());
-
     handle_no_treatment(person);
   }
-  // schedule end clinical event for both treatment and non-treatment cases
+
+  // Fix 1: do NOT schedule an EndClinicalEvent when the person died inside
+  // apply_therapy / handle_no_treatment.  An orphaned EndClinicalEvent on a
+  // dead person calls change_state_when_no_parasite_in_blood (parasites were
+  // cleared by set_host_state(DEAD)) which transitions DEAD→SUSCEPTIBLE,
+  // resurrecting the person and allowing extra clinical episodes.
+  if (person->get_host_state() == Person::DEAD) { return; }
+
   person->schedule_end_clinical_event(clinical_caused_parasite_);
 }
 
