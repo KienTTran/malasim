@@ -155,6 +155,7 @@ void ProgressToClinicalEvent::transition_to_clinical_state(Person* person) {
   clinical_caused_parasite_->set_last_update_log10_parasite_density(density);
 
   // Person change state to Clinical
+  person->set_current_clinical_caused_parasite(clinical_caused_parasite_);
   person->set_host_state(Person::CLINICAL);
 
   // Cancel competing ProgressToClinicalEvents from other infections.
@@ -181,7 +182,17 @@ void ProgressToClinicalEvent::transition_to_clinical_state(Person* person) {
                                                person->get_age_class());
 
   if (should_receive_treatment(person)) {
+    // Pass is_recurrence_ so that NestedMFTStrategy can apply the recurrent therapy
+    // (recurrent_therapy_id) when this episode is a treatment-failure recrudescence.
     const auto [therapy, is_public_sector] = determine_therapy(person, false);
+
+    if (is_recurrence_) {
+      Model::get_mdc()->record_1_recrudescence_treatment(
+          person->get_location(),
+          person->get_age(),
+          person->get_age_class(),
+          therapy->get_id());
+    }
 
     Model::get_mdc()->record_1_treatment(person->get_location(), person->get_age(),
                                          person->get_age_class(), therapy->get_id());
@@ -201,7 +212,9 @@ void ProgressToClinicalEvent::transition_to_clinical_state(Person* person) {
   // resurrecting the person and allowing extra clinical episodes.
   if (person->get_host_state() == Person::DEAD) { return; }
 
-  person->schedule_end_clinical_event(clinical_caused_parasite_);
+  person->schedule_end_clinical_event(
+    clinical_caused_parasite_,
+    is_recurrence_);
 }
 
 // TODO: remove this code

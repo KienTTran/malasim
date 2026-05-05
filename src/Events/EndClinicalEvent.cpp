@@ -19,62 +19,103 @@
 void EndClinicalEvent::do_execute() {
   auto* person = get_person();
 
-  if (person == nullptr) { throw std::runtime_error("Person is nullptr"); }
+  if (person == nullptr) {
+    throw std::runtime_error("Person is nullptr");
+  }
 
-  // Fix 1: Dead persons must never be processed here.
-  // set_host_state(DEAD) clears all parasite populations, so the size()==0 branch below
-  // would call change_state_when_no_parasite_in_blood() which transitions DEAD→SUSCEPTIBLE,
-  // resurrecting the person and letting them accumulate extra clinical episodes.
-  if (person->get_host_state() == Person::DEAD) { return; }
+  // Dead persons must never be processed here.
+  //
+  // set_host_state(DEAD) clears all parasite populations. Without this guard,
+  // the size()==0 branch below would call change_state_when_no_parasite_in_blood(),
+  // which can incorrectly transition DEAD -> SUSCEPTIBLE.
+  if (person->get_host_state() == Person::DEAD) {
+    person->set_current_clinical_caused_parasite(nullptr);
+    return;
+  }
 
+  // No parasite remains in blood.
+  //
+  // There is no recrudescence decision to make when the clinical-causing parasite
+  // has already been cleared. Move the person according to the normal no-parasite
+  // rule and clear the active clinical-owner pointer.
   if (person->get_all_clonal_parasite_populations()->size() == 0) {
     person->change_state_when_no_parasite_in_blood();
+    person->set_current_clinical_caused_parasite(nullptr);
+    return;
+  }
 
+  // Parasites are still present, so immune response should continue increasing.
+  person->get_immune_system()->set_increase(true);
+
+  // Only the EndClinicalEvent belonging to the currently active clinical-causing
+  // parasite is allowed to end the CLINICAL state.
+  //
+  // This protects against stale EndClinicalEvents. For example:
+  //
+  //   episode A starts -> EndClinicalEvent A scheduled
+  //   episode B starts before A ends
+  //   stale EndClinicalEvent A fires
+  //
+  // In that case, A must not move the person CLINICAL -> ASYMPTOMATIC if B is now
+  // the active clinical episode.
+  const bool owns_current_clinical_episode =
+      person->get_host_state() == Person::CLINICAL &&
+      person->get_current_clinical_caused_parasite() == clinical_caused_parasite_;
+
+  if (owns_current_clinical_episode) {
+    person->set_host_state(Person::ASYMPTOMATIC);
+    person->set_current_clinical_caused_parasite(nullptr);
+  }
+
+  // If the clinical-causing parasite is no longer present, there is nothing to
+  // evaluate for recrudescence.
+  if (!person->get_all_clonal_parasite_populations()->contain(clinical_caused_parasite_)) {
+    return;
+  }
+
+  // Recrudescence should only be evaluated for treated episodes.
+  //
+  // In this model, symptomatic recrudescence represents a treatment-failure
+  // pathway:
+  //
+  //   clinical episode -> treatment -> parasite survives -> symptoms return
+  //
+  // Untreated episodes should not enter determine_symptomatic_recrudescence().
+  // Otherwise untreated parasites can repeatedly generate:
+  //
+  //   episode -> EndClinicalEvent -> recrudescence -> episode -> ...
+  //
+  // without any treatment-failure event.
+  bool was_treated = false;
+
+  for (const auto& [time, event] : person->get_events()) {
+    auto* tf_event = dynamic_cast<TestTreatmentFailureEvent*>(event.get());
+
+    if (tf_event != nullptr &&
+        tf_event->is_executable() &&
+        tf_event->clinical_caused_parasite() == clinical_caused_parasite_) {
+      was_treated = true;
+      break;
+    }
+  }
+
+  if (was_treated && !is_recurrence_) {
+    // First treated clinical episode:
+    // allow one symptomatic recrudescence decision.
+    person->determine_symptomatic_recrudescence(clinical_caused_parasite_);
+    return;
+  }
+
+  // Either:
+  //   1. no treatment was given, or
+  //   2. this episode was already a recrudescence episode.
+  //
+  // In both cases, do not allow another recrudescence loop.
+  if (person->has_effective_drug_in_blood()) {
+    clinical_caused_parasite_->set_update_function(
+        Model::having_drug_update_function());
   } else {
-    // still have parasite in blood
-    person->get_immune_system()->set_increase(true);
-
-    // Fix 2 (defense-in-depth): only move the person to ASYMPTOMATIC when they are not
-    // currently CLINICAL from a *different* parasite.  If a new clinical episode started
-    // (different parasite) before this stale EndClinicalEvent fired, overriding the state
-    // here would prematurely terminate that active episode and open a second recrudescence
-    // pathway — causing extra clinical episode counts.
-    if (person->get_host_state() != Person::CLINICAL) {
-      person->set_host_state(Person::ASYMPTOMATIC);
-    }
-
-    if (person->get_all_clonal_parasite_populations()->contain(clinical_caused_parasite_)) {
-      // Fix 3: Only evaluate recrudescence when the person was actually TREATED.
-      //
-      // For untreated persons the parasite remains under clinical_update_function, which
-      // resets density to log_parasite_density_asymptomatic (~3) every day.  This means:
-      //   (a) the density threshold > 2 is ALWAYS met, and
-      //   (b) there is no TestTreatmentFailureEvent to cancel, so no TF is ever recorded.
-      // The result is a self-reinforcing spurious recurrence chain:
-      //   episode → EndClinicalEvent → recrudescence → episode → EndClinicalEvent → ...
-      //
-      // "Was treated" is detected by the presence of a still-executable
-      // TestTreatmentFailureEvent for this exact parasite.
-      bool was_treated = false;
-      for (const auto &[time, event] : person->get_events()) {
-        auto* tf_event = dynamic_cast<TestTreatmentFailureEvent*>(event.get());
-        if (tf_event != nullptr && tf_event->is_executable()
-            && tf_event->clinical_caused_parasite() == clinical_caused_parasite_) {
-          was_treated = true;
-          break;
-        }
-      }
-
-      if (was_treated) {
-        // Treatment was given — evaluate whether surviving parasite causes symptomatic
-        // recrudescence (legitimate treatment-failure pathway).
-        person->determine_symptomatic_recrudescence(clinical_caused_parasite_);
-      } else {
-        // No treatment — hand the parasite to natural immunity so it clears without
-        // generating a recurrence.
-        clinical_caused_parasite_->set_update_function(
-            Model::immunity_clearance_update_function());
-      }
-    }
+    clinical_caused_parasite_->set_update_function(
+        Model::immunity_clearance_update_function());
   }
 }

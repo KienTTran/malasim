@@ -269,7 +269,10 @@ public:
 
   // Group 1: Clinical Event Scheduling
   // void schedule_clinical_event(ClonalParasitePopulation* parasite, int days_delay);
-  void schedule_end_clinical_event(ClonalParasitePopulation* parasite);
+  // void schedule_end_clinical_event(ClonalParasitePopulation* parasite);
+  void schedule_end_clinical_event(
+    ClonalParasitePopulation* parasite,
+    bool is_recurrence = false);
   void schedule_progress_to_clinical_event(ClonalParasitePopulation* parasite);
   void schedule_clinical_recurrence_event(ClonalParasitePopulation* parasite);
   void schedule_test_treatment_failure_event(ClonalParasitePopulation* parasite, int testing_day,
@@ -303,6 +306,9 @@ public:
 
   void schedule_end_clinical_by_no_treatment_event(ClonalParasitePopulation *clinical_caused_parasite);
 
+  void set_current_clinical_caused_parasite(ClonalParasitePopulation* parasite) { current_clinical_caused_parasite_ = parasite; }
+  ClonalParasitePopulation* get_current_clinical_caused_parasite() const { return current_clinical_caused_parasite_; }
+
 private:
   int age_{-1};
   Population* population_{nullptr};
@@ -329,6 +335,7 @@ private:
   int latest_time_received_public_treatment_{-30};
   RecurrenceStatus recurrence_status_{RecurrenceStatus::NONE};
   EventManager<PersonEvent> event_manager_;
+  ClonalParasitePopulation* current_clinical_caused_parasite_ = nullptr;
 
 #ifdef ENABLE_TRAVEL_TRACKING
   int day_that_last_trip_was_initiated_{-1};

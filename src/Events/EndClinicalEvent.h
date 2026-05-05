@@ -33,6 +33,13 @@ public:
 private:
   ClonalParasitePopulation* clinical_caused_parasite_{nullptr};
   void do_execute() override;
+
+private:
+  bool is_recurrence_ = false;
+
+public:
+  void set_is_recurrence(bool value) { is_recurrence_ = value; }
+  bool is_recurrence() const { return is_recurrence_; }
 };
 
 #endif /* ENDCLINICALEVENT_H */

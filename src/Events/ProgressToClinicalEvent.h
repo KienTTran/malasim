@@ -35,6 +35,9 @@ public:
     clinical_caused_parasite_ = value;
   }
 
+  [[nodiscard]] bool is_recurrence() const { return is_recurrence_; }
+  void set_is_recurrence(bool value) { is_recurrence_ = value; }
+
   static bool should_receive_treatment(Person* person);
 
   static void handle_no_treatment(Person* person);
@@ -47,6 +50,7 @@ public:
 
 private:
   ClonalParasitePopulation* clinical_caused_parasite_{nullptr};
+  bool is_recurrence_{false};
   void do_execute() override;
 };
 

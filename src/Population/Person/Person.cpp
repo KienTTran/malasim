@@ -435,10 +435,14 @@ void Person::determine_symptomatic_recrudescence(
     schedule_clinical_recurrence_event(clinical_caused_parasite);
 
     this->recurrence_status_ = Person::RecurrenceStatus::WITH_SYMPTOM;
-    // mark the test treatment failure event as a failure
+    // Cancel the TestTreatmentFailureEvent and record TF now, since the parasite
+    // has already declared recrudescence — the Day-28 TF test is superseded.
+    // Guard with is_executable() so that a stale cancelled TF event from a prior
+    // recurrence episode does not cause double-recording of TF statistics.
     for (auto &[time, event] : get_events()) {
       auto* tf_event = dynamic_cast<TestTreatmentFailureEvent*>(event.get());
-      if (tf_event != nullptr && tf_event->clinical_caused_parasite() == clinical_caused_parasite) {
+      if (tf_event != nullptr && tf_event->is_executable()
+          && tf_event->clinical_caused_parasite() == clinical_caused_parasite) {
         event->set_executable(false);
         Model::get_mdc()->record_1_tf(location_, true);
         Model::get_mdc()->record_1_treatment_failure_by_therapy(location_, age_class_,
@@ -816,14 +820,26 @@ void Person::schedule_update_by_drug_event(ClonalParasitePopulation* parasite) {
   schedule_basic_event(std::move(event));
 }
 
-void Person::schedule_end_clinical_event(ClonalParasitePopulation* parasite) {
-  // Clinical duration is normally distributed between 5-14 days, centered at 7
+// void Person::schedule_end_clinical_event(ClonalParasitePopulation* parasite) {
+//   // Clinical duration is normally distributed between 5-14 days, centered at 7
+//   int clinical_duration = Model::get_random()->random_normal_int(7, 2);
+//   clinical_duration = std::min(std::max(clinical_duration, 5), 14);
+//
+//   auto event = std::make_unique<EndClinicalEvent>(this);
+//   event->set_time(calculate_future_time(clinical_duration));
+//   event->set_clinical_caused_parasite(parasite);
+//   schedule_basic_event(std::move(event));
+// }
+void Person::schedule_end_clinical_event(
+    ClonalParasitePopulation* parasite,
+    bool is_recurrence) {
   int clinical_duration = Model::get_random()->random_normal_int(7, 2);
   clinical_duration = std::min(std::max(clinical_duration, 5), 14);
 
   auto event = std::make_unique<EndClinicalEvent>(this);
   event->set_time(calculate_future_time(clinical_duration));
   event->set_clinical_caused_parasite(parasite);
+  event->set_is_recurrence(is_recurrence);
   schedule_basic_event(std::move(event));
 }
 
@@ -892,6 +908,7 @@ void Person::schedule_clinical_recurrence_event(ClonalParasitePopulation* parasi
   auto event = std::make_unique<ProgressToClinicalEvent>(this);
   event->set_time(new_event_time);
   event->set_clinical_caused_parasite(parasite);
+  event->set_is_recurrence(true);   // mark as treatment-failure recrudescence
   schedule_basic_event(std::move(event));
 }
 
