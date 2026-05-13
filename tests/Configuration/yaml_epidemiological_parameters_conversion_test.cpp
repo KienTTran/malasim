@@ -54,7 +54,10 @@ protected:
         epi_parameters.set_relapse_duration(180);
         epi_parameters.set_relapse_rate(0.05);
         epi_parameters.set_update_frequency(30);
-        epi_parameters.set_allow_new_coinfection_to_cause_symptoms(true);
+        EpidemiologicalParameters::AllowNewCoinfectionToCauseSymptoms coinfection;
+        coinfection.set_enable(true);
+        coinfection.set_probability(0.5);
+        epi_parameters.set_allow_new_coinfection_to_cause_symptoms(coinfection);
         epi_parameters.set_tf_window_size(10);
         epi_parameters.set_fraction_mosquitoes_interrupted_feeding(0.1);
         epi_parameters.set_inflation_factor(1.5);
@@ -102,7 +105,8 @@ TEST_F(EpidemiologicalParametersYAMLTest, DecodeEpidemiologicalParameters) {
     node["relapse_duration"] = 180;
     node["relapse_rate"] = 0.05;
     node["update_frequency"] = 30;
-    node["allow_new_coinfection_to_cause_symptoms"] = true;
+    node["allow_new_coinfection_to_cause_symptoms"]["enable"] = true;
+    node["allow_new_coinfection_to_cause_symptoms"]["probability"] = 0.5;
     node["tf_window_size"] = 10;
     node["fraction_mosquitoes_interrupted_feeding"] = 0.1;
     node["inflation_factor"] = 1.5;
