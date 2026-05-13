@@ -230,6 +230,19 @@ public:
         bool enabled_ = false;
     };
 
+  class AllowNewCoinfectionToCauseSymptoms {
+  public:
+    [[nodiscard]] bool get_enable() const { return enable_; }
+    void set_enable(const bool value) { enable_ = value; }
+
+    [[nodiscard]] double get_probability() const { return probability_; }
+    void set_probability(const double value) { probability_ = value; }
+
+  private:
+    bool enable_ = true;
+    double probability_ = 1.0;
+  };
+
   // Getters and Setters
   [[nodiscard]] int get_number_of_tracking_days() const { return number_of_tracking_days_; }
   void set_number_of_tracking_days(const int value) { number_of_tracking_days_ = value; }
@@ -292,10 +305,10 @@ public:
   [[nodiscard]] int get_update_frequency() const { return update_frequency_; }
   void set_update_frequency(const int value) { update_frequency_ = value; }
 
-  [[nodiscard]] bool get_allow_new_coinfection_to_cause_symptoms() const {
+  [[nodiscard]] const AllowNewCoinfectionToCauseSymptoms &get_allow_new_coinfection_to_cause_symptoms() const {
     return allow_new_coinfection_to_cause_symptoms_;
   }
-  void set_allow_new_coinfection_to_cause_symptoms(const bool value) {
+  void set_allow_new_coinfection_to_cause_symptoms(const AllowNewCoinfectionToCauseSymptoms &value) {
     allow_new_coinfection_to_cause_symptoms_ = value;
   }
 
@@ -369,7 +382,7 @@ private:
   int relapse_duration_ = 30;
   double relapse_rate_ = 4.4721;
   int update_frequency_ = 7;
-  bool allow_new_coinfection_to_cause_symptoms_ = true;
+  AllowNewCoinfectionToCauseSymptoms allow_new_coinfection_to_cause_symptoms_{};
   int tf_window_size_ = 60;
   double fraction_mosquitoes_interrupted_feeding_ = 0.0;
   double inflation_factor_ = 0.01;
@@ -515,8 +528,12 @@ struct convert<EpidemiologicalParameters> {
     node["relapse_duration"] = rhs.get_relapse_duration();
     node["relapse_rate"] = rhs.get_relapse_rate();
     node["update_frequency"] = rhs.get_update_frequency();
-    node["allow_new_coinfection_to_cause_symptoms"] =
-        rhs.get_allow_new_coinfection_to_cause_symptoms();
+    {
+      Node coinfection_node;
+      coinfection_node["enable"] = rhs.get_allow_new_coinfection_to_cause_symptoms().get_enable();
+      coinfection_node["probability"] = rhs.get_allow_new_coinfection_to_cause_symptoms().get_probability();
+      node["allow_new_coinfection_to_cause_symptoms"] = coinfection_node;
+    }
     node["tf_window_size"] = rhs.get_tf_window_size();
     node["fraction_mosquitoes_interrupted_feeding"] =
         rhs.get_fraction_mosquitoes_interrupted_feeding();
@@ -571,8 +588,19 @@ struct convert<EpidemiologicalParameters> {
     rhs.set_relapse_duration(node["relapse_duration"].as<int>());
     rhs.set_relapse_rate(node["relapse_rate"].as<double>());
     rhs.set_update_frequency(node["update_frequency"].as<int>());
-    rhs.set_allow_new_coinfection_to_cause_symptoms(
-        node["allow_new_coinfection_to_cause_symptoms"].as<bool>());
+    {
+      EpidemiologicalParameters::AllowNewCoinfectionToCauseSymptoms cfg;
+      const auto &n = node["allow_new_coinfection_to_cause_symptoms"];
+      if (n.IsMap()) {
+        if (n["enable"]) cfg.set_enable(n["enable"].as<bool>());
+        if (n["probability"]) cfg.set_probability(n["probability"].as<double>());
+      } else {
+        // backward-compatible: plain bool
+        cfg.set_enable(n.as<bool>());
+        cfg.set_probability(1.0);
+      }
+      rhs.set_allow_new_coinfection_to_cause_symptoms(cfg);
+    }
     rhs.set_tf_window_size(node["tf_window_size"].as<int>());
     rhs.set_fraction_mosquitoes_interrupted_feeding(
         node["fraction_mosquitoes_interrupted_feeding"].as<double>());

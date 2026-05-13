@@ -900,7 +900,10 @@ epidemiological_parameters:
   update_frequency: 7
 
   # Allows new co-infections to cause symptoms in infected but asymptomatic hosts
-  allow_new_coinfection_to_cause_symptoms: true
+  allow_new_coinfection_to_cause_symptoms:
+    enable: true
+    # Probability that a new co-infection causes symptoms in an already infected host
+    probability: 1.0
 
   # Window size for observing treatment failure rates
   tf_window_size: 60

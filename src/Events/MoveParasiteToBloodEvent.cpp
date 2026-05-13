@@ -47,7 +47,9 @@ void MoveParasiteToBloodEvent::do_execute() {
     // spdlog::info("Person does not have drug in blood");
     if (person->get_all_clonal_parasite_populations()->size() > 1) {
       // spdlog::info("person->get_all_clonal_parasite_populations()->size() > 1");
-      if (Model::get_config()->get_epidemiological_parameters().get_allow_new_coinfection_to_cause_symptoms()) {
+      const auto &coinfection_cfg = Model::get_config()->get_epidemiological_parameters().get_allow_new_coinfection_to_cause_symptoms();
+      if (coinfection_cfg.get_enable()
+          && Model::get_random()->random_flat(0.0, 1.0) < coinfection_cfg.get_probability()) {
         person->determine_clinical_or_not(new_parasite);
       } else {
         new_parasite->set_update_function(
