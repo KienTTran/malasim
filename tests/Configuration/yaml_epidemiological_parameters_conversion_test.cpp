@@ -167,3 +167,170 @@ TEST_F(EpidemiologicalParametersYAMLTest, AgeBased_Disabled_ReturnsOne) {
     EXPECT_DOUBLE_EQ(cfg.evaluate_for_age(100), 1.0);
 }
 
+// ---- PfPRBasedProbabilityOfSeekingTreatment tests ----
+
+TEST_F(EpidemiologicalParametersYAMLTest, PfPRBased_Disabled_ReturnsOne) {
+    EpidemiologicalParameters::PfPRBasedProbabilityOfSeekingTreatment cfg;
+    cfg.set_enabled(false);
+
+    EXPECT_DOUBLE_EQ(cfg.evaluate_for_pfpr(0.0), 1.0);
+    EXPECT_DOUBLE_EQ(cfg.evaluate_for_pfpr(0.5), 1.0);
+    EXPECT_DOUBLE_EQ(cfg.evaluate_for_pfpr(1.0), 1.0);
+}
+
+TEST_F(EpidemiologicalParametersYAMLTest, PfPRBased_SaturatingIncrease_ZeroPfPR) {
+    // At pfpr=0: modifier = 1 + amplitude*(1 - exp(0)) = 1 + amplitude*0 = 1.0
+    EpidemiologicalParameters::PfPRBasedProbabilityOfSeekingTreatment cfg;
+    cfg.set_enabled(true);
+    cfg.set_type("saturating_increase");
+    EpidemiologicalParameters::PfPRBasedProbabilityOfSeekingTreatment::SaturatingIncreaseConfig sc;
+    sc.amplitude = 0.5;
+    sc.rate = 2.0;
+    sc.max_modifier = 1.5;
+    cfg.set_saturating_increase(sc);
+
+    EXPECT_DOUBLE_EQ(cfg.evaluate_for_pfpr(0.0), 1.0);
+}
+
+TEST_F(EpidemiologicalParametersYAMLTest, PfPRBased_SaturatingIncrease_HighPfPR_ClampsToMax) {
+    // At pfpr=1 with high rate, exp(-rate) ~ 0, so modifier ~ 1 + amplitude = 1.5
+    EpidemiologicalParameters::PfPRBasedProbabilityOfSeekingTreatment cfg;
+    cfg.set_enabled(true);
+    cfg.set_type("saturating_increase");
+    EpidemiologicalParameters::PfPRBasedProbabilityOfSeekingTreatment::SaturatingIncreaseConfig sc;
+    sc.amplitude = 0.5;
+    sc.rate = 100.0;   // very steep: saturates almost immediately
+    sc.max_modifier = 1.5;
+    cfg.set_saturating_increase(sc);
+
+    EXPECT_NEAR(cfg.evaluate_for_pfpr(1.0), 1.5, 1e-6);
+}
+
+TEST_F(EpidemiologicalParametersYAMLTest, PfPRBased_SaturatingIncrease_MidPfPR) {
+    // Manually compute: pfpr=0.5, amplitude=0.4, rate=1.0
+    // modifier = 1 + 0.4*(1 - exp(-0.5)) = 1 + 0.4*(1 - 0.60653) = 1 + 0.4*0.39347 = 1.15739
+    EpidemiologicalParameters::PfPRBasedProbabilityOfSeekingTreatment cfg;
+    cfg.set_enabled(true);
+    cfg.set_type("saturating_increase");
+    EpidemiologicalParameters::PfPRBasedProbabilityOfSeekingTreatment::SaturatingIncreaseConfig sc;
+    sc.amplitude = 0.4;
+    sc.rate = 1.0;
+    sc.max_modifier = 2.0;
+    cfg.set_saturating_increase(sc);
+
+    const double expected = 1.0 + 0.4 * (1.0 - std::exp(-0.5));
+    EXPECT_NEAR(cfg.evaluate_for_pfpr(0.5), expected, 1e-10);
+}
+
+TEST_F(EpidemiologicalParametersYAMLTest, PfPRBased_MaxModifierCap) {
+    // max_modifier set lower than theoretical max — result must be clamped
+    EpidemiologicalParameters::PfPRBasedProbabilityOfSeekingTreatment cfg;
+    cfg.set_enabled(true);
+    cfg.set_type("saturating_increase");
+    EpidemiologicalParameters::PfPRBasedProbabilityOfSeekingTreatment::SaturatingIncreaseConfig sc;
+    sc.amplitude = 0.5;
+    sc.rate = 100.0;
+    sc.max_modifier = 1.2;   // cap below amplitude+1=1.5
+    cfg.set_saturating_increase(sc);
+
+    EXPECT_DOUBLE_EQ(cfg.evaluate_for_pfpr(1.0), 1.2);
+}
+
+TEST_F(EpidemiologicalParametersYAMLTest, PfPRBased_PfPRIsPercent) {
+    // pfpr_is_percent=true: input 50 should behave like pfpr=0.5
+    EpidemiologicalParameters::PfPRBasedProbabilityOfSeekingTreatment cfg;
+    cfg.set_enabled(true);
+    cfg.set_type("saturating_increase");
+    cfg.set_pfpr_is_percent(true);
+    EpidemiologicalParameters::PfPRBasedProbabilityOfSeekingTreatment::SaturatingIncreaseConfig sc;
+    sc.amplitude = 0.4;
+    sc.rate = 1.0;
+    sc.max_modifier = 2.0;
+    cfg.set_saturating_increase(sc);
+
+    const double expected = 1.0 + 0.4 * (1.0 - std::exp(-0.5));
+    EXPECT_NEAR(cfg.evaluate_for_pfpr(50.0), expected, 1e-10);
+}
+
+TEST_F(EpidemiologicalParametersYAMLTest, PfPRBased_PfPRClampsToZeroOne) {
+    // Negative pfpr -> clamped to 0 -> result = 1.0
+    EpidemiologicalParameters::PfPRBasedProbabilityOfSeekingTreatment cfg;
+    cfg.set_enabled(true);
+    cfg.set_type("saturating_increase");
+    EpidemiologicalParameters::PfPRBasedProbabilityOfSeekingTreatment::SaturatingIncreaseConfig sc;
+    sc.amplitude = 0.5;
+    sc.rate = 2.0;
+    sc.max_modifier = 1.5;
+    cfg.set_saturating_increase(sc);
+
+    EXPECT_DOUBLE_EQ(cfg.evaluate_for_pfpr(-0.5), 1.0);
+    // pfpr > 1 -> clamped to 1 -> same as pfpr=1 result
+    const double at_one = cfg.evaluate_for_pfpr(1.0);
+    EXPECT_DOUBLE_EQ(cfg.evaluate_for_pfpr(5.0), at_one);
+}
+
+TEST_F(EpidemiologicalParametersYAMLTest, PfPRBased_Validate_Throws_NegativeAmplitude) {
+    EpidemiologicalParameters::PfPRBasedProbabilityOfSeekingTreatment cfg;
+    cfg.set_enabled(true);
+    cfg.set_type("saturating_increase");
+    EpidemiologicalParameters::PfPRBasedProbabilityOfSeekingTreatment::SaturatingIncreaseConfig sc;
+    sc.amplitude = -0.1;
+    sc.rate = 1.0;
+    sc.max_modifier = 1.5;
+    cfg.set_saturating_increase(sc);
+
+    EXPECT_THROW(cfg.validate(), std::runtime_error);
+}
+
+TEST_F(EpidemiologicalParametersYAMLTest, PfPRBased_Validate_Throws_MaxModifierBelowOne) {
+    EpidemiologicalParameters::PfPRBasedProbabilityOfSeekingTreatment cfg;
+    cfg.set_enabled(true);
+    cfg.set_type("saturating_increase");
+    EpidemiologicalParameters::PfPRBasedProbabilityOfSeekingTreatment::SaturatingIncreaseConfig sc;
+    sc.amplitude = 0.5;
+    sc.rate = 1.0;
+    sc.max_modifier = 0.8;   // invalid: < 1.0
+    cfg.set_saturating_increase(sc);
+
+    EXPECT_THROW(cfg.validate(), std::runtime_error);
+}
+
+TEST_F(EpidemiologicalParametersYAMLTest, PfPRBased_Validate_Disabled_DoesNotThrow) {
+    EpidemiologicalParameters::PfPRBasedProbabilityOfSeekingTreatment cfg;
+    cfg.set_enabled(false);
+    // Even with bad values, disabled config should not throw
+    EpidemiologicalParameters::PfPRBasedProbabilityOfSeekingTreatment::SaturatingIncreaseConfig sc;
+    sc.amplitude = -1.0;
+    sc.rate = -1.0;
+    sc.max_modifier = 0.0;
+    cfg.set_saturating_increase(sc);
+
+    EXPECT_NO_THROW(cfg.validate());
+}
+
+TEST_F(EpidemiologicalParametersYAMLTest, PfPRBased_YAML_EncodeDecode) {
+    // Build an EpidemiologicalParameters with pfpr_based enabled and round-trip via YAML
+    EpidemiologicalParameters::PfPRBasedProbabilityOfSeekingTreatment cfg;
+    cfg.set_enabled(true);
+    cfg.set_type("saturating_increase");
+    cfg.set_pfpr_is_percent(false);
+    EpidemiologicalParameters::PfPRBasedProbabilityOfSeekingTreatment::SaturatingIncreaseConfig sc;
+    sc.amplitude = 0.3;
+    sc.rate = 2.5;
+    sc.max_modifier = 1.3;
+    cfg.set_saturating_increase(sc);
+    epi_parameters.set_pfpr_based_probability_of_seeking_treatment(cfg);
+    epi_parameters.set_using_age_dependent_biting_level(false);
+    epi_parameters.set_using_variable_probability_infectious_bites_cause_infection(false);
+
+    YAML::Node node = YAML::convert<EpidemiologicalParameters>::encode(epi_parameters);
+
+    ASSERT_TRUE(node["pfpr_based_probability_of_seeking_treatment"]);
+    const auto n = node["pfpr_based_probability_of_seeking_treatment"];
+    EXPECT_EQ(n["enable"].as<bool>(), true);
+    EXPECT_EQ(n["type"].as<std::string>(), "saturating_increase");
+    EXPECT_DOUBLE_EQ(n["saturating_increase"]["amplitude"].as<double>(), 0.3);
+    EXPECT_DOUBLE_EQ(n["saturating_increase"]["rate"].as<double>(), 2.5);
+    EXPECT_DOUBLE_EQ(n["saturating_increase"]["max_modifier"].as<double>(), 1.3);
+}
+

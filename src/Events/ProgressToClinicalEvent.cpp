@@ -27,11 +27,31 @@
 // OBJECTPOOL_IMPL(ProgressToClinicalEvent)
 
 bool ProgressToClinicalEvent::should_receive_treatment(Person* person) {
-  const double base_p = Model::get_treatment_coverage()->get_probability_to_be_treated(person->get_location(),
-                                                                                       person->get_age());
+  const int location = person->get_location();
+  const int age = person->get_age();
+
+  const double base_p =
+      Model::get_treatment_coverage()->get_probability_to_be_treated(location, age);
+
   const auto &ep = Model::get_config()->get_epidemiological_parameters();
-  const double modifier = ep.get_age_based_probability_of_seeking_treatment().evaluate_for_age(person->get_age());
-  const double effective_p = std::clamp(base_p * modifier, 0.0, 1.0);
+
+  const double age_modifier =
+      ep.get_age_based_probability_of_seeking_treatment().evaluate_for_age(age);
+
+  // Dynamic PfPR source currently available in ModelDataCollector.
+  // This is all-age blood-slide prevalence as a proportion [0,1].
+  // If it is still unavailable at the beginning of the simulation, it remains 0.
+  double pfpr = 0.0;
+  const auto &pfpr_by_location = Model::get_mdc()->blood_slide_prevalence_by_location();
+  if (location >= 0 && location < static_cast<int>(pfpr_by_location.size())) {
+    pfpr = pfpr_by_location[location];
+  }
+
+  const double pfpr_modifier =
+      ep.get_pfpr_based_probability_of_seeking_treatment().evaluate_for_pfpr(pfpr);
+
+  const double effective_p = std::clamp(base_p * age_modifier * pfpr_modifier, 0.0, 1.0);
+
   return Model::get_random()->random_flat(0.0, 1.0) <= effective_p;
 }
 

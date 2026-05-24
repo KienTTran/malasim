@@ -969,6 +969,78 @@ epidemiological_parameters:
       exponent_source: index
     ages: [0, 5, 10, 15, 20, 30, 40]
 
+  # PfPR-based treatment-seeking modifier.
+  #
+  # IMPORTANT:
+  # - This block does NOT replace the base treatment coverage model.
+  # - This block does NOT replace the age-based treatment-seeking modifier.
+  # - It is applied as an additional multiplicative modifier AFTER:
+  #
+  #     1. get_probability_to_be_treated(location, age)
+  #     2. age_based_probability_of_seeking_treatment
+  #
+  # Final treatment probability becomes:
+  #
+  #   effective_p =
+  #       base_p
+  #       * age_modifier
+  #       * pfpr_modifier
+  #
+  # where:
+  #
+  #   pfpr_modifier =
+  #       1 + amplitude * (1 - exp(-rate * PfPR))
+  #
+  # This is a saturating increase function:
+  # - At low PfPR, the modifier is close to 1.0.
+  # - As PfPR increases, treatment-seeking probability increases slightly.
+  # - At high PfPR, the modifier approaches a maximum value.
+  #
+  # Interpretation:
+  # - In higher-endemic settings, people may recognize malaria symptoms more easily.
+  # - Antimalarial drugs, CHWs, drug shops, or malaria-specific care may be more available.
+  # - Therefore, probability of receiving any antimalarial treatment may increase.
+  # - The increase is capped, so the effect does not grow unrealistically.
+  #
+  # This is different from a PfPR reduction model.
+  # A reduction model would push high-PfPR treatment counts leftward.
+  # This saturating increase model is intended to help treatment incidence move rightward
+  # and then saturate at high transmission.
+  #
+  # PfPR scale:
+  # - pfpr_is_percent: false means PfPR should be in proportion scale, e.g.:
+  #     0.25 = 25%
+  # - If your PfPR input is 25 instead of 0.25, set pfpr_is_percent: true.
+  #
+  # Parameter meaning:
+  # - amplitude: maximum proportional increase above 1.0.
+  #     amplitude = 0.10 means the modifier can increase treatment probability by up to 10%.
+  #
+  # - rate: controls how quickly the modifier approaches saturation.
+  #     Larger rate means the modifier rises faster at lower PfPR.
+  #
+  # - max_modifier: safety cap for the multiplier.
+  #     max_modifier = 1.10 means treatment-seeking probability can be multiplied
+  #     by at most 1.10 from this PfPR effect.
+  #
+  # Example with amplitude = 0.10 and rate = 5.0:
+  #   PfPR = 0.05 -> modifier ≈ 1.022
+  #   PfPR = 0.10 -> modifier ≈ 1.039
+  #   PfPR = 0.25 -> modifier ≈ 1.071
+  #   PfPR = 0.40 -> modifier ≈ 1.086
+  #   PfPR = 0.60 -> modifier ≈ 1.095
+  #
+  # The final effective probability is still clamped to [0, 1] in C++.
+  pfpr_based_probability_of_seeking_treatment:
+    enable: true
+    type: saturating_increase
+    pfpr_is_percent: false
+
+    saturating_increase:
+      amplitude: 0.10
+      rate: 5.0
+      max_modifier: 1.10
+
 # ---------------------------------------------------------------
 # 15. Mosquito Parameters (default is location based)
 # ---------------------------------------------------------------

@@ -4,6 +4,7 @@
 #include <spdlog/spdlog.h>
 #include <yaml-cpp/yaml.h>
 
+#include <algorithm>
 #include <cmath>
 #include <numbers>
 #include <stdexcept>
@@ -227,8 +228,102 @@ public:
         std::string type_;
         PowerConfig power_;
         std::vector<int> ages_;
+
         bool enabled_ = false;
     };
+
+  // New: PfPR-based saturating increase in probability of seeking treatment.
+  // This is NOT a reduction. It gently increases treatment-seeking in higher
+  // endemicity settings and then saturates at max_modifier.
+  class PfPRBasedProbabilityOfSeekingTreatment {
+  public:
+    struct SaturatingIncreaseConfig {
+      double amplitude = 0.0;     // A: max proportional increase above 1.0
+      double rate = 1.0;          // k: saturation speed with PfPR
+      double max_modifier = 1.0;  // safety cap, usually 1.0 + amplitude
+    };
+
+    [[nodiscard]] bool is_enabled() const { return enabled_; }
+    void set_enabled(bool v) { enabled_ = v; }
+
+    [[nodiscard]] const std::string &get_type() const { return type_; }
+    void set_type(const std::string &value) { type_ = value; }
+
+    [[nodiscard]] bool get_pfpr_is_percent() const { return pfpr_is_percent_; }
+    void set_pfpr_is_percent(bool v) { pfpr_is_percent_ = v; }
+
+    [[nodiscard]] const SaturatingIncreaseConfig &get_saturating_increase() const {
+      return saturating_increase_;
+    }
+    void set_saturating_increase(const SaturatingIncreaseConfig &value) {
+      saturating_increase_ = value;
+    }
+
+    void validate() const {
+      if (!enabled_) return;
+
+      if (type_.empty()) {
+        throw std::runtime_error(
+            "pfpr_based_probability_of_seeking_treatment.type must not be empty when enabled");
+      }
+
+      if (type_ != "saturating_increase") {
+        throw std::runtime_error(
+            "pfpr_based_probability_of_seeking_treatment.type must be 'saturating_increase', got '" +
+            type_ + "'");
+      }
+
+      if (saturating_increase_.amplitude < 0.0) {
+        throw std::runtime_error(
+            "pfpr_based_probability_of_seeking_treatment.saturating_increase.amplitude must be >= 0");
+      }
+
+      if (saturating_increase_.rate < 0.0) {
+        throw std::runtime_error(
+            "pfpr_based_probability_of_seeking_treatment.saturating_increase.rate must be >= 0");
+      }
+
+      if (saturating_increase_.max_modifier < 1.0) {
+        throw std::runtime_error(
+            "pfpr_based_probability_of_seeking_treatment.saturating_increase.max_modifier must be >= 1.0");
+      }
+
+      const double theoretical_max = 1.0 + saturating_increase_.amplitude;
+      if (saturating_increase_.max_modifier > theoretical_max) {
+        spdlog::warn(
+            "pfpr_based_probability_of_seeking_treatment.saturating_increase.max_modifier={} is larger "
+            "than 1 + amplitude={}. The cap may not bind.",
+            saturating_increase_.max_modifier, theoretical_max);
+      }
+    }
+
+    double evaluate_for_pfpr(const double pfpr_in) const {
+      if (!enabled_) return 1.0;
+
+      double pfpr = pfpr_in;
+      if (pfpr_is_percent_) pfpr /= 100.0;
+      pfpr = std::clamp(pfpr, 0.0, 1.0);
+
+      if (type_ == "saturating_increase") {
+        const double modifier =
+            1.0 + saturating_increase_.amplitude *
+                      (1.0 - std::exp(-saturating_increase_.rate * pfpr));
+
+        return std::clamp(modifier, 1.0, saturating_increase_.max_modifier);
+      }
+
+      spdlog::warn(
+          "Unknown PfPRBasedProbabilityOfSeekingTreatment type '{}', returning 1.0",
+          type_);
+      return 1.0;
+    }
+
+  private:
+    bool enabled_ = false;
+    std::string type_ = "saturating_increase";
+    bool pfpr_is_percent_ = false;
+    SaturatingIncreaseConfig saturating_increase_{};
+  };
 
   class AllowNewCoinfectionToCauseSymptoms {
   public:
@@ -349,6 +444,15 @@ public:
     age_based_probability_of_seeking_treatment_ = v;
   }
 
+  [[nodiscard]] const PfPRBasedProbabilityOfSeekingTreatment &
+  get_pfpr_based_probability_of_seeking_treatment() const {
+    return pfpr_based_probability_of_seeking_treatment_;
+  }
+  void set_pfpr_based_probability_of_seeking_treatment(
+      const PfPRBasedProbabilityOfSeekingTreatment &v) {
+    pfpr_based_probability_of_seeking_treatment_ = v;
+  }
+
   // process config data
   void process_config() override {
     spdlog::info("Processing EpidemiologicalParameters");
@@ -364,6 +468,9 @@ public:
     relative_infectivity_.set_ro_star((log(relative_infectivity_.get_ro_star()) - log(d_star))
                                       / relative_infectivity_.get_sigma());
     relative_infectivity_.set_sigma(log(10) / relative_infectivity_.get_sigma());
+
+    age_based_probability_of_seeking_treatment_.validate();
+    pfpr_based_probability_of_seeking_treatment_.validate();
   }
 
 private:
@@ -388,8 +495,9 @@ private:
   double inflation_factor_ = 0.01;
   bool using_age_dependent_biting_level_ = false;
   bool using_variable_probability_infectious_bites_cause_infection_ = false;
-  // new member
+  // new members
   AgeBasedProbabilityOfSeekingTreatment age_based_probability_of_seeking_treatment_{};
+  PfPRBasedProbabilityOfSeekingTreatment pfpr_based_probability_of_seeking_treatment_{};
 
 public:
   double gamma_a = 0.0;
@@ -553,6 +661,23 @@ struct convert<EpidemiologicalParameters> {
       n["ages"] = rhs.get_age_based_probability_of_seeking_treatment().get_ages();
       node["age_based_probability_of_seeking_treatment"] = n;
     }
+    // optional: pfpr_based_probability_of_seeking_treatment
+    if (rhs.get_pfpr_based_probability_of_seeking_treatment().is_enabled()) {
+      Node n;
+      n["enable"] = rhs.get_pfpr_based_probability_of_seeking_treatment().is_enabled();
+      n["type"] = rhs.get_pfpr_based_probability_of_seeking_treatment().get_type();
+      n["pfpr_is_percent"] =
+          rhs.get_pfpr_based_probability_of_seeking_treatment().get_pfpr_is_percent();
+
+      const auto &p = rhs.get_pfpr_based_probability_of_seeking_treatment().get_saturating_increase();
+      Node pnode;
+      pnode["amplitude"] = p.amplitude;
+      pnode["rate"] = p.rate;
+      pnode["max_modifier"] = p.max_modifier;
+      n["saturating_increase"] = pnode;
+
+      node["pfpr_based_probability_of_seeking_treatment"] = n;
+    }
     return node;
   }
 
@@ -627,6 +752,30 @@ struct convert<EpidemiologicalParameters> {
       else
         cfg.set_enabled(true);
       rhs.set_age_based_probability_of_seeking_treatment(cfg);
+    }
+    // optional pfpr_based_probability_of_seeking_treatment
+    if (node["pfpr_based_probability_of_seeking_treatment"]) {
+      const auto n = node["pfpr_based_probability_of_seeking_treatment"];
+      EpidemiologicalParameters::PfPRBasedProbabilityOfSeekingTreatment cfg;
+
+      if (n["type"]) cfg.set_type(n["type"].as<std::string>());
+      if (n["pfpr_is_percent"]) cfg.set_pfpr_is_percent(n["pfpr_is_percent"].as<bool>());
+
+      if (n["saturating_increase"]) {
+        const auto p = n["saturating_increase"];
+        EpidemiologicalParameters::PfPRBasedProbabilityOfSeekingTreatment::SaturatingIncreaseConfig pc;
+        if (p["amplitude"]) pc.amplitude = p["amplitude"].as<double>();
+        if (p["rate"]) pc.rate = p["rate"].as<double>();
+        if (p["max_modifier"]) pc.max_modifier = p["max_modifier"].as<double>();
+        cfg.set_saturating_increase(pc);
+      }
+
+      if (n["enable"])
+        cfg.set_enabled(n["enable"].as<bool>());
+      else
+        cfg.set_enabled(true);
+
+      rhs.set_pfpr_based_probability_of_seeking_treatment(cfg);
     }
     return true;
   }
