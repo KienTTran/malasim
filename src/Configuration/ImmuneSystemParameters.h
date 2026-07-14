@@ -129,8 +129,8 @@ public:
 
       ac_r *= 1 + immune_inflation_rate_;
     }
-    assert(acquire_rate_by_age.size() == 81);
-    assert(acquire_rate_by_age_one_day_factor.size() == 81);
+    assert(acquire_rate_by_age_.size() == 81);
+    assert(acquire_rate_by_age_one_day_factor_.size() == 81);
 
     decay_rate_one_day_factor_ = std::exp(-decay_rate_);
 

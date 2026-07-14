@@ -204,6 +204,50 @@ public:
     std::vector<beta_distribution_params> prob_individual_present_at_mda_distribution_;
   };
 
+    // Inner class: SMC
+    class SeasonalMalariaChemoprevention {
+    public:
+        struct beta_distribution_params {
+          double alpha;
+          double beta;
+        };
+        // Getters and Setters
+        [[nodiscard]] bool get_enable() const { return enable_; }
+        void set_enable(const bool value) { enable_ = value; }
+
+        [[nodiscard]] int get_smc_therapy_id() const { return smc_therapy_id_; }
+        void set_smc_therapy_id(const int value) { smc_therapy_id_ = value; }
+
+        [[nodiscard]] double get_has_effective_drug_in_blood_threshold() const { return has_effective_drug_in_blood_threshold_; }
+        void set_has_effective_drug_in_blood_threshold(const double value) { has_effective_drug_in_blood_threshold_ = value; }
+
+        [[nodiscard]] bool get_coverage_adjustment() const { return coverage_adjustment; }
+        void set_coverage_adjustment(const bool value) { coverage_adjustment = value; }
+
+
+        [[nodiscard]] const std::vector<int>& get_smc_districts() const { return smc_districts_; }
+        void set_smc_districts(const std::vector<int>& value) { smc_districts_ = value; }
+
+        [[nodiscard]] const std::vector<double>& get_mean_prob_individual_present_at_smc() const { return mean_prob_individual_present_at_smc_; }
+        void set_mean_prob_individual_present_at_smc(const std::vector<double>& value) { mean_prob_individual_present_at_smc_ = value; }
+
+        [[nodiscard]] const std::vector<double>& get_sd_prob_individual_present_at_smc() const { return sd_prob_individual_present_at_smc_; }
+        void set_sd_prob_individual_present_at_smc(const std::vector<double>& value) { sd_prob_individual_present_at_smc_ = value; }
+
+        std::vector<beta_distribution_params> get_prob_individual_present_at_smc_distribution() { return prob_individual_present_at_smc_distribution_; }
+        void set_prob_individual_present_at_smc_distribution(const std::vector<beta_distribution_params>& value) { prob_individual_present_at_smc_distribution_ = value; }
+
+    private:
+        bool enable_ = false;
+        int smc_therapy_id_ = -1;
+        double has_effective_drug_in_blood_threshold_ = 0.5;
+        bool coverage_adjustment = false;
+        std::vector<int> smc_districts_;
+        std::vector<double> mean_prob_individual_present_at_smc_;
+        std::vector<double> sd_prob_individual_present_at_smc_;
+        std::vector<beta_distribution_params> prob_individual_present_at_smc_distribution_;
+    }; 
+
   // Getters and Setters for StrategyParameters
   [[nodiscard]] const std::map<int, StrategyInfo> &get_strategy_db_raw() const {
     return strategy_db_raw_;
@@ -220,6 +264,10 @@ public:
   void set_mass_drug_administration(const MassDrugAdministration &value) {
     mass_drug_administration_ = value;
   }
+
+  // SMC
+  [[nodiscard]] SeasonalMalariaChemoprevention get_smc() const { return seasonal_malaria_chemoprevention_; }
+  void set_seasonal_malaria_chemoprevention(const SeasonalMalariaChemoprevention& value) { seasonal_malaria_chemoprevention_ = value; }
 
   [[nodiscard]] const YAML::Node &get_node() const { return node_; }
   void set_node(const YAML::Node &value) { node_ = value; }
@@ -240,6 +288,7 @@ private:
   int initial_strategy_id_ = -1;
   int second_line_strategy_id_ = -1;
   MassDrugAdministration mass_drug_administration_;
+  SeasonalMalariaChemoprevention seasonal_malaria_chemoprevention_;
   YAML::Node node_;
 };
 
@@ -402,6 +451,38 @@ struct convert<StrategyParameters::MassDrugAdministration> {
   }
 };
 
+// StrategyParameters::SMC YAML conversion
+template<>
+struct convert<StrategyParameters::SeasonalMalariaChemoprevention> {
+    static Node encode(const StrategyParameters::SeasonalMalariaChemoprevention& rhs) {
+        Node node;
+        node["enable"] = rhs.get_enable();
+        node["smc_therapy_id"] = rhs.get_smc_therapy_id();
+        node["has_effective_drug_in_blood_threshold"] = rhs.get_has_effective_drug_in_blood_threshold();
+        node["coverage_adjustment"] = rhs.get_coverage_adjustment();
+        node["smc_districts"] = rhs.get_smc_districts();
+        node["mean_prob_individual_present_at_smc"] = rhs.get_mean_prob_individual_present_at_smc();
+        node["sd_prob_individual_present_at_smc"] = rhs.get_sd_prob_individual_present_at_smc();
+        return node;
+    }
+
+    static bool decode(const Node& node, StrategyParameters::SeasonalMalariaChemoprevention& rhs) {
+        if (!node["enable"] || !node["smc_therapy_id"] || !node["has_effective_drug_in_blood_threshold"] || !node["coverage_adjustment"] || !node["smc_districts"] ||
+            !node["mean_prob_individual_present_at_smc"] || !node["sd_prob_individual_present_at_smc"]) {
+            throw std::runtime_error("Missing fields in StrategyParameters::SeasonalMalariaChemoprevention");
+        }
+        rhs.set_enable(node["enable"].as<bool>());
+        rhs.set_smc_therapy_id(node["smc_therapy_id"].as<int>());
+        rhs.set_has_effective_drug_in_blood_threshold(node["has_effective_drug_in_blood_threshold"].as<double>());
+        rhs.set_coverage_adjustment(node["coverage_adjustment"].as<bool>());
+        rhs.set_smc_districts(node["smc_districts"].as<std::vector<int>>());
+        rhs.set_mean_prob_individual_present_at_smc(node["mean_prob_individual_present_at_smc"].as<std::vector<double>>());
+        rhs.set_sd_prob_individual_present_at_smc(node["sd_prob_individual_present_at_smc"].as<std::vector<double>>());
+        return true;
+    }
+};
+
+
 // StrategyParameters YAML conversion
 template <>
 struct convert<StrategyParameters> {
@@ -423,6 +504,7 @@ struct convert<StrategyParameters> {
     node["initial_strategy_id"] = rhs.get_initial_strategy_id();
     node["second_line_strategy_id"] = rhs.get_second_line_strategy_id();
     node["mass_drug_administration"] = rhs.get_mda();
+    node["seasonal_malaria_chemoprevention"] = rhs.get_smc(); // SMC
     return node;
   }
 
@@ -445,6 +527,7 @@ struct convert<StrategyParameters> {
         node["second_line_strategy_id"] ? node["second_line_strategy_id"].as<int>() : -1);
     rhs.set_mass_drug_administration(
         node["mass_drug_administration"].as<StrategyParameters::MassDrugAdministration>());
+    rhs.set_seasonal_malaria_chemoprevention(node["seasonal_malaria_chemoprevention"].as<StrategyParameters::SeasonalMalariaChemoprevention>()); // SMC
     return true;
   }
 };

@@ -32,7 +32,9 @@ public:
   //    ReceiveMDADrugEvent(const ReceiveMDADrugEvent& orig);
   virtual ~ReceiveSMCTherapyEvent() = default;
 
-  const std::string name() const override { return "ReceiveSMCTherapyEvent"; }
+  [[nodiscard]] std::string_view name() const noexcept override {
+    return "ReceiveSMCTherapyEvent";
+  }
 
 private:
   void do_execute() override;

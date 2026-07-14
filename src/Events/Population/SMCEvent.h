@@ -119,7 +119,8 @@ public:
      * @brief Gets the name of the event
      * @return The event name
      */
-    [[nodiscard]] const std::string name() const override {
-        return "SingleRoundSMCEvent";
+    static constexpr std::string_view EVENT_NAME{"SMC"};
+    [[nodiscard]] std::string_view name() const noexcept override {
+    return EVENT_NAME;
     }
 };

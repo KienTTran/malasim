@@ -40,6 +40,7 @@
 #include "Parasites/Genotype.h"
 #include "RotateStrategyEvent.h"
 #include "Simulation/Model.h"
+#include "SMCEvent.h"
 #include "SingleRoundMDAEvent.h"
 #include "TurnOffMutationEvent.h"
 #include "TurnOnMutationEvent.h"
@@ -240,6 +241,65 @@ std::vector<std::unique_ptr<WorldEvent>> PopulationEventBuilder::build_single_ro
     event->set_days_to_complete(entry["days_to_complete_all_treatments"].as<int>());
     events.push_back(std::move(event));
   }
+
+  return events;
+}
+
+// SMC
+std::vector<std::unique_ptr<WorldEvent>> PopulationEventBuilder::build_smc_event(
+    const YAML::Node &node, Config* config) {
+  std::vector<std::unique_ptr<WorldEvent>> events;
+  for (const auto &entry : node) {
+
+    auto districts = entry["districts"].as<std::vector<int>>();
+    auto year_range = entry["year_range"].as<std::vector<int>>();
+    auto months = entry["months"].as<std::vector<int>>();
+    auto age_range = entry["age_range"].as<std::vector<int>>();
+    auto base_fraction_population_targeted =
+        entry["fraction_population_targeted"].as<std::vector<double>>();
+    auto days_to_complete_all_treatments =
+        entry["days_to_complete_all_treatments"].as<int>();
+
+    int start_year = year_range.front();
+    int end_year = (year_range.size() > 1) ? year_range.back() : start_year;
+
+    for (int year = start_year; year <= end_year; ++year) {
+      // Coverage is defined for year 2024.
+      // Each year before 2024 is reduced by 10% of the 2024 value,
+      // with a minimum of 10% of the 2024 coverage.
+      // 2024 and later remain at the 2024 level.
+      double scale_factor = 1.0;
+      if (Model::get_config()->get_strategy_parameters().get_smc().get_coverage_adjustment()){
+      if (year < 2024) {
+        scale_factor = 1.0 - 0.1 * (2024 - year);
+        if (scale_factor < 0.1) scale_factor = 0.1;
+      }
+      }
+
+      std::vector<double> scaled_fraction_population_targeted =
+          base_fraction_population_targeted;
+      for (auto& coverage : scaled_fraction_population_targeted) {
+        coverage *= scale_factor;
+      }
+
+      for (const int month : months) {
+
+        const auto starting_date = date::year{year} / month / 15;
+        auto time = (date::sys_days{starting_date}
+                 - date::sys_days{config->get_simulation_timeframe().get_starting_date()})
+                    .count();
+
+        auto event = std::make_unique<SMCEvent>(time);
+        event->set_smc_year(year);
+        event->set_smc_month(month);
+        event->set_districts(districts);
+        event->set_fraction_population_targeted(scaled_fraction_population_targeted);
+        event->set_age_range(age_range);
+        event->set_days_to_complete(days_to_complete_all_treatments);
+        events.push_back(std::move(event));
+      }
+  }
+}
 
   return events;
 }
@@ -864,6 +924,9 @@ std::vector<std::unique_ptr<WorldEvent>> PopulationEventBuilder::build(const YAM
   if (name == SingleRoundMDAEvent::EVENT_NAME) {
     events = build_single_round_mda_event(node["info"], config);
   }
+
+  if (name == "SMC") { events = build_smc_event(node["info"], config); } //SMC
+  
   if (name == ModifyNestedMFTEvent::EVENT_NAME) {
     events = build_modify_nested_mft_strategy_event(node["info"], config);
   }
