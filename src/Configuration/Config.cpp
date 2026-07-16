@@ -934,12 +934,16 @@ void Config::validate_population_events() const {
     if (population_event.get_name().empty()) {
       throw std::invalid_argument("Name should be provided for all population events");
     }
-    std::cout << "'" << population_event.get_name() << "'" << std::endl;
     if(population_event.get_name()=="SMC") { return;} // event date is later constructed based on year range 
     for (auto event_info : population_event.get_info()) {
       // Check if event date is valid
       if (event_info.get_date() < simulation_timeframe_.get_starting_date()
           || event_info.get_date() > simulation_timeframe_.get_ending_date()) {
+spdlog::error(
+    "Event date {} is not in between simulation starting date {} and ending date {}",
+    date::format("%F", event_info.get_date()),
+    date::format("%F", simulation_timeframe_.get_starting_date()),
+    date::format("%F", simulation_timeframe_.get_ending_date()));
         throw std::invalid_argument(
             "Event date should be in between simulation starting and ending date");
       }
