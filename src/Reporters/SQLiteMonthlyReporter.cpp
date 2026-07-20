@@ -1,7 +1,7 @@
 #include "SQLiteMonthlyReporter.h"
 
 #include <fmt/printf.h>
-
+#include <cmath>
 #include "Configuration/Config.h"
 #include "Core/Scheduler/Scheduler.h"
 #include "MDC/ModelDataCollector.h"
@@ -162,10 +162,32 @@ void SQLiteMonthlyReporter::calculate_and_build_up_site_data_insert_values(int m
     // Skip units with no population
     if (monthly_site_data_by_level[level_id].population[unit_id] == 0) continue;
 
-    double calculated_eir = (monthly_site_data_by_level[level_id].eir[unit_id] != 0)
-                                ? (monthly_site_data_by_level[level_id].eir[unit_id]
-                                   / monthly_site_data_by_level[level_id].population[unit_id])
-                                : 0;
+      const double accumulated_eir =
+      monthly_site_data_by_level[level_id].eir[unit_id];
+
+      const double unit_population = static_cast<double>(
+          monthly_site_data_by_level[level_id].population[unit_id]);
+
+      double calculated_eir = 0.0;
+
+      if (unit_population > 0.0 && std::isfinite(accumulated_eir)) {
+          calculated_eir = accumulated_eir / unit_population;
+      }
+
+      if (!std::isfinite(calculated_eir)) {
+          spdlog::warn(
+              "SQLiteMonthlyReporter: non-finite aggregated EIR for "
+              "month_id={}, level_id={}, unit_id={}, accumulated_eir={}, "
+              "population={}; using 0 for reporting.",
+              month_id,
+              level_id,
+              unit_id,
+              accumulated_eir,
+              unit_population);
+
+          calculated_eir = 0.0;
+      }
+
     double calculated_pfpr_under5 =
         (monthly_site_data_by_level[level_id].pfpr_under5[unit_id] != 0)
             ? (monthly_site_data_by_level[level_id].pfpr_under5[unit_id]
@@ -395,10 +417,30 @@ void SQLiteMonthlyReporter::collect_site_data_for_location(int location_id, int 
     monthly_site_data_by_level[level_id].current_foi_by_location[unit_id] +=
         Model::get_population()->current_force_of_infection_by_location()[location_id];
 
-    auto eir_location = Model::get_mdc()->eir_by_location_year()[location_id].empty()
-                            ? 0
-                            : Model::get_mdc()->eir_by_location_year()[location_id].back();
-    monthly_site_data_by_level[level_id].eir[unit_id] += (eir_location * location_population);
+      const auto &eir_history =
+      Model::get_mdc()->eir_by_location_year()[location_id];
+
+      double eir_location =
+          eir_history.empty() ? 0.0 : eir_history.back();
+
+      if (!std::isfinite(eir_location)) {
+          // monthly_report_site_data() calls this function once for every reporting
+          // level. Log only for the first level to avoid duplicate warnings.
+          if (level_id == 0) {
+              spdlog::warn(
+                  "SQLiteMonthlyReporter: non-finite EIR at location_id={}, "
+                  "unit_id={}, population={}, EIR={}; using 0 for reporting.",
+                  location_id,
+                  unit_id,
+                  location_population,
+                  eir_location);
+          }
+
+          eir_location = 0.0;
+      }
+
+      monthly_site_data_by_level[level_id].eir[unit_id] +=
+          eir_location * static_cast<double>(location_population);
     monthly_site_data_by_level[level_id].pfpr_under5[unit_id] +=
         (Model::get_mdc()->get_blood_slide_prevalence(location_id, 0, 5) * location_population);
     monthly_site_data_by_level[level_id].pfpr2to10[unit_id] +=
