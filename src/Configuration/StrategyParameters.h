@@ -527,7 +527,11 @@ struct convert<StrategyParameters> {
         node["second_line_strategy_id"] ? node["second_line_strategy_id"].as<int>() : -1);
     rhs.set_mass_drug_administration(
         node["mass_drug_administration"].as<StrategyParameters::MassDrugAdministration>());
-    rhs.set_seasonal_malaria_chemoprevention(node["seasonal_malaria_chemoprevention"].as<StrategyParameters::SeasonalMalariaChemoprevention>()); // SMC
+    if (node["seasonal_malaria_chemoprevention"]) {
+    rhs.set_seasonal_malaria_chemoprevention(
+        node["seasonal_malaria_chemoprevention"]
+            .as<StrategyParameters::SeasonalMalariaChemoprevention>());
+    }
     return true;
   }
 };
