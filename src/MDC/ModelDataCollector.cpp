@@ -308,9 +308,12 @@ void ModelDataCollector::perform_population_statistic() {
 
   auto* pi = Model::get_population()->get_person_index<PersonIndexByLocationStateAgeClass>();
 
-  for (auto loc = 0; loc < Model::get_config()->number_of_locations(); loc++) {
+  const auto number_of_locations = Model::get_config()->number_of_locations();
+  const auto number_of_age_classes = Model::get_config()->number_of_age_classes();
+
+  for (auto loc = 0; loc < number_of_locations; loc++) {
     for (auto hs = 0; hs < Person::NUMBER_OF_STATE - 1; hs++) {
-      for (auto ac = 0; ac < Model::get_config()->number_of_age_classes(); ac++) {
+      for (auto ac = 0; ac < number_of_age_classes; ac++) {
         std::size_t size = pi->vPerson()[loc][hs][ac].size();
         popsize_by_location_hoststate_[loc][hs] += static_cast<int>(size);
         popsize_by_location_age_class_[loc][ac] += static_cast<int>(size);
@@ -404,7 +407,7 @@ void ModelDataCollector::perform_population_statistic() {
     last_10_fraction_positive_that_are_clinical_by_location_[loc][report_index] =
         fraction_of_positive_that_are_clinical_by_location_[loc];
 
-    for (int ac = 0; ac < Model::get_config()->number_of_age_classes(); ac++) {
+    for (int ac = 0; ac < number_of_age_classes; ac++) {
       last_10_fraction_positive_that_are_clinical_by_location_age_class_[loc][ac][report_index] =
           (blood_slide_prevalence_by_location_age_group_[loc][ac] == 0)
               ? 0
@@ -568,26 +571,26 @@ void ModelDataCollector::begin_time_step() {
 // TODO: review
 void ModelDataCollector::end_of_time_step() {
   if (!recording_) { return; }
+  // Loop-invariant lookups hoisted. Config and Scheduler getters are defined in
+  // separate translation units, so without LTO each of these is a real call.
+  const auto number_of_locations = Model::get_config()->number_of_locations();
+  const auto tf_window_size =
+      Model::get_config()->get_epidemiological_parameters().get_tf_window_size();
+  const auto current_time = Model::get_scheduler()->current_time();
+  const auto window_index = current_time % tf_window_size;
+  const auto tf_rate = Model::get_config()->get_therapy_parameters().get_tf_rate();
+
   double avg_tf = 0;
-  for (auto location = 0; location < Model::get_config()->number_of_locations(); location++) {
-    total_number_of_treatments_60_by_location_
-        [location][Model::get_scheduler()->current_time()
-                   % Model::get_config()->get_epidemiological_parameters().get_tf_window_size()] =
-            today_number_of_treatments_by_location_[location];
-    total_ritf_60_by_location_
-        [location][Model::get_scheduler()->current_time()
-                   % Model::get_config()->get_epidemiological_parameters().get_tf_window_size()] =
-            today_ritf_by_location_[location];
-    total_tf_60_by_location_
-        [location][Model::get_scheduler()->current_time()
-                   % Model::get_config()->get_epidemiological_parameters().get_tf_window_size()] =
-            today_tf_by_location_[location];
+  for (auto location = 0; location < number_of_locations; location++) {
+    total_number_of_treatments_60_by_location_[location][window_index] =
+        today_number_of_treatments_by_location_[location];
+    total_ritf_60_by_location_[location][window_index] = today_ritf_by_location_[location];
+    total_tf_60_by_location_[location][window_index] = today_tf_by_location_[location];
 
     auto t_treatment60 = 0;
     auto t_ritf60 = 0;
     auto t_tf60 = 0;
-    for (auto i = 0; i < Model::get_config()->get_epidemiological_parameters().get_tf_window_size();
-         i++) {
+    for (auto i = 0; i < tf_window_size; i++) {
       t_treatment60 += total_number_of_treatments_60_by_location_[location][i];
       t_ritf60 += total_ritf_60_by_location_[location][i];
       t_tf60 += total_tf_60_by_location_[location][i];
@@ -606,25 +609,16 @@ void ModelDataCollector::end_of_time_step() {
   }
 
   // update UTL
-  if ((avg_tf / static_cast<double>(Model::get_config()->number_of_locations()))
-      <= Model::get_config()->get_therapy_parameters().get_tf_rate()) {
-    current_utl_duration_ += 1;
-  }
-  for (auto therapy_id = 0; static_cast<size_t>(therapy_id) < Model::get_therapy_db().size();
-       therapy_id++) {
-    total_number_of_treatments_60_by_therapy_
-        [therapy_id][Model::get_scheduler()->current_time()
-                     % Model::get_config()->get_epidemiological_parameters().get_tf_window_size()] =
-            today_number_of_treatments_by_therapy_[therapy_id];
-    total_tf_60_by_therapy_
-        [therapy_id][Model::get_scheduler()->current_time()
-                     % Model::get_config()->get_epidemiological_parameters().get_tf_window_size()] =
-            today_tf_by_therapy_[therapy_id];
+  if ((avg_tf / static_cast<double>(number_of_locations)) <= tf_rate) { current_utl_duration_ += 1; }
+  const auto therapy_db_size = Model::get_therapy_db().size();
+  for (auto therapy_id = 0; static_cast<size_t>(therapy_id) < therapy_db_size; therapy_id++) {
+    total_number_of_treatments_60_by_therapy_[therapy_id][window_index] =
+        today_number_of_treatments_by_therapy_[therapy_id];
+    total_tf_60_by_therapy_[therapy_id][window_index] = today_tf_by_therapy_[therapy_id];
 
     auto t_treatment60 = 0;
     auto t_tf60 = 0;
-    for (auto i = 0; i < Model::get_config()->get_epidemiological_parameters().get_tf_window_size();
-         i++) {
+    for (auto i = 0; i < tf_window_size; i++) {
       t_treatment60 += total_number_of_treatments_60_by_therapy_[therapy_id][i];
       t_tf60 += total_tf_60_by_therapy_[therapy_id][i];
     }

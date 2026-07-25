@@ -49,3 +49,11 @@ vcpkg_installed
 monthly_data_*.db
 
 test_*.asc
+build*/
+cmake-build-*/
+*.db
+*.sql
+*.xml
+*.patch
+*.zip
+*_parasitaemia.csv

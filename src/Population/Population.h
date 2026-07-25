@@ -123,6 +123,17 @@ public:
   template <typename T>
   T* get_person_index();
 
+  /**
+   * Cached pointer to the location/state/age-class index.
+   *
+   * get_person_index<T>() performs a dynamic_cast walk over person_index_list_
+   * on every call. The index list is built once in initialize_person_indices()
+   * and never changes afterwards, so the lookup is resolved there and simply
+   * read back here. Returns nullptr before initialize_person_indices() runs,
+   * matching what get_person_index<T>() would have returned.
+   */
+  [[nodiscard]] PersonIndexByLocationStateAgeClass* lsa_index() const { return lsa_index_; }
+
   IntVector get_popsize_by_location() { return popsize_by_location_; }
   void set_popsize_by_location(const IntVector &popsize_by_location) {
     popsize_by_location_ = popsize_by_location;
@@ -210,6 +221,16 @@ private:
   std::unique_ptr<PersonIndexAll> all_persons_{nullptr};
 
   std::unique_ptr<PersonIndexPtrList> person_index_list_{nullptr};
+
+  // Resolved once in initialize_person_indices(); see lsa_index().
+  PersonIndexByLocationStateAgeClass* lsa_index_{nullptr};
+
+  // Reused scratch buffers. These exist only to avoid a heap allocation per
+  // location per day; their contents are rebuilt from scratch on every use and
+  // carry no state between calls.
+  PersonPtrVector daily_people_scratch_;
+  PersonPtrVector death_victims_scratch_;
+
   IntVector popsize_by_location_;
 
   std::vector<std::vector<double>> individual_foi_by_location_;

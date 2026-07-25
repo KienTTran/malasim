@@ -135,6 +135,9 @@ void Population::initialize_person_indices() {
                               .get_circulation_info()
                               .get_number_of_moving_levels());
   person_index_list_->push_back(std::move(p_index_location_moving_level));
+
+  // Resolve the cached index pointer once; see Population::lsa_index().
+  lsa_index_ = get_person_index<PersonIndexByLocationStateAgeClass>();
 }
 
 void Population::add_person(std::unique_ptr<Person> person) {
@@ -178,15 +181,16 @@ void Population::notify_movement(const int source, const int destination) {
 
 std::size_t Population::size(const int &location, const int &age_class) {
   if (location == -1) { return all_persons_->size(); }
-  auto* pi_lsa = get_person_index<PersonIndexByLocationStateAgeClass>();
+  auto* pi_lsa = lsa_index();
 
   if (pi_lsa == nullptr) { return 0; }
   std::size_t temp = 0;
   if (age_class == core::K_INVALID_AGE_CLASS) {
+    const auto number_of_age_classes = Model::get_config()->number_of_age_classes();
+    const auto &by_location = pi_lsa->vPerson()[location];
     for (auto state = 0; state < Person::NUMBER_OF_STATE - 1; state++) {
-      for (auto ac = 0; ac < Model::get_config()->number_of_age_classes(); ac++) {
-        temp += pi_lsa->vPerson()[location][state][ac].size();
-      }
+      const auto &by_state = by_location[state];
+      for (auto ac = 0; ac < number_of_age_classes; ac++) { temp += by_state[ac].size(); }
     }
   } else {
     for (auto state = 0; state < Person::NUMBER_OF_STATE - 1; state++) {
@@ -200,7 +204,7 @@ std::size_t Population::size(const int &location,
                              const Person::HostStates &hs,
                              const int &age_class) {
   if (location == -1) { return all_persons_->size(); }
-  auto* pi_lsa = get_person_index<PersonIndexByLocationStateAgeClass>();
+  auto* pi_lsa = lsa_index();
   return (pi_lsa->vPerson()[location][hs][age_class].size());
 }
 
@@ -208,16 +212,18 @@ std::size_t Population::size(const int &location,
 std::size_t Population::size_residents_only(const int &location) {
   if (location == -1) { return all_persons_->size(); }
 
-  auto* pi_lsa = get_person_index<PersonIndexByLocationStateAgeClass>();
+  auto* pi_lsa = lsa_index();
 
   if (pi_lsa == nullptr) { return 0; }
   auto temp = 0;
+  const auto number_of_age_classes = Model::get_config()->number_of_age_classes();
+  const auto &by_location = pi_lsa->vPerson()[location];
   for (auto state = 0; state < Person::NUMBER_OF_STATE - 1; state++) {
-    for (auto ac = 0; ac < Model::get_config()->number_of_age_classes(); ac++) {
-      for (auto i = 0; i < pi_lsa->vPerson()[location][state][ac].size(); i++) {
-        if (pi_lsa->vPerson()[location][state][ac][i]->get_residence_location() == location) {
-          temp++;
-        }
+    const auto &by_state = by_location[state];
+    for (auto ac = 0; ac < number_of_age_classes; ac++) {
+      const auto &bucket = by_state[ac];
+      for (std::size_t i = 0; i < bucket.size(); i++) {
+        if (bucket[i]->get_residence_location() == location) { temp++; }
       }
     }
   }
@@ -568,24 +574,36 @@ Person* Population::give_1_birth(const int &location) {
 }
 
 void Population::perform_death_event_at_location(const int location) {
-  auto* pi = get_person_index<PersonIndexByLocationStateAgeClass>();
+  auto* pi = lsa_index();
   if (pi == nullptr) { return; }
 
   const auto &death_rates =
       Model::get_config()->get_population_demographic().get_death_rate_by_age_class();
-  assert(death_rates.size() == Model::get_config()->number_of_age_classes());
+  const auto number_of_age_classes = Model::get_config()->number_of_age_classes();
+  assert(death_rates.size() == static_cast<std::size_t>(number_of_age_classes));
+  const auto &by_location = pi->vPerson()[location];
   for (auto hs = 0; hs < Person::DEAD; ++hs) {
-    for (auto ac = 0; ac < Model::get_config()->number_of_age_classes(); ++ac) {
-      const PersonPtrVector candidates = pi->vPerson()[location][hs][ac];
+    for (auto ac = 0; ac < number_of_age_classes; ++ac) {
+      // Reference, not a copy. set_host_state(DEAD) below mutates this very
+      // bucket, so victims are resolved in a first pass (against the still
+      // unmutated vector) before any mutation happens in the second pass. The
+      // uniform draws remain consecutive, so the RNG stream is unchanged.
+      const auto &candidates = by_location[hs][ac];
       const auto candidate_count = static_cast<int>(candidates.size());
       if (candidate_count == 0) { continue; }
       const auto poisson_mean =
           candidate_count * death_rates[ac] / static_cast<double>(Constants::DAYS_IN_YEAR);
       const auto number_of_deaths = Model::get_random()->random_poisson(poisson_mean);
+      if (number_of_deaths <= 0) { continue; }
+
+      death_victims_scratch_.clear();
+      death_victims_scratch_.reserve(static_cast<std::size_t>(number_of_deaths));
       for (auto i = 0; i < number_of_deaths; ++i) {
         const auto index =
             static_cast<std::size_t>(Model::get_random()->random_uniform(candidate_count));
-        auto* person = candidates[index];
+        death_victims_scratch_.push_back(candidates[index]);
+      }
+      for (auto* person : death_victims_scratch_) {
         if (person->get_host_state() == Person::DEAD) { continue; }
         person->cancel_all_events_except(nullptr);
         person->set_host_state(Person::DEAD);
@@ -595,10 +613,12 @@ void Population::perform_death_event_at_location(const int location) {
 }
 
 void Population::clear_dead_people_at_location(const int location) {
-  auto* pi = get_person_index<PersonIndexByLocationStateAgeClass>();
+  auto* pi = lsa_index();
+  const auto number_of_age_classes = Model::get_config()->number_of_age_classes();
   PersonPtrVector dead_people;
-  for (auto ac = 0; ac < Model::get_config()->number_of_age_classes(); ++ac) {
-    const auto &dead_by_age = pi->vPerson()[location][Person::DEAD][ac];
+  const auto &dead_by_location = pi->vPerson()[location][Person::DEAD];
+  for (auto ac = 0; ac < number_of_age_classes; ++ac) {
+    const auto &dead_by_age = dead_by_location[ac];
     dead_people.insert(dead_people.end(), dead_by_age.begin(), dead_by_age.end());
   }
   for (auto* person : dead_people) {
@@ -705,7 +725,7 @@ void Population::perform_circulation_for_1_location(const int &from_location,
 }
 
 bool Population::has_0_case() {
-  auto* pi = get_person_index<PersonIndexByLocationStateAgeClass>();
+  auto* pi = lsa_index();
   auto* config = Model::get_config();
   const auto number_of_locations = config->number_of_locations();
   const auto number_of_age_classes = config->number_of_age_classes();
@@ -795,12 +815,19 @@ void Population::remove_from_daily_sampling_state(const int location, Person* pe
 }
 
 void Population::update_people_and_append_sampling_state(const int location) {
-  auto* pi = get_person_index<PersonIndexByLocationStateAgeClass>();
-  PersonPtrVector people;
-  people.reserve(size(location));
+  auto* pi = lsa_index();
+  const auto number_of_age_classes = Model::get_config()->number_of_age_classes();
+  // Reused buffer: the reserve argument is only an allocation hint and cannot
+  // affect results, so the O(1) size_at() is used in place of the O(states x
+  // age classes) size().
+  auto &people = daily_people_scratch_;
+  people.clear();
+  people.reserve(size_at(location));
+  const auto &by_location = pi->vPerson()[location];
   for (auto hs = 0; hs < Person::DEAD; ++hs) {
-    for (auto ac = 0; ac < Model::get_config()->number_of_age_classes(); ++ac) {
-      const auto &people_by_age = pi->vPerson()[location][hs][ac];
+    const auto &by_state = by_location[hs];
+    for (auto ac = 0; ac < number_of_age_classes; ++ac) {
+      const auto &people_by_age = by_state[ac];
       people.insert(people.end(), people_by_age.begin(), people_by_age.end());
     }
   }
