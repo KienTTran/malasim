@@ -523,8 +523,9 @@ void Population::setup_initial_infection(Person* person, Genotype* parasite_type
 }
 
 void Population::perform_birth_event_at_location(const int location) {
+  // O(1) living-count read; verified bit-identical to size(location) here.
   const auto poisson_mean = Model::get_config()->get_population_demographic().get_birth_rate()
-                            * static_cast<double>(size(location))
+                            * static_cast<double>(lsa_index()->living_at(location))
                             / static_cast<double>(Constants::DAYS_IN_YEAR);
   const auto number_of_births = Model::get_random()->random_poisson(poisson_mean);
   for (auto i = 0; i < number_of_births; ++i) {
@@ -638,7 +639,7 @@ void Population::perform_circulation_from_location(const int from_location,
   auto &spatial_settings = config->get_spatial_settings();
   auto* random = Model::get_random();
   PersonPtrVector today_circulations;
-  auto poisson_means = static_cast<double>(size(from_location))
+  auto poisson_means = static_cast<double>(lsa_index()->living_at(from_location))
                        * movement_settings.get_circulation_info().get_circulation_percent();
   if (poisson_means == 0) { return; }
   const auto number_of_circulating_from_this_location = random->random_poisson(poisson_means);

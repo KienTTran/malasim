@@ -28,6 +28,7 @@ void PersonIndexByLocationStateAgeClass::Initialize(const int &no_location, cons
   ppv3.assign(no_host_state, ppv2);
 
   vPerson_.assign(no_location, ppv3);
+  living_by_location_.assign(no_location, 0);
 }
 
 void PersonIndexByLocationStateAgeClass::add(Person *p) {
@@ -45,6 +46,7 @@ void PersonIndexByLocationStateAgeClass::add(Person *p, core::LocationId locatio
                                              core::AgeClass age_class) {
   vPerson_[location][host_state][age_class].push_back(p);
   p->PersonIndexByLocationStateAgeClassHandler::set_index(vPerson_[location][host_state][age_class].size() - 1);
+  if (host_state != Person::DEAD) { ++living_by_location_[location]; }
 }
 
 void PersonIndexByLocationStateAgeClass::remove(Person *p) {
@@ -53,6 +55,7 @@ void PersonIndexByLocationStateAgeClass::remove(Person *p) {
 }
 
 void PersonIndexByLocationStateAgeClass::remove_without_set_index(Person *p) {
+  if (p->get_host_state() != Person::DEAD) { --living_by_location_[p->get_location()]; }
   vPerson_[p->get_location()][p->get_host_state()][p->get_age_class()].back()->PersonIndexByLocationStateAgeClassHandler::set_index(
       p->PersonIndexByLocationStateAgeClassHandler::get_index());
   vPerson_[p->get_location()][p->get_host_state()][p->get_age_class()][p->PersonIndexByLocationStateAgeClassHandler::get_index()] =

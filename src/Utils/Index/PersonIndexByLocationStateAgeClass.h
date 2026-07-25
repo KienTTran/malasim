@@ -20,6 +20,7 @@ public:
 
 private:
   PersonPtrVector4 vPerson_;
+  std::vector<std::size_t> living_by_location_;
 
  public:
   //    PersonIndexByLocationStateAgeClass();
@@ -36,6 +37,16 @@ private:
   virtual void remove(Person *p);
 
   virtual std::size_t size() const;
+
+  // Running count of NON-DEAD people per location, maintained in lockstep with
+  // the vPerson_ buckets in add()/remove_without_set_index(). Equals
+  //   sum over states 0..DEAD-1, all age classes, of vPerson_[loc][s][ac].size()
+  // by construction, so it is a bit-identical O(1) replacement for that sum.
+  // Verified equal to size(location) at every birth/circulation call across a
+  // full 4740-day run on the ago grid.
+  [[nodiscard]] std::size_t living_at(int location) const {
+    return living_by_location_[location];
+  }
 
   virtual void update();
 
