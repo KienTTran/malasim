@@ -301,7 +301,7 @@ void SMCReporter::custom_report(){
 
 
         // Get drug concentrations if present
-        double drug0_val = 0.0, drug1_val = 0.0, drug2_val = 0.0, drug4_val = 0.0; // 0 => artemisinin, 1 => amodiaquine, 2 => SP, 4 => lumefantrine
+        double drug0_val = 0.0, drug1_val = 0.0, drug2_val = 0.0, drug5_val = 0.0; // 0 => artemisinin, 1 => lumefantrine, 2 => AMDQ, 5 => SP
 
         for (const auto &[drug_id, drug] : *person_ptr->drugs_in_blood()) {
             if (drug == nullptr) { continue; }
@@ -309,15 +309,10 @@ void SMCReporter::custom_report(){
             if (drug_id == 0) { drug0_val = drug->last_update_value(); }
             else if (drug_id == 1) { drug1_val = drug->last_update_value(); }
             else if (drug_id == 2) { drug2_val = drug->last_update_value(); }
-            else if (drug_id == 4) { drug4_val = drug->last_update_value(); }
+            else if (drug_id == 5) { drug5_val = drug->last_update_value(); }
 
 
         }
-
-
-
-
-
 
         int district_id = Model::get_spatial_data()->get_admin_unit("district", person_ptr->get_location());
 
@@ -332,15 +327,10 @@ void SMCReporter::custom_report(){
             drug0_val,
             drug1_val,
             drug2_val,
-            drug4_val,
+            drug5_val,
             p_density,
             genotypes
-        );
-
-
-
-    
-
+        );    
     }
   }
 
