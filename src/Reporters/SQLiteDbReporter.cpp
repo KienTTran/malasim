@@ -231,6 +231,9 @@ void SQLiteDbReporter::create_reporting_tables_for_level(
           total_number_of_bites_by_location_year BIGINT NOT NULL,
           person_days_by_location_year BIGINT NOT NULL,
           current_foi_by_location BIGINT NOT NULL,
+          death_by_location INTEGER NOT NULL DEFAULT 0,
+          malaria_death_by_location INTEGER NOT NULL DEFAULT 0,
+          birth_by_location INTEGER NOT NULL DEFAULT 0,
           PRIMARY KEY (monthly_data_id, {}),
           FOREIGN KEY (monthly_data_id) REFERENCES monthly_data(id)
       );
@@ -279,7 +282,10 @@ void SQLiteDbReporter::create_reporting_tables_for_level(
       "total_number_of_bites_by_location, "
       "total_number_of_bites_by_location_year, "
       "person_days_by_location_year, "
-      "current_foi_by_location) VALUES";
+      "current_foi_by_location, "
+      "death_by_location, "
+      "malaria_death_by_location, "
+      "birth_by_location) VALUES";
 
     insert_genome_query_prefixes_[prefix_index] =
         fmt::format(R"""(

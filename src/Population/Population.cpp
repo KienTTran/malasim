@@ -524,6 +524,7 @@ void Population::perform_birth_event_at_location(const int location) {
   for (auto i = 0; i < number_of_births; ++i) {
     auto* newborn = give_1_birth(location);
     append_daily_sampling_state(location, newborn);
+    Model::get_mdc()->record_1_birth(location);
     Model::get_mdc()->update_person_days_by_years(
         location, Constants::DAYS_IN_YEAR - Model::get_scheduler()->get_current_day_in_year());
   }

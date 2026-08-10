@@ -31,7 +31,8 @@ protected:
   struct MonthlySiteData {
     std::vector<double> eir, pfpr_under5, pfpr2to10, pfpr_all;
     std::vector<int> population, clinical_episodes, treatments, treatment_failures, nontreatment,
-        treatments_under5, treatments_over5, infections_by_unit;
+        treatments_under5, treatments_over5, infections_by_unit, death_by_location,
+        malaria_death_by_location, birth_by_location;
     std::vector<std::vector<int>> clinical_episodes_by_age_class;
     std::vector<std::vector<int>> clinical_episodes_by_age;
     std::vector<std::vector<int>> population_by_age;

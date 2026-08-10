@@ -487,6 +487,23 @@ void ModelDataCollector::record_1_malaria_death(core::LocationId loc, core::Age 
     number_of_malaria_deaths_treated_by_location_age_year_[loc][age_clamp] += 1;
   else
     number_of_malaria_deaths_non_treated_by_location_age_year_[loc][age_clamp] += 1;
+
+  // Monthly counter, zeroed in monthly_update(). Previously this vector was
+  // allocated and reset but never incremented, so consumers (PopulationReporter,
+  // SQLiteMonthlyReporter) always read 0.
+  malaria_deaths_by_location_[loc] += 1;
+}
+
+// Declared in the header but never defined before this change, so
+// births_by_location_ was allocated and zeroed monthly while staying at 0.
+// Gated the same way as record_1_death() so births and deaths in the same
+// reporting row cover the same period.
+void ModelDataCollector::record_1_birth(core::LocationId location) {
+  if (Model::get_scheduler()->current_time()
+      < Model::get_config()->get_simulation_timeframe().get_start_collect_data_day()) {
+    return;
+  }
+  births_by_location_[location] += 1;
 }
 
 void ModelDataCollector::calculate_percentage_bites_on_top_20() {

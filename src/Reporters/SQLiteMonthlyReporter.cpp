@@ -250,7 +250,7 @@ void SQLiteMonthlyReporter::calculate_and_build_up_site_data_insert_values(int m
     }
 
     single_row += fmt::format(
-        ", {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})",
+        ", {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})",
         monthly_site_data_by_level[level_id].treatments[unit_id], calculated_eir,
         calculated_pfpr_under5, calculated_pfpr2to10, calculated_pfpr_all,
         monthly_site_data_by_level[level_id].infections_by_unit[unit_id],
@@ -265,7 +265,10 @@ void SQLiteMonthlyReporter::calculate_and_build_up_site_data_insert_values(int m
         monthly_site_data_by_level[level_id].total_number_of_bites_by_location[unit_id],
         monthly_site_data_by_level[level_id].total_number_of_bites_by_location_year[unit_id],
         monthly_site_data_by_level[level_id].person_days_by_location_year[unit_id],
-        monthly_site_data_by_level[level_id].current_foi_by_location[unit_id]);
+        monthly_site_data_by_level[level_id].current_foi_by_location[unit_id],
+        monthly_site_data_by_level[level_id].death_by_location[unit_id],
+        monthly_site_data_by_level[level_id].malaria_death_by_location[unit_id],
+        monthly_site_data_by_level[level_id].birth_by_location[unit_id]);
 
     insert_values.push_back(single_row);
   }
@@ -350,6 +353,18 @@ void SQLiteMonthlyReporter::collect_site_data_for_location(int location_id, int 
 
   monthly_site_data_by_level[level_id].recrudescence_treatment[unit_id] +=
       Model::get_mdc()->monthly_number_of_recrudescence_treatment_by_location()[location_id];
+
+  // Monthly deaths (all-cause and malaria-attributed). Both MDC counters are
+  // zeroed in ModelDataCollector::monthly_update(), so at reporting time they
+  // hold the counts accumulated since the previous monthly report.
+  monthly_site_data_by_level[level_id].death_by_location[unit_id] +=
+      Model::get_mdc()->deaths_by_location()[location_id];
+  monthly_site_data_by_level[level_id].malaria_death_by_location[unit_id] +=
+      Model::get_mdc()->malaria_deaths_by_location()[location_id];
+
+  // Monthly births. Also zeroed in ModelDataCollector::monthly_update().
+  monthly_site_data_by_level[level_id].birth_by_location[unit_id] +=
+      Model::get_mdc()->births_by_location()[location_id];
 
   for (auto ndx = 0; ndx < age_classes.size(); ndx++) {
     // Collect the treatment by age class, following the 0-59 month convention
@@ -522,6 +537,9 @@ void SQLiteMonthlyReporter::reset_site_data_structures(int level_id, int vector_
   monthly_site_data_by_level[level_id].treatments_under5.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].treatments_over5.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].infections_by_unit.assign(vector_size, 0);
+  monthly_site_data_by_level[level_id].death_by_location.assign(vector_size, 0);
+  monthly_site_data_by_level[level_id].malaria_death_by_location.assign(vector_size, 0);
+  monthly_site_data_by_level[level_id].birth_by_location.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].progress_to_clinical_in_7d_total.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].progress_to_clinical_in_7d_recrudescence.assign(vector_size,
                                                                                        0);
