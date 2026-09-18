@@ -160,6 +160,11 @@ public:
     return all_alive_persons_by_location_;
   }
 
+  [[nodiscard]] std::vector<Person*> &smc_tracked_person_ids() { return smc_tracked_people_; }
+  void set_smc_tracked_person_ids(const std::vector<Person*> &smc_tracked_people) {
+    smc_tracked_people_ = smc_tracked_people;
+  } //SMCReporter
+
 private:
   void reset_daily_sampling_state(int location);
 
@@ -222,6 +227,8 @@ private:
   std::vector<double> current_force_of_infection_by_location_;
   std::vector<std::vector<double>> force_of_infection_for_n_days_by_location_;
   std::vector<std::vector<Person*>> all_alive_persons_by_location_;
+
+  std::vector<Person*> smc_tracked_people_; //SMCReporter
 };
 
 template <typename T>

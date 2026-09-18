@@ -144,6 +144,13 @@ public:
     prob_present_at_mda_by_age_ = prob_present_at_mda_by_age;
   }
 
+  [[nodiscard]] std::vector<double> get_prob_present_at_smc_by_location() const {
+    return prob_present_at_smc_by_location_;
+  }
+  void set_prob_present_at_smc_by_location(const std::vector<double> &prob_present_at_smc_by_location) {
+    prob_present_at_smc_by_location_ = prob_present_at_smc_by_location;
+  }
+
   [[nodiscard]] int get_number_of_times_bitten() const { return number_of_times_bitten_; }
   void set_number_of_times_bitten(int number_of_times_bitten) {
     number_of_times_bitten_ = number_of_times_bitten;
@@ -263,6 +270,10 @@ public:
 
   double prob_present_at_mda();
 
+  void generate_prob_present_at_smc_by_location(); //SMC
+  
+  double prob_present_at_smc(); //SMC
+
   [[nodiscard]] bool has_effective_drug_in_blood() const;
 
   static double draw_random_relative_biting_rate(utils::Random* p_random, Config* p_config);
@@ -289,6 +300,7 @@ public:
                                       int days_delay,
                                       bool is_part_of_mac_therapy = false);
   void schedule_switch_immune_system_mode_event(int days_delay);
+  void schedule_receive_smc_therapy_event(Therapy* therapy, int days_delay); //SMC
 
   // Group 2: Parasite Event Scheduling
   void schedule_move_parasite_to_blood(Genotype* genotype, int days_delay);
@@ -318,6 +330,7 @@ private:
   std::vector<core::GenotypeId> today_infections_;
   std::vector<core::LocationId> today_target_locations_;
   std::vector<double> prob_present_at_mda_by_age_;
+  std::vector<double> prob_present_at_smc_by_location_; // SMC
   std::map<core::DrugId, double> starting_drug_values_for_mac_;
 
   std::unique_ptr<ImmuneSystem> immune_system_{nullptr};

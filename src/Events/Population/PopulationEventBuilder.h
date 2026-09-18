@@ -45,6 +45,9 @@ public:
   static std::vector<std::unique_ptr<WorldEvent>> build_single_round_mda_event(
       const YAML::Node &node, Config* config);
 
+  static std::vector<std::unique_ptr<WorldEvent>> build_smc_event(
+      const YAML::Node &node, Config* config); //SMC
+
   static std::vector<std::unique_ptr<WorldEvent>> build_modify_nested_mft_strategy_event(
       const YAML::Node &node, Config* config);
 

@@ -42,5 +42,33 @@ void StrategyParameters::process_config() {
   // }
   mass_drug_administration_.set_prob_individual_present_at_mda_distribution(
       prob_individual_present_at_mda_distribution_);
+
+
+  std::vector<SeasonalMalariaChemoprevention::beta_distribution_params>
+      prob_individual_present_at_smc_distribution_;
+  for (std::size_t i = 0;
+       i < seasonal_malaria_chemoprevention_.get_mean_prob_individual_present_at_smc()
+               .size();
+       i++) {
+    const auto mean =
+        seasonal_malaria_chemoprevention_.get_mean_prob_individual_present_at_smc()[i];
+    const auto sd =
+        seasonal_malaria_chemoprevention_.get_sd_prob_individual_present_at_smc()[i];
+
+    SeasonalMalariaChemoprevention::beta_distribution_params params{};
+
+    if (NumberHelpers::is_zero(sd)) {
+      params.alpha = mean;
+      params.beta = 0.0;
+    } else {
+      params.alpha = mean * mean * (1 - mean) / (sd * sd) - mean;
+      params.beta = params.alpha / mean - params.alpha;
+    }
+
+    prob_individual_present_at_smc_distribution_.push_back(params);
+  }
+  
+  seasonal_malaria_chemoprevention_.set_prob_individual_present_at_smc_distribution(
+      prob_individual_present_at_smc_distribution_);
 }
 

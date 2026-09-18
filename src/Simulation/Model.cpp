@@ -20,6 +20,7 @@
 #include "Treatment/LinearTCM.h"
 #include "Utils/Helpers/StringHelpers.h"
 #include "Treatment/SteadyTCM.h"
+#include "Reporters/SMCReporter.h" // Include the SMCReporter header
 
 namespace {
 
@@ -317,6 +318,46 @@ void Model::daily_update() {
                                              location, tracking_index);
     population_->persist_force_of_infection_at_location(location, tracking_index);
   }
+
+  // START added for SMC custom report
+
+  // Compute current date in sys_days
+  date::sys_days cur_sd =
+      date::sys_days{config_->get_simulation_timeframe().get_starting_date()} +
+      date::days{Model::get_scheduler()->current_time()};
+
+  // Get reporting window
+  auto smc_reporting_start_day = config_->get_smc_reporter_settings().get_smc_reporting_start_day();
+  auto smc_reporting_end_day   = config_->get_smc_reporter_settings().get_smc_reporting_end_day();
+
+  int smc_reporting_interval =
+      config_->get_smc_reporter_settings().get_smc_reporting_interval();
+
+  // Convert to sys_days
+  date::sys_days start_sd{smc_reporting_start_day};
+  date::sys_days end_sd{smc_reporting_end_day};
+
+  // Number of days since reporting started
+  auto days_since_start = (cur_sd - start_sd).count();
+
+  // Call reporter only if:
+  // 1. Current day is within reporting window
+  // 2. Current day is an interval boundary
+  if (cur_sd >= start_sd &&
+      cur_sd <= end_sd &&
+      days_since_start % smc_reporting_interval == 0)
+  {
+      for (auto& reporter : reporters_) {
+          if (auto* smc_reporter = dynamic_cast<SMCReporter*>(reporter.get())) {
+              smc_reporter->custom_report();
+          }
+      }
+    }
+
+
+
+
+
 }
 
 void Model::monthly_update() {
