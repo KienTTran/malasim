@@ -3,6 +3,8 @@
 #include <date/date.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 
+#include <filesystem>
+
 #include "Configuration/Config.h"
 #include "Core/Scheduler/Scheduler.h"
 #include "MDC/ModelDataCollector.h"

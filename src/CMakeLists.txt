@@ -8,27 +8,12 @@ find_package(unofficial-sqlite3 CONFIG REQUIRED)
 
 option(ENABLE_TRAVEL_TRACKING "Enable tracking of individual travel data and generating travel reports" OFF)
 
-# include_directories(
-#   ${PROJECT_SOURCE_DIR}/src
-# )
-
-# craete source files
-# Add source files for the core library
 file(GLOB_RECURSE MALASIM_CORE_SOURCES
+  CONFIGURE_DEPENDS
   "${PROJECT_SOURCE_DIR}/src/*.cpp"
-  "${PROJECT_SOURCE_DIR}/src/*.hxx"
-  "${PROJECT_SOURCE_DIR}/src/*.h"
 )
 
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/malasim/version_generated.h")
-  message(STATUS "Using generated version_generated.h")
-else()
-  message(STATUS "Using default version.h")
-endif()
-
-
-# remove malasim/main.cpp from list
-list(FILTER MALASIM_CORE_SOURCES EXCLUDE REGEX "${PROJECT_SOURCE_DIR}/src/malasim/main\\.cpp$")
+list(FILTER MALASIM_CORE_SOURCES EXCLUDE REGEX "${PROJECT_SOURCE_DIR}/src/apps/")
 
 # Add source files for the core library
 add_library(MalaSimCore STATIC
@@ -45,6 +30,14 @@ if(ENABLE_TRAVEL_TRACKING)
 endif()
 
 target_include_directories(MalaSimCore PUBLIC "${PROJECT_SOURCE_DIR}/src")
+
+if(ENABLE_PCH)
+  target_precompile_headers(MalaSimCore PRIVATE <Simulation/Model.h>)
+
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    target_compile_options(MalaSimCore PRIVATE SHELL:-Xclang -fno-pch-timestamp)
+  endif()
+endif()
 
 # Add coverage flags to MalaSimCore if enabled
 if(ENABLE_COVERAGE)
@@ -67,54 +60,7 @@ target_link_libraries(MalaSimCore PUBLIC
 
 set_property(TARGET MalaSimCore PROPERTY CXX_STANDARD 20)
 
-# Only build main executable if coverage is disabled
 if(NOT ENABLE_COVERAGE)
-  # Add the main executable
-  add_executable(MalaSim
-      malasim/main.cpp
-  )
-
-  add_dependencies(MalaSim MalaSimCore)
-
-  # Link the core library and fmt to the main executable
-  target_link_libraries(MalaSim PUBLIC
-    MalaSimCore
-  )
-  set_property(TARGET MalaSim PROPERTY CXX_STANDARD 20)
+  add_subdirectory(apps/malasim)
+  add_subdirectory(apps/efficacy_estimator)
 endif()
-
-# Get full GitHub repository path (e.g., username/repo-name)
-execute_process(
-        COMMAND git config --get remote.origin.url
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        OUTPUT_VARIABLE GIT_REMOTE_URL
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-)
-
-# Parse username and repo name
-string(REGEX REPLACE ".*github.com[:/](.+)\\.git" "\\1" GIT_REPO_INFO "${GIT_REMOTE_URL}")
-
-# Get current Git branch
-execute_process(
-        COMMAND git rev-parse --abbrev-ref HEAD
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        OUTPUT_VARIABLE GIT_BRANCH_NAME
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-)
-
-# Get current Git commit hash (short)
-execute_process(
-        COMMAND git rev-parse --short HEAD
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        OUTPUT_VARIABLE GIT_COMMIT_HASH
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-)
-
-# Define macros
-add_definitions(-DGIT_REPO_INFO="${GIT_REPO_INFO}")
-add_definitions(-DGIT_BRANCH_NAME="${GIT_BRANCH_NAME}")
-add_definitions(-DGIT_COMMIT_HASH="${GIT_COMMIT_HASH}")
-
-
-
-

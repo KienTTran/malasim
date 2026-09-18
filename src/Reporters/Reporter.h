@@ -4,6 +4,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <vector>
 
 class Model;
 class Genotype;
@@ -89,7 +90,12 @@ public:
 
   virtual void on_genotype_added(const Genotype & /*genotype*/) {}
 
+  // Returns nullptr (and logs an error) if `report_type` has no implementation.
+  // Callers must check the result before passing it to Model::add_reporter().
   static std::unique_ptr<Reporter> make_report(ReportType report_type);
+
+  // Names accepted by the `-r/--reporter` command line option, in map order.
+  static std::vector<std::string> available_reporters();
 
 private:
 };

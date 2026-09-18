@@ -7,23 +7,23 @@
 #ifndef SQLITEDBREPORTER_H
 #define SQLITEDBREPORTER_H
 
-#include "Utils/Helpers/SQLiteDatabase.h"
-#include "Reporter.h"
 #include <memory>
 #include <string>
 #include <vector>
 
+#include "Reporter.h"
+#include "Utils/Helpers/SQLiteDatabase.h"
+
 class SQLiteDbReporter : public Reporter {
 private:
   // SQL query templates
-  const std::string insert_genotype_query_ =
-      "INSERT INTO genotype (id, name) VALUES (?, ?);";
+  const std::string insert_genotype_query_ = "INSERT INTO genotype (id, name) VALUES (?, ?);";
 
-  const std::string insert_admin_level_query_ =
-      "INSERT INTO admin_level (id, name) VALUES (?, ?);";
+  const std::string insert_admin_level_query_ = "INSERT INTO admin_level (id, name) VALUES (?, ?);";
 
   const std::string insert_location_admin_map_query_ =
-      "INSERT INTO location_admin_map (location_id, admin_level_id, admin_unit_id) VALUES (?, ?, ?);";
+      "INSERT INTO location_admin_map (location_id, admin_level_id, admin_unit_id) VALUES (?, ?, "
+      "?);";
 
   const std::string insert_common_query_ = R""""(
   INSERT INTO monthly_data (days_elapsed, model_time, seasonal_factor)
@@ -34,21 +34,19 @@ private:
   // Database schema management
   virtual void create_all_reporting_tables();
   virtual void create_reporting_tables_for_level(int level_id,
-    const std::string& age_class_column_definitions,
-    const std::string& age_class_columns,
-    const std::string& age_column_definitions,
-    const std::string& age_columns
-    );
+                                                 const std::string &age_class_column_definitions,
+                                                 const std::string &age_class_columns,
+                                                 const std::string &age_column_definitions,
+                                                 const std::string &age_columns);
   void populate_db_schema();
   void populate_genotype_table();
-  void insert_genotype(const Genotype& genotype);
+  void insert_genotype(const Genotype &genotype);
   void populate_admin_level_table();
   void populate_location_admin_map_table();
 
   // Utility methods for table names
   virtual std::string get_site_table_name(int level_id) const;
   virtual std::string get_genome_table_name(int level_id) const;
-
 
 protected:
   // Dynamically generated query prefixes for each admin level
@@ -95,11 +93,16 @@ public:
   void begin_time_step() override {}
   void monthly_report() override;
   void after_run() override {}
-  void on_genotype_added(const Genotype& genotype) override;
+  void on_genotype_added(const Genotype &genotype) override;
 
   // Set batch size for database operations
   void set_batch_size(int size) { batch_size = size > 0 ? size : DEFAULT_BATCH_SIZE; }
   int get_batch_size() const { return batch_size; }
+
+protected:
+  void initialize_database(int job_number,
+                           const std::string &path,
+                           const std::string &default_filename);
 };
 
-#endif // SQLITEDBREPORTER_H
+#endif  // SQLITEDBREPORTER_H

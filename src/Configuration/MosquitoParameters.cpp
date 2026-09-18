@@ -8,6 +8,25 @@ void MosquitoParameters::process_config_using_locations(std::vector<Spatial::Loc
   spdlog::info("Processing MosquitoParameters");
   if (get_mosquito_config().get_mode() == SpatialSettings::GRID_BASED_MODE) {
     spdlog::info("Processing MosquitoParameters using grid based mode");
+
+    // The mosquito rasters live under mosquito_parameters rather than
+    // spatial_settings, so SpatialData::load_files() never sees them. Load them
+    // here on first use; SpatialData::load() range-checks the interrupted
+    // feeding rate on the way in.
+    auto* spatial_data = Model::get_spatial_data();
+    const auto &grid_based = get_mosquito_config().get_grid_based();
+
+    if (spatial_data->get_raster(SpatialData::SpatialFileType::MOSQUITO_SIZE) == nullptr
+        && !grid_based.get_prmc_size_raster().empty()) {
+      spatial_data->load(grid_based.get_prmc_size_raster(),
+                         SpatialData::SpatialFileType::MOSQUITO_SIZE);
+    }
+    if (spatial_data->get_raster(SpatialData::SpatialFileType::MOSQUITO_IFR) == nullptr
+        && !grid_based.get_interrupted_feeding_rate_raster().empty()) {
+      spatial_data->load(grid_based.get_interrupted_feeding_rate_raster(),
+                         SpatialData::SpatialFileType::MOSQUITO_IFR);
+    }
+
     AscFile* size_raster =
         Model::get_spatial_data()->get_raster(SpatialData::SpatialFileType::MOSQUITO_SIZE);
     if (size_raster == nullptr) {

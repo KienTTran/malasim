@@ -160,6 +160,18 @@ TEST_F(SeasonalitySettingsTest, DecodesEquationRainfallAndPatternModes) {
     ASSERT_NE(pattern_settings.get_seasonal_pattern(), nullptr);
 }
 
+TEST_F(SeasonalitySettingsTest, RejectsMissingModeAndInvalidPatternPeriod) {
+    YAML::Node missing_mode;
+    missing_mode["enable"] = true;
+    EXPECT_THROW(YAML::convert<SeasonalitySettings>::decode(missing_mode,
+                                                            default_settings), std::runtime_error);
+
+    SeasonalPattern pattern;
+    const auto invalid_period = YAML::Load("filename: pattern.csv\nperiod: 30\nadmin_level: district");
+    EXPECT_THROW(YAML::convert<SeasonalPattern*>::decode(invalid_period, &pattern),
+                 std::invalid_argument);
+}
+
 class SeasonalitySettingsStandaloneTest : public ::testing::Test {
 protected:
     void TearDown() override { test_fixtures::cleanup_test_files(); }
@@ -177,6 +189,16 @@ TEST_F(SeasonalitySettingsStandaloneTest, RejectsMissingNestedModelFields) {
                  std::runtime_error);
 }
 
+TEST_F(SeasonalitySettingsStandaloneTest, RejectsMissingTopLevelSeasonalityFields) {
+    SeasonalitySettings settings;
+    EXPECT_THROW(YAML::convert<SeasonalitySettings>::decode(YAML::Load("{}"), settings),
+                 std::runtime_error);
+
+    const auto enabled_without_model = YAML::Load("enable: true\nmode: equation\n");
+    EXPECT_THROW(YAML::convert<SeasonalitySettings>::decode(enabled_without_model, settings),
+                 std::runtime_error);
+}
+
 TEST_F(SeasonalitySettingsStandaloneTest, ReturnsDefaultFactorWhenDisabledOrModeIsUnknown) {
     SeasonalitySettings settings;
     const auto today = date::sys_days{date::year{2024} / 1 / 1};
@@ -186,6 +208,20 @@ TEST_F(SeasonalitySettingsStandaloneTest, ReturnsDefaultFactorWhenDisabledOrMode
     settings.set_mode("unknown");
     EXPECT_DOUBLE_EQ(settings.get_seasonal_factor(today, 0), 1.0);
     EXPECT_THROW(settings.process_config_using_number_of_locations(nullptr, 0), std::runtime_error);
+}
+
+TEST_F(SeasonalitySettingsStandaloneTest, DelegatesPatternModeFactorLookup) {
+    class FixedPattern final : public SeasonalPattern {
+    public:
+        double get_seasonal_factor(const date::sys_days &, const int &) override { return 0.75; }
+    };
+
+    SeasonalitySettings settings;
+    settings.set_enable(true);
+    settings.set_mode("pattern");
+    settings.set_seasonal_pattern(std::make_unique<FixedPattern>());
+    EXPECT_DOUBLE_EQ(settings.get_seasonal_factor(date::sys_days{date::year{2024} / 1 / 1}, 0),
+                     0.75);
 }
 
 TEST_F(SeasonalitySettingsStandaloneTest, BuildsAndDelegatesEquationAndRainfallModes) {
@@ -220,4 +256,32 @@ TEST_F(SeasonalitySettingsStandaloneTest, BuildsAndDelegatesEquationAndRainfallM
     EXPECT_NO_THROW(rainfall_settings.process_config_using_number_of_locations(nullptr, 0));
     EXPECT_DOUBLE_EQ(
         rainfall_settings.get_seasonal_factor(today, 0), expected_rainfall_factor);
+}
+
+TEST_F(SeasonalitySettingsStandaloneTest, EncodesIndividualSeasonalityModels) {
+    SeasonalEquation equation;
+    equation.set_raster(true);
+    equation.set_raster_base({2.0});
+    equation.set_raster_A({0.1});
+    equation.set_raster_B({0.2});
+    equation.set_raster_phi({3});
+    const auto equation_node = YAML::convert<SeasonalEquation*>::encode(&equation);
+    EXPECT_TRUE(equation_node["raster"].as<bool>());
+    EXPECT_EQ(equation_node["base"].as<std::vector<double>>(), std::vector<double>{2.0});
+
+    SeasonalRainfall rainfall;
+    rainfall.set_filename("rain.csv");
+    rainfall.set_period(12);
+    const auto rainfall_node = YAML::convert<SeasonalRainfall*>::encode(&rainfall);
+    EXPECT_EQ(rainfall_node["filename"].as<std::string>(), "rain.csv");
+    EXPECT_EQ(rainfall_node["period"].as<int>(), 12);
+
+    SeasonalPattern pattern;
+    pattern.set_filename("pattern.csv");
+    pattern.set_period(365);
+    pattern.set_admin_level("district");
+    const auto pattern_node = YAML::convert<SeasonalPattern*>::encode(&pattern);
+    EXPECT_EQ(pattern_node["filename"].as<std::string>(), "pattern.csv");
+    EXPECT_EQ(pattern_node["period"].as<int>(), 365);
+    EXPECT_EQ(pattern_node["admin_level"].as<std::string>(), "district");
 }

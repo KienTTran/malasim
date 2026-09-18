@@ -239,10 +239,89 @@ void SpatialData::generate_locations(AscFile* reference) {
 
 SpatialData::RasterInformation SpatialData::get_raster_header() const { return raster_info_; }
 
+std::optional<SpatialData::ValueRange> SpatialData::get_expected_value_range(SpatialFileType type) {
+  switch (type) {
+    // Probabilities, consumed directly by ProgressToClinicalEvent and
+    // Mosquito::build_interrupted_feeding_indices without any rescaling.
+    case SpatialFileType::PR_TREATMENT_UNDER5:
+    case SpatialFileType::PR_TREATMENT_OVER5:
+    case SpatialFileType::MOSQUITO_IFR:
+      return ValueRange{.minimum = 0.0, .maximum = 1.0};
+
+    // Everything else is unbounded as far as the loader is concerned.
+    default:
+      return std::nullopt;
+  }
+}
+
+std::string_view SpatialData::get_type_name(SpatialFileType type) {
+  switch (type) {
+    case SpatialFileType::LOCATIONS:
+      return "location";
+    case SpatialFileType::POPULATION:
+      return "population";
+    case SpatialFileType::BETA:
+      return "beta";
+    case SpatialFileType::DISTRICTS:
+      return "district";
+    case SpatialFileType::TRAVEL:
+      return "travel";
+    case SpatialFileType::ECOCLIMATIC:
+      return "ecoclimatic";
+    case SpatialFileType::PR_TREATMENT_UNDER5:
+      return "p_treatment_under_5";
+    case SpatialFileType::PR_TREATMENT_OVER5:
+      return "p_treatment_over_5";
+    case SpatialFileType::MOSQUITO_SIZE:
+      return "prmc_size";
+    case SpatialFileType::MOSQUITO_IFR:
+      return "interrupted_feeding_rate";
+    default:
+      return "unknown";
+  }
+}
+
+void SpatialData::validate_value_range(const AscFile* raster, SpatialFileType type,
+                                       const std::string &filename) {
+  if (raster == nullptr) { return; }
+
+  const auto range = get_expected_value_range(type);
+  if (!range.has_value()) { return; }
+
+  const double lower_bound = range->minimum - VALUE_RANGE_TOLERANCE;
+  const double upper_bound = range->maximum + VALUE_RANGE_TOLERANCE;
+
+  auto offending_cells = 0L;
+
+  for (auto row = 0; row < raster->nrows; row++) {
+    for (auto col = 0; col < raster->ncols; col++) {
+      const float value = raster->data[row][col];
+      if (value == raster->nodata_value) { continue; }
+      if (value >= lower_bound && value <= upper_bound) { continue; }
+      offending_cells++;
+    }
+  }
+
+  if (offending_cells == 0) { return; }
+
+  auto message =
+      fmt::format("{} raster '{}' has {} cell(s) outside the required range [{}, {}].",
+                  get_type_name(type), filename, offending_cells, range->minimum, range->maximum);
+
+  spdlog::error(message);
+  throw std::runtime_error(message);
+}
+
 void SpatialData::load(const std::string &filename, SpatialFileType type) {
   // No need to check and delete, unique_ptr handles it
   spdlog::info("Loading {}", filename);
-  data_.at(type) = std::unique_ptr<AscFile>(AscFileManager::read(filename));
+  auto raster = AscFileManager::read(filename);
+
+  // Range check before the raster is published to the catalog so that a
+  // rejected file is never observable through get_raster().
+  validate_value_range(raster.get(), type, filename);
+
+  data_.at(type) = std::move(raster);
 }
 
 void SpatialData::populate_raster_data_to_location_db(SpatialFileType type) {

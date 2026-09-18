@@ -37,7 +37,7 @@ private:
         if (raster->data[row][col] == raster->nodata_value) { continue; }
 
         // Check for raster misalignment
-        if (id > count) {
+        if (id >= count) {
           throw std::runtime_error(
               "Raster misalignment updating betas, pixel count exceeds number "
               "of cells in model.");

@@ -121,12 +121,15 @@ PopulationEventBuilder::build_introduce_parasites_periodically_events_v2(const Y
                                                                          Config* config) {
   std::vector<std::unique_ptr<WorldEvent>> events;
   for (const auto &event_node : node) {
-    const auto location = event_node["location"].as<uint64_t>();
-    const auto location_from = location == -1 ? 0 : location;
+    // Parse as a signed value: -1 is the documented sentinel meaning every
+    // location. Parsing into uint64_t made this branch unreachable and
+    // silently produced no events for the sentinel.
+    const auto location = event_node["location"].as<int64_t>();
+    const auto location_from = location < 0 ? 0 : location;
     const auto location_to =
-        location == -1
+        location < 0
             ? config->number_of_locations()
-            : std::min(location + 1, static_cast<uint64_t>(config->number_of_locations()));
+            : std::min(location + 1, static_cast<int64_t>(config->number_of_locations()));
 
     for (auto loc = location_from; loc < location_to; ++loc) {
       for (auto j = 0; j < event_node["parasite_info"].size(); j++) {
@@ -149,10 +152,14 @@ PopulationEventBuilder::build_introduce_parasites_periodically_events_v2(const Y
         auto end_time = (date::sys_days{end_date}
                          - date::sys_days{config->get_simulation_timeframe().get_starting_date()})
                             .count();
-        throw std::runtime_error("Not implemented");
+        // TODO: populate allele distributions from the YAML definition once
+        // genotype-based importation is supported by the event implementation.
+        std::vector<std::vector<double>> allele_distributions;
+        auto event = std::make_unique<IntroduceParasitesPeriodicallyEventV2>(
+            allele_distributions, static_cast<int>(loc), dur, num,
+            static_cast<int>(time), static_cast<int>(end_time));
+        events.push_back(std::move(event));
         // TODO: rework this with new genotype implementation
-        // std::vector<std::vector<double>>
-        // allele_distributions(Model::CONFIG->genotype_info().loci_vector.size());
         // // generate default distributions
         // for (int k = 0; k <
         // Model::CONFIG->genotype_info().loci_vector.size(); ++k) {
@@ -176,9 +183,6 @@ PopulationEventBuilder::build_introduce_parasites_periodically_events_v2(const Y
         //  }
         // }
         //
-        // auto* event = new
-        // IntroduceParasitesPeriodicallyEventV2(allele_distributions, loc, dur,
-        // num, time, end_time); events.push_back(event);
       }
     }
   }
@@ -384,7 +388,7 @@ PopulationEventBuilder::build_change_interrupted_feeding_rate_event(const YAML::
   std::vector<std::unique_ptr<WorldEvent>> events;
   for (const auto &event_node : node) {
     auto location = event_node["location"].as<int>();
-    if (location < config->number_of_locations()) {
+    if (location >= 0 && location < config->number_of_locations()) {
       const auto starting_date = event_node["date"].as<date::year_month_day>();
       auto time = (date::sys_days{starting_date}
                    - date::sys_days{config->get_simulation_timeframe().get_starting_date()})
@@ -505,7 +509,7 @@ std::vector<std::unique_ptr<WorldEvent>> PopulationEventBuilder::build_introduce
   std::vector<std::unique_ptr<WorldEvent>> events;
   for (const auto &event_node : node) {
     auto location = event_node["location"].as<int>();
-    if (location < config->number_of_locations()) {
+    if (location >= 0 && location < config->number_of_locations()) {
       auto fraction = event_node["fraction"].as<double>();
 
       const auto starting_date = event_node["date"].as<date::year_month_day>();
@@ -539,7 +543,7 @@ PopulationEventBuilder::build_introduce_triple_mutant_to_dpm_parasite_events(con
   std::vector<std::unique_ptr<WorldEvent>> events;
   for (const auto &event_node : node) {
     auto location = event_node["location"].as<int>();
-    if (location < config->number_of_locations()) {
+    if (location >= 0 && location < config->number_of_locations()) {
       auto fraction = event_node["fraction"].as<double>();
 
       const auto starting_date = event_node["date"].as<date::year_month_day>();

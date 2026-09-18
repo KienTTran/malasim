@@ -97,7 +97,7 @@ void PersonIndexByLocationMovingLevel::update() {
                               .get_circulation_info()
                               .get_number_of_moving_levels();
          ml++) {
-      std::vector<Person*>(vPerson_[location][ml]).swap(vPerson_[location][ml]);
+      std::vector<Person*>().swap(vPerson_[location][ml]);
     }
   }
 }

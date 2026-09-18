@@ -10,16 +10,12 @@
 
 #include <fstream>
 
+#include "apps/efficacy_estimator/DxGAppInput.h"
 #include "Reporters/Reporter.h"
-#include "Utils/Cli.h"
-
-namespace utils {
-class Cli;
-}
 
 class PkPdReporter : public Reporter {
 public:
-  explicit PkPdReporter(utils::Cli::DxGAppInput* app_input = nullptr);
+  explicit PkPdReporter(utils::DxGAppInput* app_input = nullptr);
 
   PkPdReporter(const PkPdReporter &) = delete;
   PkPdReporter(PkPdReporter &&) = delete;
@@ -42,7 +38,7 @@ public:
   void monthly_report() override;
 
 private:
-  utils::Cli::DxGAppInput* app_input_{nullptr};
+  utils::DxGAppInput* app_input_{nullptr};
   std::string prefix_;
   std::ofstream parasitaemia_file_;
 };

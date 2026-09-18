@@ -31,7 +31,7 @@ std::vector<int> get_locations_from_raster(const std::string &filename) {
     for (auto col = 0; col < file->ncols; col++) {
       if (file->data[row][col] == file->nodata_value) { continue; }
 
-      if (id > count) {
+      if (id >= count) {
         throw std::runtime_error(
             fmt::format("Raster misalignment: pixel count exceeds {} expected "
                         "while loading {}",
@@ -106,7 +106,7 @@ std::vector<std::unique_ptr<WorldEvent>> PopulationEventBuilder::build_introduce
         throw std::invalid_argument("No admin levels found.");
       }
 
-      if (unit_id > Model::get_spatial_data()->get_unit_count(admin_level_id)) {
+      if (unit_id >= Model::get_spatial_data()->get_unit_count(admin_level_id)) {
         spdlog::error("Target unit id is greater than the unit count.");
         throw std::invalid_argument("Target unit id greater than unit count.");
       }

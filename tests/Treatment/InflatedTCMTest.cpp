@@ -2,7 +2,7 @@
 #include <memory>
 
 #include "Treatment/InflatedTCM.h"
-#include "Utils/Cli.h"
+#include "apps/malasim/MaSimAppInput.h"
 
 class InflatedTCMTest : public ::testing::Test {
 protected:

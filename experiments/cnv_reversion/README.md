@@ -45,6 +45,9 @@ This creates:
   -j 0
 ```
 
+The trailing `/` on `-o` is intentional: it tells MalaSim to treat the output
+as a directory and create it if necessary.
+
 For the first pass, run jobs `0-9` for each scenario. For the expanded pass,
 run jobs `0-99`.
 

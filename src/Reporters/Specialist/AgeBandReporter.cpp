@@ -21,6 +21,7 @@ void AgeBandReporter::initialize(int job_number, const std::string &path) {
 
   auto pfpr_file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(pfpr_file, true);
   auto pfpr_console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+  pfpr_console_sink->set_level(spdlog::get_level());
   pfpr_logger_ = std::make_shared<spdlog::logger>(
       "age_band_pfpr", spdlog::sinks_init_list{pfpr_file_sink, pfpr_console_sink});
   pfpr_logger_->set_pattern("%v");
@@ -28,6 +29,7 @@ void AgeBandReporter::initialize(int job_number, const std::string &path) {
 
   auto cases_file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(cases_file, true);
   auto cases_console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+  cases_console_sink->set_level(spdlog::get_level());
   cases_logger_ = std::make_shared<spdlog::logger>(
       "age_band_cases", spdlog::sinks_init_list{cases_file_sink, cases_console_sink});
   cases_logger_->set_pattern("%v");
@@ -101,4 +103,3 @@ void AgeBandReporter::monthly_report() {
   pfpr_.str("");
   cases_.str("");
 }
-

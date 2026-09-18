@@ -6,7 +6,7 @@
 #include "Reporters/Utility/ReporterUtils.h"
 #include "Simulation/Model.h"
 #include "Utils/Index/PersonIndexByLocationStateAgeClass.h"
-#include "Utils/Cli.h"
+#include "apps/malasim/MaSimAppInput.h"
 #include "fixtures/TestFileGenerators.h"
 
 TEST(ReporterUtilsTest, EmptyPopulationProducesZeroFrequencyRecords) {
@@ -31,7 +31,7 @@ class ReporterUtilsModelTest : public ::testing::Test {
 protected:
   void SetUp() override {
     test_fixtures::setup_test_environment();
-    utils::Cli::MaSimAppInput cli_input;
+    utils::MaSimAppInput cli_input;
     cli_input.input_path = "test_input.yml";
     cli_input.job_number = 0;
     Model::set_cli_input(cli_input);

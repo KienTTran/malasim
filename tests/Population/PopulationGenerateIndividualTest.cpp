@@ -8,8 +8,9 @@
 #include "Population/Person/Person.h"
 #include "Simulation/Model.h"
 #include "Treatment/Therapies/DrugType.h"
+#include "Treatment/Therapies/MACTherapy.h"
 #include "Treatment/Therapies/SCTherapy.h"
-#include "Utils/Cli.h"
+#include "apps/malasim/MaSimAppInput.h"
 #include "Utils/Constants.h"
 #include "fixtures/TestFileGenerators.h"
 
@@ -20,7 +21,7 @@ protected:
     test_fixtures::create_complete_test_environment();
 
     // Set the input path to the generated test config file
-    utils::Cli::MaSimAppInput cli_input;
+    utils::MaSimAppInput cli_input;
     cli_input.input_path = "test_input.yml";
     Model::set_cli_input(cli_input);
 
@@ -155,4 +156,33 @@ TEST_F(PersonGenerateIndividualTest, InitializePersonLikePopulationGenerateIndiv
   if (Model::get_drug_db()->size() > 0 || Model::get_therapy_db().size() > 0) {
     EXPECT_GT(person_->drugs_in_blood()->size(), 0);
   }
+}
+
+TEST_F(PersonGenerateIndividualTest, AppliesConfiguredMultiArtemisininCombinationTherapy) {
+  person_->initialize();
+  ASSERT_GE(Model::get_therapy_db().size(), 15U);
+  auto* mac = dynamic_cast<MACTherapy*>(Model::get_therapy_db()[14].get());
+  ASSERT_NE(mac, nullptr);
+  auto* parasite = person_->add_new_parasite_to_blood(Model::get_genotype_db()->at(0));
+
+  EXPECT_NO_THROW(person_->receive_therapy(mac, parasite, false));
+  EXPECT_EQ(person_->get_last_therapy_id(), mac->get_id());
+  EXPECT_GT(person_->drugs_in_blood()->size(), 0U);
+  EXPECT_NO_THROW(person_->receive_therapy(mac, parasite, false));
+  person_->drugs_in_blood()->clear();
+  EXPECT_NO_THROW(person_->receive_therapy(mac, parasite, false));
+}
+
+TEST_F(PersonGenerateIndividualTest, RejectsMacTherapyWithVariableComplianceComponent) {
+  person_->initialize();
+  const auto variable_therapy_id = static_cast<int>(Model::get_therapy_db().size());
+  auto variable = std::make_unique<SCTherapy>();
+  variable->set_id(variable_therapy_id);
+  variable->set_full_compliance(false);
+  Model::get_therapy_db().push_back(std::move(variable));
+  MACTherapy mac;
+  mac.set_therapy_ids({variable_therapy_id});
+  mac.set_start_at_days({1});
+  auto* parasite = person_->add_new_parasite_to_blood(Model::get_genotype_db()->at(0));
+  EXPECT_THROW(person_->receive_therapy(&mac, parasite, false), std::runtime_error);
 }

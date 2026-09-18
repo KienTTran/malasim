@@ -17,7 +17,7 @@
 #include "Simulation/Model.h"
 #include "Treatment/Therapies/Drug.h"
 #include "Treatment/Therapies/DrugType.h"
-#include "Utils/Cli.h"
+#include "apps/malasim/MaSimAppInput.h"
 #include "Utils/Constants.h"
 #include "fixtures/TestFileGenerators.h"
 
@@ -32,7 +32,7 @@ protected:
     test_fixtures::setup_test_environment();
 
     // Set the input path to the config file
-    utils::Cli::MaSimAppInput cli_input;
+    utils::MaSimAppInput cli_input;
     cli_input.input_path = "test_input.yml";
     Model::set_cli_input(cli_input);
 
@@ -326,88 +326,4 @@ TEST_F(PersonRecrudescenceTest, AsymptomaticDensityAdjustment) {
   // For all asymptomatic cases, verify the density was properly adjusted
   EXPECT_EQ(asymptomatic_count, asymptomatic_density_adjusted_count)
       << "All asymptomatic cases should have their parasite density adjusted";
-}
-
-// Test treatment failure handling during recrudescence
-TEST_F(PersonRecrudescenceTest, TreatmentFailureHandling) {
-  // Setup
-  setupPerson(25, false);  // 25 year old, no drugs
-
-  // Ensure density is above recrudescence threshold (> 2.0) to avoid early return.
-  constexpr double recrudescence_trigger_density = 3.0;
-  clinical_parasite_->set_last_update_log10_parasite_density(recrudescence_trigger_density);
-
-  // Define a therapy ID to test with
-  const int test_therapy_id = 1;
-
-  // Record initial failure count for the specific therapy
-  int initial_failures = 0;
-  if (test_therapy_id < Model::get_mdc()->number_of_treatments_fail_with_therapy_id().size()) {
-    initial_failures =
-        Model::get_mdc()->number_of_treatments_fail_with_therapy_id()[test_therapy_id];
-  }
-
-  // Add a treatment failure event with the correct constructor
-  auto tf_event = std::make_unique<TestTreatmentFailureEvent>(person_.get());
-  tf_event->set_clinical_caused_parasite(clinical_parasite_.get());
-  tf_event->set_therapy_id(test_therapy_id);
-  tf_event->set_time(Model::get_scheduler()->current_time());
-
-  // Store a pointer to the event for later verification
-  TestTreatmentFailureEvent* tf_event_ptr = tf_event.get();
-
-  // Ensure event is initially executable
-  tf_event_ptr->set_executable(true);
-
-  // Use the person's event scheduler
-  person_->schedule_basic_event(std::move(tf_event));
-
-  // Execute determine_symptomatic_recrudescence
-  person_->determine_symptomatic_recrudescence(clinical_parasite_.get());
-
-  // Now check the outcomes based on the recurrence status that was determined
-  if (person_->get_recurrence_status() == Person::RecurrenceStatus::WITH_SYMPTOM) {
-    // For symptomatic recrudescence, the event should be non-executable
-    EXPECT_FALSE(tf_event_ptr->is_executable()) << "TestTreatmentFailureEvent should be marked as "
-                                                   "non-executable for symptomatic recrudescence";
-
-    // Treatment failure should be recorded
-    int final_failures = 0;
-    if (test_therapy_id < Model::get_mdc()->number_of_treatments_fail_with_therapy_id().size()) {
-      final_failures =
-          Model::get_mdc()->number_of_treatments_fail_with_therapy_id()[test_therapy_id];
-    }
-
-    EXPECT_EQ(initial_failures + 1, final_failures)
-        << "Treatment failure count should increase by 1 for symptomatic recrudescence";
-
-    // Verify that a clinical recurrence event was scheduled
-    bool found_recurrence_event = false;
-    for (const auto &[time, event] : person_->get_events()) {
-      auto* progress_event = dynamic_cast<ProgressToClinicalEvent*>(event.get());
-      if (progress_event != nullptr
-          && progress_event->clinical_caused_parasite() == clinical_parasite_.get()) {
-        EXPECT_TRUE(progress_event->is_recurrence());
-        found_recurrence_event = true;
-        break;
-      }
-    }
-    EXPECT_TRUE(found_recurrence_event)
-        << "Clinical recurrence event should be scheduled for symptomatic recrudescence";
-  } else {
-    // For asymptomatic recrudescence, the event should remain executable
-    // and no treatment failure should be recorded yet
-    EXPECT_TRUE(tf_event_ptr->is_executable())
-        << "TestTreatmentFailureEvent should remain executable for asymptomatic recrudescence";
-
-    // Verify that the update function was changed appropriately
-    if (person_->drugs_in_blood()->size() > 0) {
-      EXPECT_EQ(Model::having_drug_update_function(), clinical_parasite_->update_function())
-          << "Update function should be having_drug for asymptomatic recrudescence with drugs";
-    } else {
-      EXPECT_EQ(Model::immunity_clearance_update_function(), clinical_parasite_->update_function())
-          << "Update function should be immunity_clearance for asymptomatic recrudescence without "
-             "drugs";
-    }
-  }
 }

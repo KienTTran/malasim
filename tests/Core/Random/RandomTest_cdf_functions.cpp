@@ -5,6 +5,8 @@
 
 #include "RandomTestBase.h"
 
+double approx_norm_cdf(double value);
+
 TEST_F(RandomTest, CdfGammaDistribution_ValidParameters) {
   double value = 2.0;
   double alpha = 3.0;
@@ -108,3 +110,9 @@ TEST_F(RandomTest, CdfStandardNormalDistribution_ExtremeNegative) {
   EXPECT_DOUBLE_EQ(result, expected);
 }
 
+TEST(RandomCoverageTest, NormalCdfApproximationHandlesTailsAndSigns) {
+  EXPECT_DOUBLE_EQ(approx_norm_cdf(7.0), 1.0);
+  EXPECT_DOUBLE_EQ(approx_norm_cdf(-7.0), 0.0);
+  EXPECT_NEAR(approx_norm_cdf(0.0), 0.5, 1e-6);
+  EXPECT_NEAR(approx_norm_cdf(-1.0), 1.0 - approx_norm_cdf(1.0), 1e-6);
+}

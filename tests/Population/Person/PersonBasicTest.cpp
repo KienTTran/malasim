@@ -1,4 +1,5 @@
 #include "PersonTestBase.h"
+#include "Utils/Index/PersonIndexByLocationStateAgeClass.h"
 
 using namespace testing;
 
@@ -66,6 +67,18 @@ TEST_F(PersonBasicTest, InitialState) {
   EXPECT_EQ(person_->get_age(), core::K_INVALID_AGE);
   EXPECT_EQ(person_->get_location(), -1);
   EXPECT_EQ(person_->get_residence_location(), -1);
+}
+
+TEST_F(PersonBasicTest, StoresPopulationAndTreatmentMetadata) {
+  EXPECT_EQ(person_->get_population(), mock_population_);
+  person_->set_birthday(123);
+  EXPECT_EQ(person_->get_birthday(), 123);
+
+  person_->set_starting_drug_values_for_mac({{2, 0.25}});
+  EXPECT_DOUBLE_EQ(person_->get_starting_drug_values_for_mac().at(2), 0.25);
+
+  person_->set_latest_time_received_public_treatment(77);
+  EXPECT_EQ(person_->get_latest_time_received_public_treatment(), 77);
 }
 
 // Test setting initial age and verifying class assignment
@@ -210,6 +223,23 @@ TEST_F(PersonBasicTest, MovingLevelManagement) {
 
   person_->set_moving_level(2);
   EXPECT_EQ(person_->get_moving_level(), 2);
+}
+
+TEST_F(PersonBasicTest, StateAgeIndexTracksAgeClassChanges) {
+  person_->set_location(0);
+  person_->set_age(1);
+  PersonIndexByLocationStateAgeClass index(8, Person::NUMBER_OF_STATE, 6);
+  index.add(person_.get());
+  ASSERT_EQ(index.size(), 1U);
+
+  core::AgeClass old_class = person_->get_age_class();
+  core::AgeClass new_class = 2;
+  index.notify_change(person_.get(), Person::Property::AGE_CLASS, &old_class, &new_class);
+  person_->set_age(20);
+  EXPECT_EQ(index.vPerson()[0][Person::SUSCEPTIBLE][new_class].size(), 1U);
+
+  index.remove(person_.get());
+  EXPECT_EQ(index.size(), 0U);
 }
 
 TEST_F(PersonBasicTest, UpdateTime) {

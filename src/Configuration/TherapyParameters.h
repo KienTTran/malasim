@@ -74,16 +74,22 @@ namespace YAML {
 template<>
 struct convert<TherapyParameters::TherapyInfo> {
   static Node encode(const TherapyParameters::TherapyInfo& rhs) {
-    Node node;
+    Node node(YAML::NodeType::Map);
+    if (!rhs.get_name().empty()) { node["name"] = rhs.get_name(); }
+    if (!rhs.get_therapy_ids().empty()) { node["therapy_ids"] = rhs.get_therapy_ids(); }
     if(!rhs.get_drug_ids().empty()) {
       node["drug_ids"] = rhs.get_drug_ids();
+    }
+    if (!rhs.get_dosing_days().empty()) {
       node["dosing_days"] = rhs.get_dosing_days();
     }
+    if (!rhs.get_regiment().empty()) { node["regiment"] = rhs.get_regiment(); }
     return node;
   }
 
   static bool decode(const Node& node, TherapyParameters::TherapyInfo& rhs) {
-    if (!node["drug_ids"] && !node["dosing_days"] && !node["therapy_ids"] && !node["regiment"]) {
+    if (!node["drug_ids"] && !node["dosing_days"] && !node["therapy_ids"] && !node["regiment"]
+        && !node["name"]) {
       throw std::runtime_error("Missing fields in TherapyParameters::TherapyInfo");
     }
     if(node["drug_ids"]) {

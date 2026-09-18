@@ -10,7 +10,6 @@
 // acquireObject() returns an std::shared_ptr with a custom deleter that
 // automatically puts the object back into the object pool when the
 // shared_ptr is destroyed and its reference count reaches 0.
-#include <iostream>
 #include <memory>
 #include <mutex>    // For std::mutex and std::lock_guard
 #include <utility>  // For std::pair
@@ -139,8 +138,6 @@ ObjectPool<T, IsThreadSafe, Allocator>::~ObjectPool() {
 // Implementation of add_chunk needs the template parameter now
 template <typename T, bool IsThreadSafe, typename Allocator>
 void ObjectPool<T, IsThreadSafe, Allocator>::add_chunk() {
-  std::cout << "Allocating new chunk..." << '\n';
-
   T* new_chunk_ptr = nullptr;
   std::size_t current_chunk_size = new_chunk_size_;
   try {

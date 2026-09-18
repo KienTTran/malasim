@@ -45,6 +45,7 @@ void NovelDrugReporter::initialize(int job_number, const std::string &path) {
 
   // Create console logger
   auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+  console_sink->set_level(spdlog::get_level());
   auto console_logger = std::make_shared<spdlog::logger>("console_logger", console_sink);
   console_sink->set_pattern("[%^%l%$] %v");  // Highlight log level in console
   console_logger->set_level(spdlog::level::info);

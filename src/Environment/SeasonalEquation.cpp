@@ -41,7 +41,9 @@ void SeasonalEquation::set_from_raster() {
   AscFile* raster = spatial_data->get_raster(SpatialData::SpatialFileType::ECOCLIMATIC);
   if (raster == nullptr) { throw std::invalid_argument("Ecoclimatic raster not found."); }
   spdlog::info("Setting seasonal equation using raster data.");
-  auto size = A_.size();
+  // The destination vectors are populated by this method, so use the
+  // configured raster parameters to determine the valid zone range.
+  auto size = raster_A_.size();
   for (int row = 0; row < raster->nrows; row++) {
     for (int col = 0; col < raster->ncols; col++) {
       if (raster->data[row][col] == raster->nodata_value) continue;

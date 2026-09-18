@@ -14,7 +14,6 @@
 #include "Population/ClonalParasitePopulation.h"
 #include "Population/SingleHostClonalParasitePopulations.h"
 #include "Simulation/Model.h"
-#include "Utils/Cli.h"
 #include "Utils/Index/PersonIndexByLocationStateAgeClass.h"
 #include "spdlog/sinks/basic_file_sink.h"
 

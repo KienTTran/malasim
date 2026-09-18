@@ -112,9 +112,11 @@ Use this when you need a complete Model initialization with configuration files.
 
 ```cpp
 #include <gtest/gtest.h>
+#include <utility>
+
 #include "fixtures/TestFileGenerators.h"
-#include "Utils/Cli.h"
 #include "Simulation/Model.h"
+#include "apps/malasim/MaSimAppInput.h"
 
 class IntegrationTest : public ::testing::Test {
 protected:
@@ -123,7 +125,9 @@ protected:
         test_fixtures::create_complete_test_environment();
         
         // Load the generated config
-        utils::Cli::get_instance().set_input_path("test_input.yml");
+        utils::MaSimAppInput input;
+        input.input_path = "test_input.yml";
+        Model::set_cli_input(std::move(input));
         ASSERT_TRUE(Model::get_instance()->initialize());
     }
 

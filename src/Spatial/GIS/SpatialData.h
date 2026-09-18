@@ -11,7 +11,9 @@
 #include <yaml-cpp/yaml.h>
 
 #include <map>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "AdminLevelManager.h"
@@ -104,6 +106,19 @@ public:
     }
   };
 
+  // The inclusive range that every valid (i.e. non-NODATA) cell of a raster
+  // must fall within. Raster types that have no meaningful bound (population,
+  // beta, administrative unit ids, ...) simply have no entry in the catalog.
+  struct ValueRange {
+    double minimum;
+    double maximum;
+  };
+
+  // Slack applied to the bounds so that a value which only falls outside the
+  // range because of the float round-trip performed by AscFileManager::read
+  // (e.g. 1.0 stored as 1.0000001) is still accepted.
+  static constexpr double VALUE_RANGE_TOLERANCE = 1e-6;
+
   /**
    * @brief This property holds a pre-populated map from location to district
    * using a 0-based index.
@@ -173,8 +188,40 @@ public:
   void generate_locations(AscFile* reference);
 
   // Load the given raster file into the spatial catalog and assign the given
-  // label
+  // label. The raster is range-checked (see validate_value_range) before it is
+  // added to the catalog, so a rejected raster never becomes visible to the
+  // rest of the model.
   void load(const std::string &filename, SpatialFileType type);
+
+  /**
+   * @brief Returns the inclusive range that valid cells of the given raster
+   * type must fall within.
+   * @param type The raster type to look up
+   * @return The expected range, or std::nullopt if the type is unbounded
+   */
+  [[nodiscard]] static std::optional<ValueRange> get_expected_value_range(SpatialFileType type);
+
+  /**
+   * @brief Returns a human readable name for the raster type, used when
+   * reporting configuration errors.
+   */
+  [[nodiscard]] static std::string_view get_type_name(SpatialFileType type);
+
+  /**
+   * @brief Verifies that every valid cell of the raster lies within the range
+   * reported by get_expected_value_range().
+   *
+   * NODATA cells are skipped. Raster types without an expected range and null
+   * rasters are accepted without inspection, so this is safe to call
+   * unconditionally.
+   *
+   * @param raster The raster to inspect, may be nullptr
+   * @param type The raster type, used to select the expected range
+   * @param filename The source file, used in the error message only
+   * @throws std::runtime_error if any valid cell is outside the expected range
+   */
+  static void validate_value_range(const AscFile* raster, SpatialFileType type,
+                                   const std::string &filename);
 
   // Load all the spatial data from the node
   void load_files(const YAML::Node &node);

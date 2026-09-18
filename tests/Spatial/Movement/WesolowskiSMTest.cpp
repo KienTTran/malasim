@@ -2,7 +2,7 @@
 #include <memory>
 
 #include "Simulation/Model.h"
-#include "Utils/Cli.h"
+#include "apps/malasim/MaSimAppInput.h"
 #include "fixtures/TestFileGenerators.h"
 #include "Spatial/Movement/WesolowskiSM.hxx"
 #include "Utils/TypeDef.h"
@@ -13,7 +13,7 @@ protected:
     test_fixtures::setup_test_environment();
     // Initialize Model configuration
     Model::get_instance()->release();
-    utils::Cli::MaSimAppInput cli_input;
+    utils::MaSimAppInput cli_input;
     cli_input.input_path = "test_input.yml";
     Model::set_cli_input(cli_input);
     Model::get_instance()->initialize();

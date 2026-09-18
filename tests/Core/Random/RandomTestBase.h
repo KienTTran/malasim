@@ -12,7 +12,8 @@ class RandomTest : public ::testing::Test {
 protected:
   utils::Random rng;
   void SetUp() override {
-    // Optional: Initialize any shared resources
+    // Keep statistical assertions reproducible across full-suite and coverage runs.
+    rng.set_seed(42);
   }
 
   void TearDown() override {
@@ -21,4 +22,3 @@ protected:
 };
 
 #endif  // RANDOM_TEST_BASE_H
-

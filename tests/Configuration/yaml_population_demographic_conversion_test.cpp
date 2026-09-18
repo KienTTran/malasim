@@ -127,3 +127,22 @@ TEST_F(PopulationDemographicTest, EncodeDecodeConsistency) {
       default_demographic.get_artificial_rescaling_of_population_size());
 }
 
+TEST_F(PopulationDemographicTest, SetterValidationAndProcessConfig) {
+  PopulationDemographic demographic;
+  EXPECT_THROW(demographic.set_age_structure({}), std::invalid_argument);
+  demographic.set_age_structure({10, 20});
+  EXPECT_EQ(demographic.get_number_of_age_classes(), 2);
+  EXPECT_THROW(demographic.set_initial_age_structure({10}), std::invalid_argument);
+  EXPECT_NO_THROW(demographic.set_initial_age_structure({10, 20}));
+  EXPECT_THROW(demographic.set_birth_rate(-0.1), std::invalid_argument);
+  EXPECT_THROW(demographic.set_death_rate_by_age_class({0.1}), std::invalid_argument);
+  EXPECT_NO_THROW(demographic.set_death_rate_by_age_class({0.1, 0.2}));
+  EXPECT_THROW(demographic.set_mortality_when_treatment_fail_by_age_class({0.1}),
+               std::invalid_argument);
+  EXPECT_THROW(demographic.set_mortality_when_treatment_fail_by_age_class({0.1, -0.2}),
+               std::invalid_argument);
+  EXPECT_THROW(demographic.set_artificial_rescaling_of_population_size(0.0),
+               std::invalid_argument);
+  demographic.process_config();
+  EXPECT_EQ(demographic.get_number_of_age_classes(), 2);
+}

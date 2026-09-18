@@ -1,4 +1,7 @@
 #include "Reporter.h"
+
+#include <spdlog/spdlog.h>
+
 // #include "ConsoleReporter.h"
 #include "Configuration/Config.h"
 #include "ConsoleReporter.h"
@@ -13,6 +16,9 @@
 #include "Specialist/PopulationReporter.h"
 #include "Specialist/SeasonalImmunity.h"
 #include "TACTReporter.h"
+#ifdef ENABLE_TRAVEL_TRACKING
+#include "TravelTrackingReporter.h"
+#endif
 #include "ValidationReporter.h"
 #include "SMCReporter.h" // SMC Reporter
 
@@ -66,18 +72,42 @@ std::unique_ptr<Reporter> Reporter::make_report(ReportType report_type) {
           Model::get_config()->get_model_settings().get_cell_level_reporting();
       return std::make_unique<SQLiteMonthlyReporter>(cell_level_reporting);
     }
-    case ReportType::SQLITE_VALIDATION_REPORTER: {
-      auto cell_level_reporting =
-          Model::get_config()->get_model_settings().get_cell_level_reporting();
+    case ReportType::SQLITE_VALIDATION_REPORTER:
+      // NOTE: unlike SQLiteMonthlyReporter, this reporter does not take a
+      // cell_level_reporting argument; it always writes at its own resolution.
       return std::make_unique<SQLiteValidationReporter>();
+<<<<<<< HEAD
     }
     case ReportType::SMC_REPORTER:
       return std::make_unique<SMCReporter>(); // SMC Reporter
+=======
+>>>>>>> main
 #ifdef ENABLE_TRAVEL_TRACKING
-    case TRAVEL_TRACKING_REPORTER:
+    case ReportType::TRAVEL_TRACKING_REPORTER:
       return std::make_unique<TravelTrackingReporter>();
 #endif
-    default:
-      return std::make_unique<MonthlyReporter>();
+
+    // Declared in the enum but not implemented in v6. Previously these fell
+    // through to `default:` and silently produced a MonthlyReporter, which made
+    // a missing implementation look like a working run with the wrong output.
+    case ReportType::MOVEMENT_REPORTER:
+      spdlog::error("MovementReporter is not implemented in this build.");
+      return nullptr;
+    case ReportType::GENOTYPE_CARRIERS:
+      spdlog::error("GenotypeCarriers reporter is not implemented in this build.");
+      return nullptr;
+    case ReportType::THERAPY_RECORD_REPORTER:
+      spdlog::error("TherapyRecord reporter is not implemented in this build.");
+      return nullptr;
   }
+
+  spdlog::error("Unhandled reporter type: {}", static_cast<int>(report_type));
+  return nullptr;
+}
+
+std::vector<std::string> Reporter::available_reporters() {
+  std::vector<std::string> names;
+  names.reserve(report_type_map.size());
+  for (const auto &[name, type] : report_type_map) { names.push_back(name); }
+  return names;
 }

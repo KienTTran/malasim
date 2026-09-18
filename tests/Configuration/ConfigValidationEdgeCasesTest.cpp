@@ -8,7 +8,7 @@
 #undef private
 
 #include "Simulation/Model.h"
-#include "Utils/Cli.h"
+#include "apps/malasim/MaSimAppInput.h"
 #include "Environment/SeasonalEquation.h"
 #include "Environment/SeasonalRainfall.h"
 #include "Spatial/GIS/SpatialData.h"
@@ -18,7 +18,7 @@ class ConfigValidationEdgeCasesTest : public ::testing::Test {
  protected:
   void SetUp() override {
     test_fixtures::setup_test_environment();
-    utils::Cli::MaSimAppInput cli_input;
+    utils::MaSimAppInput cli_input;
     cli_input.input_path = "test_input.yml";
     Model::set_cli_input(cli_input);
     ASSERT_TRUE(Model::get_instance()->initialize());
@@ -70,6 +70,13 @@ TEST_F(ConfigValidationEdgeCasesTest, RejectsGenotypeAndTherapyParameterRanges) 
   ASSERT_FALSE(patterns.empty());
   patterns.front().set_pattern("bad");
   config()->genotype_parameters_.override_ec50_patterns_ = patterns;
+  EXPECT_THROW(config()->validate_genotype_parameters(), std::invalid_argument);
+
+  auto pipe_invalid_patterns = patterns;
+  auto pipe_invalid = pipe_invalid_patterns.front().get_pattern();
+  pipe_invalid.assign(pipe_invalid.size(), 'A');
+  pipe_invalid_patterns.front().set_pattern(pipe_invalid);
+  config()->genotype_parameters_.override_ec50_patterns_ = pipe_invalid_patterns;
   EXPECT_THROW(config()->validate_genotype_parameters(), std::invalid_argument);
 
   config()->therapy_parameters_.tf_testing_day_ = -1;
@@ -238,6 +245,59 @@ TEST_F(ConfigValidationEdgeCasesTest, RejectsInvalidPublicPrivateStrategyShares)
   auto invalid_strategy = strategy_it->second;
   invalid_strategy.set_start_public_share(-0.1);
   strategies[strategy_it->first] = invalid_strategy;
+  config()->strategy_parameters_.set_strategy_db_raw(strategies);
+  EXPECT_THROW(config()->validate_strategy_parameters(), std::invalid_argument);
+}
+
+TEST_F(ConfigValidationEdgeCasesTest, RejectsInvalidPublicPrivateStrategyReferences) {
+  auto strategies = config()->strategy_parameters_.get_strategy_db_raw();
+  auto strategy_it = std::find_if(
+      strategies.begin(), strategies.end(), [](const auto &entry) {
+        return entry.second.get_type() == "PublicPrivate";
+      });
+  ASSERT_NE(strategy_it, strategies.end());
+  const auto original = strategy_it->second;
+
+  auto invalid = original;
+  invalid.set_public_strategy_id(0);
+  invalid.set_private_strategy_id(0);
+  strategy_it->second = invalid;
+  config()->strategy_parameters_.set_strategy_db_raw(strategies);
+  EXPECT_THROW(config()->validate_strategy_parameters(), std::invalid_argument);
+
+  invalid = original;
+  invalid.set_public_strategy_id(strategy_it->first);
+  invalid.set_private_strategy_id(0);
+  strategy_it->second = invalid;
+  config()->strategy_parameters_.set_strategy_db_raw(strategies);
+  EXPECT_THROW(config()->validate_strategy_parameters(), std::invalid_argument);
+
+  invalid = original;
+  invalid.set_peak_after(-1);
+  strategy_it->second = invalid;
+  config()->strategy_parameters_.set_strategy_db_raw(strategies);
+  EXPECT_THROW(config()->validate_strategy_parameters(), std::invalid_argument);
+
+  invalid.set_start_public_share_by_location(std::vector<double>(8, 0.4));
+  invalid.set_peak_public_share_by_location(std::vector<double>(8, 0.6));
+  invalid.set_peak_after(original.get_peak_after());
+  strategy_it->second = invalid;
+  config()->strategy_parameters_.set_strategy_db_raw(strategies);
+  EXPECT_NO_THROW(config()->validate_strategy_parameters());
+}
+
+TEST_F(ConfigValidationEdgeCasesTest, RejectsInvalidPublicPrivateLocationShares) {
+  auto strategies = config()->strategy_parameters_.get_strategy_db_raw();
+  auto strategy_it = std::find_if(
+      strategies.begin(), strategies.end(), [](const auto &entry) {
+        return entry.second.get_type() == "PublicPrivate";
+      });
+  ASSERT_NE(strategy_it, strategies.end());
+  auto invalid = strategy_it->second;
+  invalid.set_type("PublicPrivateMultiLocation");
+  invalid.set_start_public_share_by_location({0.5});
+  invalid.set_peak_public_share_by_location({0.5});
+  strategy_it->second = invalid;
   config()->strategy_parameters_.set_strategy_db_raw(strategies);
   EXPECT_THROW(config()->validate_strategy_parameters(), std::invalid_argument);
 }

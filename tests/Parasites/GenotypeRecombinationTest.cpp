@@ -2,7 +2,7 @@
 
 #include "Parasites/Genotype.h"
 #include "Simulation/Model.h"
-#include "Utils/Cli.h"
+#include "apps/malasim/MaSimAppInput.h"
 #include "fixtures/TestFileGenerators.h"
 
 namespace {
@@ -20,7 +20,7 @@ class GenotypeRecombinationTest : public ::testing::Test {
  protected:
   void SetUp() override {
     test_fixtures::setup_test_environment();
-    utils::Cli::MaSimAppInput cli_input;
+    utils::MaSimAppInput cli_input;
     cli_input.input_path = "test_input.yml";
     Model::set_cli_input(cli_input);
     ASSERT_TRUE(Model::get_instance()->initialize());
@@ -42,4 +42,53 @@ TEST_F(GenotypeRecombinationTest, FreeRecombinationProducesDatabaseGenotype) {
 
   ASSERT_NE(result, nullptr);
   EXPECT_EQ(result->get_aa_sequence(), aa_sequence);
+}
+
+TEST_F(GenotypeRecombinationTest, HandlesMultipleGenesWithAndWithoutCrossover) {
+  // This fixture genotype contains the multi-gene chromosome used by the
+  // production template (`TTHFIMG,x`), so both crossover branches are real.
+  const std::string aa_sequence = "||||YF1||TTHFIMG,x||||||FNCMYRIPRPCRA|1";
+  Genotype female(aa_sequence);
+  Genotype male(aa_sequence);
+
+  auto recombination_parameters =
+      Model::get_config()->get_parasite_parameters().get_recombination_parameters();
+  recombination_parameters.set_within_chromosome_recombination_rate(1.0);
+  Model::get_config()->get_parasite_parameters().set_recombination_parameters(
+      recombination_parameters);
+  FixedUniformRandom crossover_random(0.0);
+  EXPECT_NE(Genotype::free_recombine(Model::get_config(), &crossover_random, &female, &male),
+            nullptr);
+
+  recombination_parameters.set_within_chromosome_recombination_rate(0.0);
+  Model::get_config()->get_parasite_parameters().set_recombination_parameters(
+      recombination_parameters);
+  FixedUniformRandom no_crossover_random(0.99);
+  EXPECT_NE(Genotype::free_recombine(Model::get_config(), &no_crossover_random, &female, &male),
+            nullptr);
+
+  // Keep the shared model configuration isolated from tests that follow.
+  recombination_parameters.set_within_chromosome_recombination_rate(0.1);
+  Model::get_config()->get_parasite_parameters().set_recombination_parameters(
+      recombination_parameters);
+}
+
+TEST_F(GenotypeRecombinationTest, MemberRecombinationHandlesCrossoverBranches) {
+  const std::string aa_sequence = "||||YF1||TTHFIMG,x||||||FNCMYRIPRPCRA|1";
+  Genotype female(aa_sequence);
+  Genotype male(aa_sequence);
+  auto parameters = Model::get_config()->get_parasite_parameters().get_recombination_parameters();
+
+  parameters.set_within_chromosome_recombination_rate(1.0);
+  Model::get_config()->get_parasite_parameters().set_recombination_parameters(parameters);
+  FixedUniformRandom crossover_random(0.0);
+  EXPECT_NE(female.free_recombine_with(Model::get_config(), &crossover_random, &male), nullptr);
+
+  parameters.set_within_chromosome_recombination_rate(0.0);
+  Model::get_config()->get_parasite_parameters().set_recombination_parameters(parameters);
+  FixedUniformRandom no_crossover_random(0.99);
+  EXPECT_NE(female.free_recombine_with(Model::get_config(), &no_crossover_random, &male), nullptr);
+
+  parameters.set_within_chromosome_recombination_rate(0.1);
+  Model::get_config()->get_parasite_parameters().set_recombination_parameters(parameters);
 }

@@ -1,34 +1,19 @@
 # Find Google Test
 find_package(GTest REQUIRED)
 
+include_directories(${PROJECT_SOURCE_DIR})
 include_directories(${PROJECT_SOURCE_DIR}/src)
 include_directories(${PROJECT_SOURCE_DIR}/tests)
 
 file(GLOB_RECURSE MALASIM_TEST_SOURCES
-  "*.cpp"
-  "helpers/*.cpp"
-  "Core/Random/*.cpp"
-  "Core/Scheduler/*.cpp"
-  "Core/Scheduler/EventManager/*.cpp"
-  "Configuration/*.cpp"
-  "Environment/*.cpp"
-  "GIS/SpatialDataTest/*.cpp"
-  "GIS/AdminLevelManagerTest/*.cpp"
-  "GIS/SpatialDataTest/*.cpp"
-  "Population/*.cpp"
-  "Population/Person/*.cpp"
-  "Spatial/Movement/*.cpp"
-  "Treatment/*.cpp"
-  "Treatment/Therapies/*.cpp"
-  "Treatment/Strategies/*.cpp"
-  "Parasites/*.cpp"
-  "Utils/*.cpp"
-  "Reporters/*.cpp"
-  "main.cpp"
+  CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp"
 )
 
 # Add test executable
 add_executable(malasim_test
+  ${PROJECT_SOURCE_DIR}/src/apps/efficacy_estimator/DxGCli.cpp
+  ${PROJECT_SOURCE_DIR}/src/apps/malasim/MaSimCli.cpp
   ${MALASIM_TEST_SOURCES}
 )
 
@@ -48,6 +33,14 @@ target_link_libraries(malasim_test PRIVATE
   GTest::gmock_main
   MalaSimCore
 )
+
+if(ENABLE_PCH)
+  target_precompile_headers(malasim_test PRIVATE <gtest/gtest.h>)
+
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    target_compile_options(malasim_test PRIVATE SHELL:-Xclang -fno-pch-timestamp)
+  endif()
+endif()
 
 set_property(TARGET malasim_test PROPERTY CXX_STANDARD 20)
 

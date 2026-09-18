@@ -110,3 +110,42 @@ TEST(DistanceProviderTest, LutStorageIsSmallerThanDenseStorage) {
 
   EXPECT_LT(lut.memory_bytes(), dense_bytes);
 }
+
+TEST(DistanceProviderTest, BaseProviderOptionalViewsAreNull) {
+  class MinimalProvider final : public DistanceProvider {
+   public:
+    double distance(std::size_t, std::size_t) const noexcept override { return 0.0; }
+    std::size_t size() const noexcept override { return 0; }
+  } provider;
+
+  EXPECT_EQ(provider.dense_row(0), nullptr);
+  EXPECT_EQ(provider.grid_table(), nullptr);
+}
+
+TEST(DistanceProviderTest, RejectsUnknownGridDistanceBackend) {
+  const auto locations = make_locations({{0, 0}});
+  EXPECT_THROW(
+      static_cast<void>(
+          make_grid_distance_provider(locations, 1.0F, static_cast<GridDistanceBackend>(255))),
+      std::logic_error);
+}
+
+TEST(DistanceProviderTest, DenseBackendExposesRowsAndMatrix) {
+  const auto locations = make_locations({{0, 0}, {2, 1}});
+  auto provider = make_grid_distance_provider(locations, 2.0F, GridDistanceBackend::DENSE);
+  const auto* dense = dynamic_cast<const DenseGridDistanceProvider*>(provider.get());
+
+  ASSERT_NE(dense, nullptr);
+  ASSERT_EQ(dense->matrix().size(), 2U);
+  ASSERT_NE(dense->dense_row(1), nullptr);
+  EXPECT_DOUBLE_EQ((*dense->dense_row(1))[0], dense->distance(1, 0));
+  EXPECT_EQ(dense->grid_table(), nullptr);
+}
+
+TEST(DistanceProviderTest, LutBackendExposesPairTable) {
+  const auto locations = make_locations({{0, 0}, {1, 0}});
+  const GridLutDistanceProvider provider(locations, 1.0F);
+
+  ASSERT_NE(provider.grid_table(), nullptr);
+  EXPECT_EQ(provider.grid_table(), &provider.table());
+}

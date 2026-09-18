@@ -90,10 +90,12 @@ std::unique_ptr<AscFile> AscFileManager::read(const std::string &file_name) {
   // Remainder of the file is the actual raster data
   for (auto ndx = 0; ndx < results->nrows; ndx++) {
     for (auto ndy = 0; ndy < results->ncols; ndy++) {
-      if (in.eof()) {
-        throw std::runtime_error("EOF encountered while reading data from: " + file_name);
+      if (!(in >> value)) {
+        if (in.eof()) {
+          throw std::runtime_error("EOF encountered while reading data from: " + file_name);
+        }
+        throw std::runtime_error("Invalid raster value in ASC file: " + file_name);
       }
-      in >> value;
       results->data[ndx][ndy] = std::stof(value);
     }
   }

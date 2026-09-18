@@ -9,7 +9,7 @@
 #include "Treatment/Strategies/SFTStrategy.h"
 #include "Treatment/Strategies/StrategyBuilder.h"
 #include "Treatment/Therapies/Therapy.h"
-#include "Utils/Cli.h"
+#include "apps/malasim/MaSimAppInput.h"
 #include "Utils/Random.h"
 #include "fixtures/TestFileGenerators.h"
 
@@ -67,7 +67,7 @@ protected:
     test_fixtures::create_test_raster_2_locations("test_travel.asc", 0.1);
 
     Model::get_instance()->release();
-    utils::Cli::MaSimAppInput input;
+    utils::MaSimAppInput input;
     input.input_path = "test_input.yml";
     Model::set_cli_input(input);
     ASSERT_TRUE(Model::get_instance()->initialize());
@@ -231,6 +231,41 @@ TEST_F(PublicPrivateStrategyTest, BuilderCreatesBothTypesAndValidatesLocationCou
   global["start_public_share"] = 0.2;
   global["peak_after"] = -1;
   EXPECT_THROW(StrategyBuilder::build(global, 17), std::invalid_argument);
+}
+
+TEST_F(PublicPrivateStrategyTest, MultiLocationValidatesChildrenAndFormatsIdentity) {
+  PublicPrivateMultiLocationStrategy strategy;
+  EXPECT_THROW(strategy.set_public_strategy(nullptr), std::invalid_argument);
+  EXPECT_THROW(strategy.set_private_strategy(nullptr), std::invalid_argument);
+  EXPECT_THROW(static_cast<void>(strategy.select_treatment(nullptr)), std::invalid_argument);
+  strategy.id = 12;
+  EXPECT_NE(strategy.to_string().find("12-"), std::string::npos);
+  EXPECT_NE(strategy.to_string().find("public:-1-private:-1"), std::string::npos);
+}
+
+TEST_F(PublicPrivateStrategyTest, MultiLocationForwardsLifecycleAndAppliesImmediatePeak) {
+  CountingStrategy public_child(Model::get_therapy_db()[0].get());
+  CountingStrategy private_child(Model::get_therapy_db()[1].get());
+  PublicPrivateMultiLocationStrategy strategy;
+  strategy.set_public_strategy(&public_child);
+  strategy.set_private_strategy(&private_child);
+  strategy.start_public_share_by_location = {0.2, 0.8};
+  strategy.peak_public_share_by_location = {0.7, 0.3};
+  strategy.public_share_by_location = strategy.start_public_share_by_location;
+  strategy.peak_after = 0;
+
+  strategy.adjust_started_time_point(25);
+  strategy.update_end_of_time_step();
+  strategy.monthly_update();
+
+  EXPECT_EQ(strategy.starting_time, 25);
+  EXPECT_EQ(strategy.public_share_by_location, (DoubleVector{0.7, 0.3}));
+  EXPECT_EQ(public_child.adjust_calls, 1);
+  EXPECT_EQ(private_child.adjust_calls, 1);
+  EXPECT_EQ(public_child.end_step_calls, 1);
+  EXPECT_EQ(private_child.end_step_calls, 1);
+  EXPECT_EQ(public_child.monthly_calls, 1);
+  EXPECT_EQ(private_child.monthly_calls, 1);
 }
 
 }  // namespace

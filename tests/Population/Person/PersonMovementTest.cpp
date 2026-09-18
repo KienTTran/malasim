@@ -1,6 +1,7 @@
 #include "PersonTestBase.h"
 #include "Events/ReturnToResidenceEvent.h"
 #include "Events/CirculateToTargetLocationNextDayEvent.h"
+#include "Utils/Index/PersonIndexByLocationMovingLevel.h"
 
 
 class PersonMovementTest : public PersonTestBase {
@@ -110,6 +111,23 @@ TEST_F(PersonMovementTest, MovingLevelNotification) {
     const int new_level = 2;
     person_->set_moving_level(new_level);
     EXPECT_EQ(person_->get_moving_level(), new_level);
+}
+
+TEST_F(PersonMovementTest, MovingLevelIndexTracksAddChangeAndRemoval) {
+  person_->set_location(0);
+  person_->set_moving_level(1);
+  PersonIndexByLocationMovingLevel index(8, 3);
+  index.add(person_.get());
+  ASSERT_EQ(index.size(), 1U);
+
+  core::MovingLevel old_level = 1;
+  core::MovingLevel new_level = 2;
+  index.notify_change(person_.get(), Person::Property::MOVING_LEVEL, &old_level, &new_level);
+  person_->set_moving_level(new_level);
+  EXPECT_EQ(index.vPerson()[0][2].size(), 1U);
+
+  index.remove(person_.get());
+  EXPECT_EQ(index.size(), 0U);
 }
 
 TEST_F(PersonMovementTest, ResidenceLocationManagement) {

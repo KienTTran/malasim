@@ -102,7 +102,7 @@ void PersonIndexByLocationStateAgeClass::update() {
   for (int location = 0; location < Model::get_config()->number_of_locations(); location++) {
     for (int hs = 0; hs < Person::NUMBER_OF_STATE; hs++) {
       for (int ac = 0; ac < Model::get_config()->number_of_age_classes(); ac++) {
-        std::vector<Person *>(vPerson_[location][hs][ac]).swap(vPerson_[location][hs][ac]);
+        std::vector<Person *>().swap(vPerson_[location][hs][ac]);
       }
     }
   }

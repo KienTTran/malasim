@@ -44,7 +44,7 @@ protected:
           1.0;
     });
     Model::get_instance()->release();
-    utils::Cli::MaSimAppInput cli_input;
+    utils::MaSimAppInput cli_input;
     cli_input.input_path = "test_input.yml";
     Model::set_cli_input(cli_input);
     Model::get_instance()->initialize();
@@ -149,6 +149,37 @@ TEST_F(GenotypeTest, HandlesEmptyAlleleModificationAndInvalidGenotypeShape) {
   EXPECT_FALSE(malformed.is_valid(Model::get_config()->get_genotype_parameters().get_pf_genotype_info()));
 }
 
+TEST_F(GenotypeTest, RejectsMalformedPfGenotypeMetadata) {
+  const auto aa_seq = read_first_genotype_from_yaml("test_input.yml");
+  Genotype genotype(aa_seq);
+  const auto valid_info = Model::get_config()->get_genotype_parameters().get_pf_genotype_info();
+  const auto chromosome_index = std::find_if(
+      genotype.pf_genotype_str.begin(), genotype.pf_genotype_str.end(),
+      [](const auto &genes) { return !genes.empty(); })
+      - genotype.pf_genotype_str.begin();
+  ASSERT_LT(chromosome_index, valid_info.chromosome_infos.size());
+
+  auto missing_genes = valid_info;
+  missing_genes.chromosome_infos[chromosome_index].set_genes({});
+  EXPECT_FALSE(genotype.is_valid(missing_genes));
+
+  auto missing_positions = valid_info;
+  auto gene = missing_positions.chromosome_infos[chromosome_index].get_genes().front();
+  gene.set_aa_positions({});
+  missing_positions.chromosome_infos[chromosome_index].set_genes({gene});
+  EXPECT_FALSE(genotype.is_valid(missing_positions));
+
+  auto invalid_amino_acid = valid_info;
+  gene = invalid_amino_acid.chromosome_infos[chromosome_index].get_genes().front();
+  auto positions = gene.get_aa_positions();
+  ASSERT_FALSE(positions.empty());
+  positions.front().set_amino_acids({"?"});
+  gene.set_aa_positions(positions);
+  invalid_amino_acid.chromosome_infos[chromosome_index].set_genes({gene});
+  EXPECT_FALSE(genotype.is_valid(invalid_amino_acid));
+
+}
+
 TEST_F(GenotypeTest, MatchPattern) {
   std::string aa_seq = read_first_genotype_from_yaml("test_input.yml");
   Genotype g(aa_seq);
@@ -227,7 +258,7 @@ TEST_F(GenotypeTest, PerformCnvReversionUsesGlobalFallbackWhenGeneMultiplierMiss
         "cnv_reversion_multiplier");
   });
   Model::get_instance()->release();
-  utils::Cli::MaSimAppInput cli_input;
+  utils::MaSimAppInput cli_input;
   cli_input.input_path = "test_input.yml";
   Model::set_cli_input(cli_input);
   Model::get_instance()->initialize();
@@ -255,7 +286,7 @@ TEST_F(GenotypeTest, PerformCnvReversionReducesThreeCopiesToTwo) {
         1.0;
   });
   Model::get_instance()->release();
-  utils::Cli::MaSimAppInput cli_input;
+  utils::MaSimAppInput cli_input;
   cli_input.input_path = "test_input.yml";
   Model::set_cli_input(cli_input);
   Model::get_instance()->initialize();
@@ -277,7 +308,7 @@ TEST_F(GenotypeTest, PerformMutationByDrugCanIncreaseIntermediateCopyNumber) {
     config["genotype_parameters"]["pf_genotype_info"][0]["genes"][0]["max_copies"] = 3;
   });
   Model::get_instance()->release();
-  utils::Cli::MaSimAppInput cli_input;
+  utils::MaSimAppInput cli_input;
   cli_input.input_path = "test_input.yml";
   Model::set_cli_input(cli_input);
   Model::get_instance()->initialize();
@@ -298,7 +329,7 @@ TEST_F(GenotypeTest, PerformMutationByDrugCanDecreaseIntermediateCopyNumber) {
     config["genotype_parameters"]["pf_genotype_info"][0]["genes"][0]["max_copies"] = 3;
   });
   Model::get_instance()->release();
-  utils::Cli::MaSimAppInput cli_input;
+  utils::MaSimAppInput cli_input;
   cli_input.input_path = "test_input.yml";
   Model::set_cli_input(cli_input);
   Model::get_instance()->initialize();
@@ -319,7 +350,7 @@ TEST_F(GenotypeTest, PerformMutationByDrugAtMaximumCopyNumberStepsDown) {
     config["genotype_parameters"]["pf_genotype_info"][0]["genes"][0]["max_copies"] = 3;
   });
   Model::get_instance()->release();
-  utils::Cli::MaSimAppInput cli_input;
+  utils::MaSimAppInput cli_input;
   cli_input.input_path = "test_input.yml";
   Model::set_cli_input(cli_input);
   Model::get_instance()->initialize();

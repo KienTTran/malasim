@@ -2,7 +2,7 @@
 #include <memory>
 
 #include "Treatment/SteadyTCM.h"
-#include "Utils/Cli.h"
+#include "apps/malasim/MaSimAppInput.h"
 
 class SteadyTCMTest : public ::testing::Test {
 protected:

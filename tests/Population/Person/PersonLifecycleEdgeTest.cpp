@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 
 #include "Events/BirthdayEvent.h"
+#include "Events/RaptEvent.h"
+#include "Population/ClonalParasitePopulation.h"
 #include "Population/Person/Person.h"
 #include "Treatment/Therapies/SCTherapy.h"
 #include "PersonTestBase.h"
@@ -72,4 +74,46 @@ TEST_F(PersonLifecycleEdgeTest, RejectsPastEvents) {
   auto event = std::make_unique<BirthdayEvent>(person_.get());
   event->set_time(0);
   EXPECT_THROW(person_->schedule_basic_event(std::move(event)), std::invalid_argument);
+}
+
+TEST_F(PersonLifecycleEdgeTest, RaptEventSchedulesNextDoseForIneligiblePerson) {
+  person_->set_age(10);
+  RaptEvent event(person_.get());
+  event.set_executable(true);
+  EXPECT_NO_THROW(event.execute());
+  EXPECT_FALSE(person_->get_events().empty());
+}
+
+TEST_F(PersonLifecycleEdgeTest, SchedulesRelapseWhenConfiguredProbabilitySucceeds) {
+  auto& epidemiology = mock_config_->get_epidemiological_parameters();
+  epidemiology.set_p_relapse(1.0);
+  epidemiology.set_relapse_duration(1000);
+  auto* parasite = person_->add_new_parasite_to_blood(nullptr);
+  ASSERT_NE(parasite, nullptr);
+  EXPECT_CALL(*mock_random_, random_flat(_, _)).WillOnce(Return(0.0));
+
+  person_->determine_relapse_or_not(parasite);
+
+  EXPECT_FALSE(person_->get_events().empty());
+  EXPECT_EQ(parasite->last_update_log10_parasite_density(),
+            mock_config_->get_parasite_parameters()
+                .get_parasite_density_levels()
+                .get_log_parasite_density_asymptomatic());
+}
+
+TEST_F(PersonLifecycleEdgeTest, ClearsRelapseWhenConfiguredProbabilityFails) {
+  auto& epidemiology = mock_config_->get_epidemiological_parameters();
+  epidemiology.set_p_relapse(0.0);
+  auto* parasite = person_->add_new_parasite_to_blood(nullptr);
+  ASSERT_NE(parasite, nullptr);
+  parasite->set_last_update_log10_parasite_density(99.0);
+  EXPECT_CALL(*mock_random_, random_flat(_, _)).WillOnce(Return(1.0));
+
+  person_->determine_relapse_or_not(parasite);
+
+  EXPECT_TRUE(person_->get_events().empty());
+  EXPECT_DOUBLE_EQ(parasite->last_update_log10_parasite_density(),
+                   mock_config_->get_parasite_parameters()
+                       .get_parasite_density_levels()
+                       .get_log_parasite_density_asymptomatic());
 }

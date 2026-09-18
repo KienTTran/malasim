@@ -8,7 +8,7 @@
 
 #include "Reporters/Reporter.h"
 #include "Simulation/Model.h"
-#include "Utils/Cli.h"
+#include "apps/malasim/MaSimAppInput.h"
 #include "Utils/Logger.h"
 #include "fixtures/TestFileGenerators.h"
 
@@ -60,7 +60,7 @@ TEST_P(ReporterRunIntegrationTest, RunsShortSimulationWithReporter) {
     }
   });
 
-  utils::Cli::MaSimAppInput cli_input;
+  utils::MaSimAppInput cli_input;
   cli_input.input_path = "test_input.yml";
   cli_input.output_path = ".";
   cli_input.reporter = GetParam();
@@ -91,7 +91,7 @@ TEST(ReporterStackTest, MultipleReportersInSingleRun) {
     cfg["model_settings"]["initial_seed_number"] = 7;
   });
 
-  utils::Cli::MaSimAppInput cli_input;
+  utils::MaSimAppInput cli_input;
   cli_input.input_path = "test_input.yml";
   cli_input.output_path = ".";
   cli_input.reporter = "Console";
@@ -185,7 +185,7 @@ TEST_P(ReporterStrategyMismatchTest, SurvivesIncompatibleTreatmentStrategy) {
         }
       });
 
-  utils::Cli::MaSimAppInput cli_input;
+  utils::MaSimAppInput cli_input;
   cli_input.input_path = "test_input.yml";
   cli_input.output_path = ".";
   cli_input.reporter = reporter_name;

@@ -5,9 +5,9 @@
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
+#include <iostream>
 
 #include "Simulation/Model.h"
-#include "Utils/Cli.h"
 
 int inline get_pipe_count(const std::string &str) {
   int pipe_count = 0;

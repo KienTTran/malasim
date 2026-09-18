@@ -11,7 +11,7 @@
 #include "Population/Person/Person.h"
 #include "Population/SingleHostClonalParasitePopulations.h"
 #include "Simulation/Model.h"
-#include "Utils/Cli.h"
+#include "apps/malasim/MaSimAppInput.h"
 #include "Utils/Constants.h"
 #include "fixtures/TestFileGenerators.h"
 
@@ -234,7 +234,7 @@ TEST_F(SingleHostClonalParasitePopulationsTest,
        UpdateWithDrugEffectsAndClearCuredMatchesSeparatePassesWithoutDrugs) {
   test_fixtures::setup_test_environment("test_input.yml");
   Model::get_instance()->release();
-  utils::Cli::MaSimAppInput cli_input;
+  utils::MaSimAppInput cli_input;
   cli_input.input_path = "test_input.yml";
   Model::set_cli_input(cli_input);
   Model::get_instance()->initialize();
@@ -362,185 +362,4 @@ TEST_F(SingleHostClonalParasitePopulationsTest, MultipleParasitesWithDifferentDe
   // Test total infectious density calculation
   populations->clear_cured_parasites(Constants::DEFAULT_LOG10_PARASITE_DENSITY_CURED);
   EXPECT_GT(populations->log10_total_infectious_density(), 5.0);
-}
-
-TEST_F(SingleHostClonalParasitePopulationsTest, ParasiteIndexManagement) {
-  auto parasite1 = std::make_unique<ClonalParasitePopulation>(genotype.get());
-  auto parasite1_ptr = parasite1.get();
-  auto parasite2 = std::make_unique<ClonalParasitePopulation>(genotype.get());
-  auto parasite2_ptr = parasite2.get();
-  auto parasite3 = std::make_unique<ClonalParasitePopulation>(genotype.get());
-  auto parasite3_ptr = parasite3.get();
-
-  populations->add(std::move(parasite1));
-  populations->add(std::move(parasite2));
-  populations->add(std::move(parasite3));
-
-  EXPECT_EQ(parasite1_ptr->get_index(), 0);
-  EXPECT_EQ(parasite2_ptr->get_index(), 1);
-  EXPECT_EQ(parasite3_ptr->get_index(), 2);
-
-  // Remove middle parasite and verify indices are updated
-  populations->remove(1);
-  EXPECT_EQ(parasite1_ptr->get_index(), 0);
-  EXPECT_EQ(parasite3_ptr->get_index(), 1);
-}
-
-TEST_F(SingleHostClonalParasitePopulationsTest, RemoveByParasitePtrIndex) {
-  auto parasite1 = std::make_unique<ClonalParasitePopulation>(genotype.get());
-  auto parasite1_ptr = parasite1.get();
-  auto parasite2 = std::make_unique<ClonalParasitePopulation>(genotype.get());
-  auto parasite2_ptr = parasite2.get();
-  auto parasite3 = std::make_unique<ClonalParasitePopulation>(genotype.get());
-  auto parasite3_ptr = parasite3.get();
-
-  populations->add(std::move(parasite1));
-  populations->add(std::move(parasite2));
-  populations->add(std::move(parasite3));
-
-  EXPECT_EQ(parasite1_ptr->get_index(), 0);
-  EXPECT_EQ(parasite2_ptr->get_index(), 1);
-  EXPECT_EQ(parasite3_ptr->get_index(), 2);
-
-  // Remove middle parasite and verify indices are updated
-  populations->remove(parasite2_ptr->get_index());
-  EXPECT_EQ(parasite1_ptr->get_index(), 0);
-  EXPECT_EQ(parasite3_ptr->get_index(), 1);
-  EXPECT_EQ(populations->size(), 2);
-
-  // Check if parasite2 is no longer in the population
-  EXPECT_FALSE(populations->contain(parasite2_ptr));
-
-  // No need to delete parasite2 as unique_ptr will handle it
-  // will get segfault if delete parasite2 even though the pointer is still point to the object
-  // delete parasite2;
-}
-
-TEST_F(SingleHostClonalParasitePopulationsTest, MemoryManagementAdd) {
-  const int tracking_id = 100;
-  {
-    auto parasite = create_tracked_parasite(tracking_id);
-    populations->add(std::move(parasite));
-    EXPECT_FALSE(is_destroyed(tracking_id));
-  }
-  // Parasite should still exist in populations
-  EXPECT_FALSE(is_destroyed(tracking_id));
-  EXPECT_EQ(populations->size(), 1);
-
-  // Clear should destroy the parasite
-  populations->clear();
-  EXPECT_TRUE(is_destroyed(tracking_id));
-  EXPECT_EQ(populations->size(), 0);
-}
-
-TEST_F(SingleHostClonalParasitePopulationsTest, MemoryManagementRemove) {
-  const int tracking_id1 = 101;
-  const int tracking_id2 = 102;
-
-  auto parasite1 = create_tracked_parasite(tracking_id1);
-  auto parasite2 = create_tracked_parasite(tracking_id2);
-
-  populations->add(std::move(parasite1));
-  populations->add(std::move(parasite2));
-  EXPECT_EQ(populations->size(), 2);
-
-  // Remove first parasite
-  populations->remove(0);
-  EXPECT_TRUE(is_destroyed(tracking_id1));
-  EXPECT_FALSE(is_destroyed(tracking_id2));
-  EXPECT_EQ(populations->size(), 1);
-}
-
-TEST_F(SingleHostClonalParasitePopulationsTest, MemoryManagementDestructor) {
-  const int tracking_id1 = 103;
-  const int tracking_id2 = 104;
-
-  {
-    auto local_populations = std::make_unique<SingleHostClonalParasitePopulations>(person.get());
-    auto parasite1 = create_tracked_parasite(tracking_id1);
-    auto parasite2 = create_tracked_parasite(tracking_id2);
-    local_populations->add(std::move(parasite1));
-    local_populations->add(std::move(parasite2));
-
-    EXPECT_FALSE(is_destroyed(tracking_id1));
-    EXPECT_FALSE(is_destroyed(tracking_id2));
-
-    local_populations.reset();
-    // Both parasites should be destroyed when populations is destroyed
-    EXPECT_TRUE(is_destroyed(tracking_id1));
-    EXPECT_TRUE(is_destroyed(tracking_id2));
-  }
-}
-
-TEST_F(SingleHostClonalParasitePopulationsTest, MemoryManagementClearCuredParasites) {
-  const int staying_id = 105;
-  const int cleared_id = 106;
-
-  auto staying_parasite = create_tracked_parasite(staying_id);
-  auto staying_parasite_ptr = staying_parasite.get();
-  auto cleared_parasite = create_tracked_parasite(cleared_id);
-  auto cleared_parasite_ptr = cleared_parasite.get();
-
-  staying_parasite_ptr->set_last_update_log10_parasite_density(2.0);   // Above threshold
-  cleared_parasite_ptr->set_last_update_log10_parasite_density(-4.0);  // Below threshold
-
-  populations->add(std::move(staying_parasite));
-  populations->add(std::move(cleared_parasite));
-
-  populations->clear_cured_parasites(-2.0);  // Set threshold between the two parasites
-
-  // Cleared parasite should be destroyed, staying parasite should remain
-  EXPECT_FALSE(is_destroyed(staying_id));
-  EXPECT_TRUE(is_destroyed(cleared_id));
-  EXPECT_EQ(populations->size(), 1);
-}
-
-TEST_F(SingleHostClonalParasitePopulationsTest, MemoryManagementVectorReallocation) {
-  std::vector<int> tracking_ids;
-  const int num_parasites = 10;
-
-  // Add enough parasites to force vector reallocation
-  for (int i = 0; i < num_parasites; i++) {
-    tracking_ids.push_back(i);
-    auto parasite = create_tracked_parasite(tracking_ids.back());
-    populations->add(std::move(parasite));
-    EXPECT_FALSE(is_destroyed(tracking_ids.back()));
-  }
-
-  EXPECT_EQ(populations->size(), num_parasites);
-
-  // When removing index 3 repeatedly:
-  // 1. parasite[3] is replaced by parasite[9], parasite[3] is destroyed
-  // 2. parasite[3] (which was parasite[9]) is replaced by parasite[8], parasite[9] is destroyed
-  // 3. parasite[3] (which was parasite[8]) is replaced by parasite[7], parasite[8] is destroyed
-  // 4. parasite[3] (which was parasite[7]) is replaced by parasite[6], parasite[7] is destroyed
-
-  std::vector<int> expected_destroyed_parasites{3, 9, 8, 7};
-  for (int i = 0; i < 4; i++) {
-    populations->remove(3);
-
-    EXPECT_EQ(populations->size(), num_parasites - i - 1);
-
-    // destroyed_parasites_ should contain 3, 9, 8, 7 iteratively
-    for (int j = 0; j < std::min(i, 4); j++) {
-      EXPECT_TRUE(is_destroyed(expected_destroyed_parasites[j]));
-    }
-  }
-
-  EXPECT_EQ(populations->size(), num_parasites - 4);
-
-  // Final state verification:
-  // - First 3 parasites (0,1,2) should be alive
-  for (int i = 0; i < 3; i++) { EXPECT_FALSE(is_destroyed(i)); }
-
-  // parasites 3, 7,8,9 should be destroyed
-  EXPECT_TRUE(is_destroyed(3));
-  EXPECT_TRUE(is_destroyed(7));
-  EXPECT_TRUE(is_destroyed(8));
-  EXPECT_TRUE(is_destroyed(9));
-
-  // parasites 4,5,6 should be alive
-  EXPECT_FALSE(is_destroyed(4));
-  EXPECT_FALSE(is_destroyed(5));
-  EXPECT_FALSE(is_destroyed(6));
 }

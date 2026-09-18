@@ -1,15 +1,16 @@
 #include <gtest/gtest.h>
+
 #include <memory>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
-#include "Treatment/Strategies/DistrictMftStrategy.h"
-#include "Treatment/Therapies/Therapy.h"
 #include "Population/Person/Person.h"
 #include "Simulation/Model.h"
 #include "Spatial/GIS/SpatialData.h"
-#include "Utils/Cli.h"
+#include "Treatment/Strategies/DistrictMftStrategy.h"
+#include "Treatment/Therapies/Therapy.h"
+#include "apps/malasim/MaSimAppInput.h"
 #include "fixtures/TestFileGenerators.h"
 
 class DistrictMftStrategyTest : public ::testing::Test {
@@ -17,49 +18,43 @@ protected:
   void SetUp() override {
     test_fixtures::setup_test_environment();
     Model::get_instance()->release();
-    utils::Cli::MaSimAppInput cli_input;
+    utils::MaSimAppInput cli_input;
     cli_input.input_path = "test_input.yml";
     Model::set_cli_input(cli_input);
-    Model::get_instance()->initialize();
-    
+    ASSERT_TRUE(Model::get_instance()->initialize());
+
     // Create strategy
     strategy = std::make_unique<DistrictMftStrategy>();
     strategy->id = 1;
     strategy->name = "TestDistrictMftStrategy";
-    
-    // Use therapies from the therapy database instead of creating new ones
-    if (Model::get_therapy_db().size() >= 3) {
-      therapy1 = Model::get_therapy_db()[0].get();
-      therapy2 = Model::get_therapy_db()[1].get();
-      therapy3 = Model::get_therapy_db()[2].get();
-    } else {
-      // Fallback in case there aren't enough therapies in the database
-      GTEST_SKIP() << "Not enough therapies in the database to run this test";
-    }
-    
-    // Create test persons in different districts
-    // Since we can't easily mock the SpatialData class,
-    // we'll create persons but acknowledge that the district assignment
-    // is dependent on the SpatialData implementation
+
+    // Use therapies from the therapy database instead of creating new ones.
+    ASSERT_GE(Model::get_therapy_db().size(), 3U)
+        << "The generated fixture must provide at least three therapies";
+    therapy1 = Model::get_therapy_db()[0].get();
+    therapy2 = Model::get_therapy_db()[1].get();
+    therapy3 = Model::get_therapy_db()[2].get();
+
+    // The generated district raster assigns locations 0-3 to district 1 and
+    // locations 4-5 to district 2.
     person1 = std::make_unique<Person>();
-    person1->set_location(0); // This location should map to a district
-    
+    person1->set_location(0);
+
     person2 = std::make_unique<Person>();
-    person2->set_location(1); // This location should map to another district
+    person2->set_location(4);
   }
 
   void TearDown() override {
     person2.reset();
     person1.reset();
     strategy.reset();
+    Model::get_instance()->release();
     test_fixtures::cleanup_test_files();
   }
-  
+
   // Helper to create MFT strategy for a district
   std::unique_ptr<DistrictMftStrategy::MftStrategy> create_district_strategy(
-      const std::vector<int>& therapy_ids, 
-      const std::vector<double>& percentages) {
-    
+      const std::vector<int> &therapy_ids, const std::vector<double> &percentages) {
     auto dist_strategy = std::make_unique<DistrictMftStrategy::MftStrategy>();
     dist_strategy->therapies = therapy_ids;
     dist_strategy->percentages = percentages;
@@ -90,17 +85,17 @@ TEST_F(DistrictMftStrategyTest, SetDistrictStrategy) {
   std::vector<int> therapy_ids1 = {therapy1->get_id(), therapy2->get_id()};
   std::vector<double> percentages1 = {0.7, 0.3};
   auto district_strategy1 = create_district_strategy(therapy_ids1, percentages1);
-  
+
   // Set district strategy for district 0
   // Note: Since this is dependent on SpatialData initialization,
   // we'll use district IDs that should be valid in most configurations
   EXPECT_NO_THROW(strategy->set_district_strategy(0, std::move(district_strategy1)));
-  
+
   // Create district strategy 2
   std::vector<int> therapy_ids2 = {therapy2->get_id(), therapy3->get_id()};
   std::vector<double> percentages2 = {0.4, 0.6};
   auto district_strategy2 = create_district_strategy(therapy_ids2, percentages2);
-  
+
   // Set district strategy for district 1
   EXPECT_NO_THROW(strategy->set_district_strategy(1, std::move(district_strategy2)));
 }
@@ -110,13 +105,14 @@ TEST_F(DistrictMftStrategyTest, SetDistrictStrategyTwiceThrowsException) {
   std::vector<int> therapy_ids = {therapy1->get_id(), therapy2->get_id()};
   std::vector<double> percentages = {0.7, 0.3};
   auto district_strategy1 = create_district_strategy(therapy_ids, percentages);
-  
+
   // Set district strategy for district 0
   strategy->set_district_strategy(0, std::move(district_strategy1));
-  
+
   // Try to set it again, should throw
   auto district_strategy2 = create_district_strategy(therapy_ids, percentages);
-  EXPECT_THROW(strategy->set_district_strategy(0, std::move(district_strategy2)), std::runtime_error);
+  EXPECT_THROW(strategy->set_district_strategy(0, std::move(district_strategy2)),
+               std::runtime_error);
 }
 
 TEST_F(DistrictMftStrategyTest, SetInvalidDistrictThrowsException) {
@@ -124,9 +120,10 @@ TEST_F(DistrictMftStrategyTest, SetInvalidDistrictThrowsException) {
   std::vector<int> therapy_ids = {therapy1->get_id(), therapy2->get_id()};
   std::vector<double> percentages = {0.7, 0.3};
   auto district_strategy = create_district_strategy(therapy_ids, percentages);
-  
+
   // Try to set for an invalid district (negative ID)
-  EXPECT_THROW(strategy->set_district_strategy(-1, std::move(district_strategy)), std::out_of_range);
+  EXPECT_THROW(strategy->set_district_strategy(-1, std::move(district_strategy)),
+               std::out_of_range);
 }
 
 // NOTE: The following test depends on SpatialData's mapping of location to districts
@@ -141,13 +138,13 @@ TEST_F(DistrictMftStrategyTest, GetTherapyForPerson) {
   // Set up district strategies first
   // District 0 strategy
   std::vector<int> therapy_ids0 = {therapy1->get_id(), therapy2->get_id()};
-  std::vector<double> percentages0 = {1.0, 0.0}; // Always select therapy1 for determinism
+  std::vector<double> percentages0 = {1.0, 0.0};  // Always select therapy1 for determinism
   auto district_strategy0 = create_district_strategy(therapy_ids0, percentages0);
   strategy->set_district_strategy(1, std::move(district_strategy0));
 
   // District 1 strategy
   std::vector<int> therapy_ids1 = {therapy2->get_id(), therapy3->get_id()};
-  std::vector<double> percentages1 = {1.0, 0.0}; // Always select therapy2 for determinism
+  std::vector<double> percentages1 = {1.0, 0.0};  // Always select therapy2 for determinism
   auto district_strategy1 = create_district_strategy(therapy_ids1, percentages1);
   strategy->set_district_strategy(2, std::move(district_strategy1));
 
@@ -252,9 +249,7 @@ TEST_F(DistrictMftStrategyTest, DistinctDistrictsKeepDistinctStrategies) {
   const auto district2 =
       Model::get_spatial_data()->get_admin_unit("district", person2->get_location());
 
-  if (district1 == district2) {
-    GTEST_SKIP() << "test persons resolve to the same district in this fixture";
-  }
+  ASSERT_NE(district1, district2);
 
   strategy->set_district_strategy(
       district1, create_district_strategy({therapy1->get_id(), therapy2->get_id()}, {1.0, 0.0}));

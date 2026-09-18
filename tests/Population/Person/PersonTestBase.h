@@ -6,7 +6,7 @@
 
 #include "Population/Person/Person.h"
 #include "Simulation/Model.h"
-#include "Utils/Cli.h"
+#include "apps/malasim/MaSimAppInput.h"
 #include "fixtures/MockFactories.h"
 
 using namespace testing;
@@ -16,7 +16,7 @@ protected:
 
   void SetUp() override {
     // Keep this unit-test fixture independent of generated files.
-    utils::Cli::MaSimAppInput cli_input;
+    utils::MaSimAppInput cli_input;
     cli_input.input_path.clear();
     Model::set_cli_input(cli_input);
 

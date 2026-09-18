@@ -19,6 +19,7 @@ MMCReporter::MMCReporter() = default;
 
 void MMCReporter::initialize(int job_number, const std::string &path) {
   auto* mdc = Model::get_mdc();
+  const auto console_log_level = spdlog::get_level();
   ReporterUtils::initialize_moi_file_logger();
 
   spdlog::info("MMCReporter initialized with job number {}", job_number);
@@ -28,6 +29,7 @@ void MMCReporter::initialize(int job_number, const std::string &path) {
 
   // Create console logger
   auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+  console_sink->set_level(console_log_level);
   auto console_logger = std::make_shared<spdlog::logger>("console_logger", console_sink);
   console_sink->set_pattern("[%^%l%$] %v");  // Highlight log level in console
   console_logger->set_level(spdlog::level::info);
@@ -194,4 +196,3 @@ void MMCReporter::print_eir_pfpr_by_location() {
     //              std::endl;
   }
 }
-

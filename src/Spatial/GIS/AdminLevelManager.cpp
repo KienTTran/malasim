@@ -59,6 +59,7 @@ void AdminLevelManager::setup_boundary(const std::string &name, AscFile* raster)
   }
   // Validate raster
   if (raster == nullptr) { throw std::runtime_error("Null raster provided for '" + name + "'"); }
+  validate_raster(raster);
 
   auto result = populate_lookup(raster);
 
@@ -137,7 +138,7 @@ int AdminLevelManager::get_unit_count(const std::string &level_name) const {
 
 int AdminLevelManager::get_unit_count(int level_id) const {
   if (level_id < 0 || level_id >= static_cast<int>(boundaries_.size())) {
-    spdlog::info("Invalid level ID: {} for {}", level_id, id_to_name_[level_id]);
+    spdlog::info("Invalid level ID: {}", level_id);
     spdlog::info("Boudaries size: {}", boundaries_.size());
     throw std::out_of_range("Invalid level ID: " + std::to_string(level_id));
   }

@@ -2,7 +2,7 @@
 #include <yaml-cpp/yaml.h>
 #include "Configuration/PopulationEvents.h"  // Assuming this is the correct include path
 #include "Simulation/Model.h"
-#include "Utils/Cli.h"
+#include "apps/malasim/MaSimAppInput.h"
 #include "fixtures/TestFileGenerators.h"
 
 class PopulationEventsTest : public ::testing::Test {
@@ -11,7 +11,7 @@ protected:
 
     void SetUp() override {
         test_fixtures::setup_test_environment();
-        utils::Cli::MaSimAppInput cli_input;
+        utils::MaSimAppInput cli_input;
     cli_input.input_path = "test_input.yml";
     Model::set_cli_input(cli_input);
         Model::get_instance()->initialize();

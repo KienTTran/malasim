@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
   "description": "MalaSim full unit-test coverage baseline",
-  "generated_at": "2026-07-28T10:06:36Z",
-  "source_commit": "67bc52b",
+  "generated_at": "2026-08-09T15:27:17Z",
+  "source_commit": "d100720",
   "source_branch": "main",
   "working_tree_dirty": false,
   "build_type": "Debug",
   "coverage": {
-    "regions": {"covered": 8040, "total": 9607, "percent": 83.69},
-    "functions": {"covered": 2237, "total": 2517, "percent": 88.88},
-    "lines": {"covered": 15015, "total": 17664, "percent": 85.00},
-    "branches": {"covered": 4104, "total": 5575, "percent": 73.61}
+    "regions": {"covered": 9155, "total": 9876, "percent": 92.70},
+    "functions": {"covered": 2425, "total": 2547, "percent": 95.21},
+    "lines": {"covered": 17044, "total": 17927, "percent": 95.07},
+    "branches": {"covered": 4919, "total": 5795, "percent": 84.88}
   }
 }

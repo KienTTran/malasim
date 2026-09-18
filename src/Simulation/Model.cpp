@@ -6,8 +6,10 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <limits>
 #include <memory>
+#include <set>
 #include <stdexcept>
 #include <string>
 
@@ -16,12 +18,21 @@
 #include "Mosquito/Mosquito.h"
 #include "Reporters/Reporter.h"
 #include "Treatment/LinearTCM.h"
+#include "Utils/Helpers/StringHelpers.h"
 #include "Treatment/SteadyTCM.h"
 #include "Reporters/SMCReporter.h" // Include the SMCReporter header
 
 namespace {
 
 namespace isop = ImmuneSystemOverridePaths;
+
+// Strips leading/trailing whitespace so `-r A, B` behaves like `-r A,B`.
+std::string trim_copy(const std::string &text) {
+  const auto begin = text.find_first_not_of(" \t\r\n");
+  if (begin == std::string::npos) { return {}; }
+  const auto end = text.find_last_not_of(" \t\r\n");
+  return text.substr(begin, end - begin + 1);
+}
 
 double get_effective_override_value(const Config &config, const std::string &path) {
   if (path == isop::K_Z) {
@@ -148,16 +159,13 @@ bool Model::initialize() {
     if (cli_input_.output_path.empty()) { cli_input_.output_path = "./"; }
 
     // add reporter here
-    if (cli_input_.reporter.empty()) {
-      add_reporter(Reporter::make_report(Reporter::ReportType::SQLITE_MONTHLY_REPORTER));
-    } else {
-      if (Reporter::report_type_map.contains(cli_input_.reporter)) {
-        add_reporter(Reporter::make_report(Reporter::report_type_map[cli_input_.reporter]));
-      }
-    }
+    if (!setup_reporters()) { return false; }
 
 #ifdef ENABLE_TRAVEL_TRACKING
-    add_reporter(Reporter::MakeReport(Reporter::TRAVEL_TRACKING_REPORTER));
+    if (auto travel_reporter =
+            Reporter::make_report(Reporter::ReportType::TRAVEL_TRACKING_REPORTER)) {
+      add_reporter(std::move(travel_reporter));
+    }
 #endif
 
     // initialize reporters
@@ -209,8 +217,15 @@ bool Model::initialize() {
     if (cli_input_.record_movement) {
       // Generate a movement reporter
       auto reporter = Reporter::make_report(Reporter::ReportType::MOVEMENT_REPORTER);
-      reporter->initialize(cli_input_.job_number, cli_input_.output_path);
-      add_reporter(std::move(reporter));
+      if (reporter) {
+        reporter->initialize(cli_input_.job_number, cli_input_.output_path);
+        add_reporter(std::move(reporter));
+      } else {
+        spdlog::error(
+            "Movement recording was requested (--im/--mc/--md) but no movement reporter is "
+            "available in this build; movement data will NOT be written.");
+        return false;
+      }
     }
     is_initialized_ = true;
   } else {
@@ -221,6 +236,11 @@ bool Model::initialize() {
 
 void Model::release() {
   // Clean up the memory used by the model
+
+  // A released singleton must be safe to initialize again. Reset this guard
+  // before destroying the owned subsystems so run() cannot dereference stale
+  // state after release().
+  is_initialized_ = false;
 
   treatment_strategy_ = nullptr;
   second_line_strategy_ = nullptr;
@@ -373,8 +393,61 @@ void Model::report_after_time_step() {
 }
 
 void Model::add_reporter(std::unique_ptr<Reporter> reporter) {
+  if (reporter == nullptr) {
+    spdlog::error("Attempted to register a null reporter; ignoring.");
+    return;
+  }
   reporter->set_model(this);
   reporters_.push_back(std::move(reporter));
+}
+
+bool Model::setup_reporters() {
+  // No -r given: keep the historical default.
+  if (cli_input_.reporter.empty()) {
+    add_reporter(Reporter::make_report(Reporter::ReportType::SQLITE_MONTHLY_REPORTER));
+    return true;
+  }
+
+  // -r accepts a comma separated list, e.g.
+  //   -r SQLiteMonthlyReporter,SQLiteValidationReporter
+  const auto tokens = StringHelpers::split<char>(cli_input_.reporter, ',');
+
+  std::set<Reporter::ReportType> already_added;
+  std::size_t added = 0;
+
+  for (const auto &token : tokens) {
+    const auto name = trim_copy(token);
+    if (name.empty()) { continue; }
+
+    const auto found = Reporter::report_type_map.find(name);
+    if (found == Reporter::report_type_map.end()) {
+      spdlog::error("Unknown reporter '{}'. Run with -l to list the valid reporter names.", name);
+      continue;
+    }
+
+    if (!already_added.insert(found->second).second) {
+      spdlog::warn("Reporter '{}' listed more than once; ignoring the duplicate.", name);
+      continue;
+    }
+
+    auto reporter = Reporter::make_report(found->second);
+    if (reporter == nullptr) {
+      spdlog::error("Reporter '{}' could not be created.", name);
+      continue;
+    }
+
+    add_reporter(std::move(reporter));
+    added++;
+    spdlog::info("Added reporter: {}", name);
+  }
+
+  if (added == 0) {
+    spdlog::error("No valid reporter could be resolved from -r '{}'. Aborting.",
+                  cli_input_.reporter);
+    return false;
+  }
+
+  return true;
 }
 
 IStrategy* Model::get_treatment_strategy() { return get_instance()->treatment_strategy_; }

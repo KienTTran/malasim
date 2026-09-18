@@ -6,7 +6,7 @@
 #include "Simulation/Model.h"
 #include "Treatment/ITreatmentCoverageModel.h"
 #include "Treatment/Therapies/Therapy.h"
-#include "Utils/Cli.h"
+#include "apps/malasim/MaSimAppInput.h"
 #include "Utils/Random.h"
 #include "fixtures/TestFileGenerators.h"
 
@@ -56,7 +56,7 @@ TEST(ProgressToClinicalEventDeterministicTest,
   });
 
   // Initialize model
-  utils::Cli::MaSimAppInput cli_input;
+  utils::MaSimAppInput cli_input;
   cli_input.input_path = "test_input.yml";
   Model::set_cli_input(cli_input);
   ASSERT_TRUE(Model::get_instance()->initialize());
@@ -95,7 +95,7 @@ TEST(ProgressToClinicalEventDeterministicTest,
     n["ages"] = std::vector<int>{0, 5, 10, 15, 20, 30, 40};
   });
 
-  utils::Cli::MaSimAppInput cli_input2;
+  utils::MaSimAppInput cli_input2;
   cli_input2.input_path = "test_input.yml";
   Model::set_cli_input(cli_input2);
   ASSERT_TRUE(Model::get_instance()->initialize());
@@ -121,7 +121,7 @@ TEST(ProgressToClinicalEventDeterministicTest,
 TEST(ProgressToClinicalEventDeterministicTest, RecurrenceUsesConfiguredSecondLineStrategy) {
   test_fixtures::setup_test_environment("test_input.yml");
 
-  utils::Cli::MaSimAppInput cli_input;
+  utils::MaSimAppInput cli_input;
   cli_input.input_path = "test_input.yml";
   Model::set_cli_input(cli_input);
   ASSERT_TRUE(Model::get_instance()->initialize());
@@ -168,7 +168,7 @@ TEST(ProgressToClinicalEventDeterministicTest,
      PublicPrivateStrategyUsesSecondLineOnlyForPublicRecurrence) {
   test_fixtures::setup_test_environment("test_input.yml");
 
-  utils::Cli::MaSimAppInput cli_input;
+  utils::MaSimAppInput cli_input;
   cli_input.input_path = "test_input.yml";
   Model::set_cli_input(cli_input);
   ASSERT_TRUE(Model::get_instance()->initialize());
@@ -201,7 +201,7 @@ TEST(ProgressToClinicalEventDeterministicTest,
      GenericNestedStrategyDoesNotInferSectorFromChildPosition) {
   test_fixtures::setup_test_environment("test_input.yml");
 
-  utils::Cli::MaSimAppInput cli_input;
+  utils::MaSimAppInput cli_input;
   cli_input.input_path = "test_input.yml";
   Model::set_cli_input(cli_input);
   ASSERT_TRUE(Model::get_instance()->initialize());

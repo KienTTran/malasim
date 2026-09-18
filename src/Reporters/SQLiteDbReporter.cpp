@@ -40,7 +40,7 @@ void SQLiteDbReporter::populate_genotype_table() {
   } catch (const std::exception &ex) { spdlog::error("{}:\n{}", __FUNCTION__, ex.what()); }
 }
 
-void SQLiteDbReporter::insert_genotype(const Genotype& genotype) {
+void SQLiteDbReporter::insert_genotype(const Genotype &genotype) {
   try {
     if (db == nullptr) { return; }
 
@@ -48,12 +48,10 @@ void SQLiteDbReporter::insert_genotype(const Genotype& genotype) {
     StringHelpers::replace_all(genotype_str, "'", "''");
     db->execute(fmt::format("INSERT OR REPLACE INTO genotype (id, name) VALUES ({}, '{}');",
                             genotype.genotype_id(), genotype_str));
-  } catch (const std::exception &ex) {
-    spdlog::error("{}:\n{}", __FUNCTION__, ex.what());
-  }
+  } catch (const std::exception &ex) { spdlog::error("{}:\n{}", __FUNCTION__, ex.what()); }
 }
 
-void SQLiteDbReporter::on_genotype_added(const Genotype& genotype) { insert_genotype(genotype); }
+void SQLiteDbReporter::on_genotype_added(const Genotype &genotype) { insert_genotype(genotype); }
 
 // Function to populate the 'admin_level' table in the database
 void SQLiteDbReporter::populate_admin_level_table() {
@@ -117,28 +115,25 @@ void SQLiteDbReporter::create_all_reporting_tables() {
   for (auto ndx = 0; ndx < Model::get_config()->age_structure().size(); ndx++) {
     auto ag_from = ndx == 0 ? 0 : Model::get_config()->age_structure()[ndx - 1];
     auto ag_to = Model::get_config()->age_structure()[ndx];
-    age_class_columns += fmt::format("recrudescence_treatment_by_age_class_{}_{}, ", ag_from, ag_to);
+    age_class_columns +=
+        fmt::format("recrudescence_treatment_by_age_class_{}_{}, ", ag_from, ag_to);
   }
 
   std::string age_column_definitions;
   for (auto age = 0; age < 80; age++) {
-    age_column_definitions +=
-        fmt::format("clinical_episodes_by_age_{} INTEGER, ", age);
+    age_column_definitions += fmt::format("clinical_episodes_by_age_{} INTEGER, ", age);
   }
 
   for (auto age = 0; age < 80; age++) {
-    age_column_definitions +=
-        fmt::format("population_by_age_{} INTEGER, ", age);
+    age_column_definitions += fmt::format("population_by_age_{} INTEGER, ", age);
   }
 
   for (auto age = 0; age < 80; age++) {
-    age_column_definitions +=
-        fmt::format("total_immune_by_age_{} REAL, ", age);
+    age_column_definitions += fmt::format("total_immune_by_age_{} REAL, ", age);
   }
 
   for (auto age = 0; age < 80; age++) {
-    age_column_definitions +=
-        fmt::format("recrudescence_treatment_by_age_{} INTEGER, ", age);
+    age_column_definitions += fmt::format("recrudescence_treatment_by_age_{} INTEGER, ", age);
   }
 
   for (auto moi = 0; moi < ModelDataCollector::NUMBER_OF_REPORTED_MOI; moi++) {
@@ -146,20 +141,22 @@ void SQLiteDbReporter::create_all_reporting_tables() {
   }
 
   // Add columns for age-indexed number of people seeking treatment
-  const auto age_index_count = static_cast<int>(Model::get_config()
-      ->get_epidemiological_parameters().get_age_based_probability_of_seeking_treatment()
-      .get_ages().size());
+  const auto age_index_count =
+      static_cast<int>(Model::get_config()
+                           ->get_epidemiological_parameters()
+                           .get_age_based_probability_of_seeking_treatment()
+                           .get_ages()
+                           .size());
   for (auto idx = 0; idx < (age_index_count > 0 ? age_index_count : 1); ++idx) {
-    age_column_definitions += fmt::format("number_of_people_seeking_treatment_by_location_age_index_{} INTEGER, ", idx);
+    age_column_definitions +=
+        fmt::format("number_of_people_seeking_treatment_by_location_age_index_{} INTEGER, ", idx);
   }
 
   std::string age_columns;
   for (auto age = 0; age < 80; age++) {
     age_columns += fmt::format("clinical_episodes_by_age_{}, ", age);
   }
-  for (auto age = 0; age < 80; age++) {
-    age_columns += fmt::format("population_by_age_{}, ", age);
-  }
+  for (auto age = 0; age < 80; age++) { age_columns += fmt::format("population_by_age_{}, ", age); }
   for (auto age = 0; age < 80; age++) {
     age_columns += fmt::format("total_immune_by_age_{}, ", age);
   }
@@ -170,7 +167,8 @@ void SQLiteDbReporter::create_all_reporting_tables() {
     age_columns += fmt::format("moi_{}, ", moi);
   }
   for (auto idx = 0; idx < (age_index_count > 0 ? age_index_count : 1); ++idx) {
-    age_columns += fmt::format("number_of_people_seeking_treatment_by_location_age_index_{}, ", idx);
+    age_columns +=
+        fmt::format("number_of_people_seeking_treatment_by_location_age_index_{}, ", idx);
   }
 
   // // Include cell level in the number of levels
@@ -182,15 +180,14 @@ void SQLiteDbReporter::create_all_reporting_tables() {
 
   // Now create tables for each admin level including cell level
   for (size_t level_id = 0; level_id < admin_levels.size() + 1; level_id++) {
-    create_reporting_tables_for_level(level_id,
-      age_class_column_definitions, age_class_columns,
-      age_column_definitions,
-      age_columns);
+    create_reporting_tables_for_level(level_id, age_class_column_definitions, age_class_columns,
+                                      age_column_definitions, age_columns);
   }
 }
 
 void SQLiteDbReporter::create_reporting_tables_for_level(
-    int level_id, const std::string &age_class_column_definitions,
+    int level_id,
+    const std::string &age_class_column_definitions,
     const std::string &age_class_columns,
     const std::string &age_column_definitions,
     const std::string &age_columns) {
@@ -209,10 +206,9 @@ void SQLiteDbReporter::create_reporting_tables_for_level(
           {} INTEGER NOT NULL,
           population INTEGER NOT NULL,
           clinical_episodes INTEGER NOT NULL, )"""",
-                                                site_table_name, location_id_column)
-                                    + age_class_column_definitions
-                                    + age_column_definitions
-                                    + fmt::format(R""""(
+                                                   site_table_name, location_id_column)
+                                       + age_class_column_definitions + age_column_definitions
+                                       + fmt::format(R""""(
           treatments INTEGER NOT NULL,
           treatment_failures INTEGER NOT NULL,
           eir REAL NOT NULL,
@@ -235,7 +231,7 @@ void SQLiteDbReporter::create_reporting_tables_for_level(
           FOREIGN KEY (monthly_data_id) REFERENCES monthly_data(id)
       );
     )"""",
-                                                  location_id_column);
+                                                     location_id_column);
 
   // Create genome data table for this level
   std::string create_genome_data_table =
@@ -392,8 +388,42 @@ void SQLiteDbReporter::populate_db_schema() {
 void SQLiteDbReporter::initialize(int jobNumber, const std::string &path) {
   spdlog::info("Base SQLiteDbReporter initialized.");
 
+  initialize_database(jobNumber, path, fmt::format("monthly_data_{}.db", jobNumber));
+}
+
+void SQLiteDbReporter::initialize_database(int jobNumber,
+                                           const std::string &path,
+                                           const std::string &default_filename) {
+  std::filesystem::path output_path(path);
+  std::error_code filesystem_error;
+  std::filesystem::path db_path;
+
+  if (std::filesystem::is_regular_file(output_path, filesystem_error)) {
+    db_path = output_path;
+  } else {
+    if (filesystem_error) {
+      throw std::filesystem::filesystem_error("Unable to inspect SQLite output path", output_path,
+                                              filesystem_error);
+    }
+    if (!std::filesystem::exists(output_path, filesystem_error)) {
+      const auto last_character = path.empty() ? '\0' : path.back();
+      if (last_character == '/' || last_character == '\\') {
+        std::filesystem::create_directories(output_path, filesystem_error);
+        if (filesystem_error) {
+          throw std::filesystem::filesystem_error("Unable to create SQLite output directory",
+                                                  output_path, filesystem_error);
+        }
+        db_path = output_path / default_filename;
+      } else {
+        db_path = output_path;
+      }
+    } else {
+      db_path = output_path / default_filename;
+    }
+  }
+
   // Define the database file path
-  auto dbPath = fmt::format("{}monthly_data_{}.db", path, jobNumber);
+  const auto dbPath = db_path.string();
 
   // Check if the file exists
   if (std::filesystem::exists(dbPath)) {

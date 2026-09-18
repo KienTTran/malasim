@@ -4,7 +4,7 @@
 #include "Core/Scheduler/Scheduler.h"
 #include "Simulation/Model.h"
 #include "Treatment/LinearTCM.h"
-#include "Utils/Cli.h"
+#include "apps/malasim/MaSimAppInput.h"
 #include "fixtures/TestFileGenerators.h"
 
 class LinearTCMTest : public ::testing::Test {
@@ -12,7 +12,7 @@ protected:
   void SetUp() override {
     test_fixtures::setup_test_environment();
     Model::get_instance()->release();
-    utils::Cli::MaSimAppInput cli_input;
+    utils::MaSimAppInput cli_input;
     cli_input.input_path = "test_input.yml";
     Model::set_cli_input(cli_input);
     Model::get_instance()->initialize();

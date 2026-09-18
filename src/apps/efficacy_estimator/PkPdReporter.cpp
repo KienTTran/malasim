@@ -12,7 +12,7 @@
 #include "Simulation/Model.h"
 #include "Utils/Index/PersonIndexAll.h"
 
-PkPdReporter::PkPdReporter(utils::Cli::DxGAppInput* app_input) : app_input_{app_input} {}
+PkPdReporter::PkPdReporter(utils::DxGAppInput* app_input) : app_input_{app_input} {}
 
 PkPdReporter::~PkPdReporter() {
   if (parasitaemia_file_.is_open()) { parasitaemia_file_.close(); }

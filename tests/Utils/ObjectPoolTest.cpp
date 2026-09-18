@@ -346,9 +346,6 @@ TEST(ObjectPoolEdgeCaseTest, ConcurrentAccessUnsafe) {
     // because the race conditions might cause acquire_object to fail or return nullptr
     // even if chunks are added. The main point is to run it and see if it crashes
     // or exhibits issues under a thread sanitizer.
-    std::cout << "[ INFO ] Concurrent unsafe test completed. Acquired count: " 
-              << acquired_count.load() << " (expected potentially less than " 
-              << num_threads * num_acquires_per_thread << " due to races)." << std::endl;
     SUCCEED(); // Test 'succeeds' by not crashing deterministically, highlights unsafety.
 }
 
@@ -358,4 +355,3 @@ TEST(ObjectPoolEdgeCaseTest, ConcurrentAccessUnsafe) {
 //   return RUN_ALL_TESTS();
 // }
 // You might not need this main if your build system (like CMake with CTest) handles it.
-
