@@ -420,8 +420,6 @@ void Population::generate_individual(int location, int age_class) {
 
   person->generate_prob_present_at_mda_by_age();
 
-  person->generate_prob_present_at_smc_by_location(); //SMC
-
   // spdlog::info("Population::initialize: person {} age {} location {} moving level {}",
   //   i, p->get_age(), loc, p->get_moving_level());
 
@@ -565,8 +563,6 @@ Person* Population::give_1_birth(const int &location) {
   person->schedule_switch_immune_system_mode_event(Constants::DAYS_IN_YEAR / 2);
 
   person->generate_prob_present_at_mda_by_age();
-
-  person->generate_prob_present_at_smc_by_location(); //SMC
 
   add_person(std::move(person));
   return newborn;
