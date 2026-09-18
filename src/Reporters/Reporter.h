@@ -56,7 +56,6 @@ public:
     SEASONAL_IMMUNITY,
     AGE_BAND_REPORTER,
     THERAPY_RECORD_REPORTER,
-    SMC_REPORTER, // SMC Reporter
 
     // SQLite reporter
     // SQLITE_DISTRICT_REPORTER,

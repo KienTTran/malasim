@@ -19,7 +19,6 @@
 #include "Events/ProgressToClinicalEvent.h"
 #include "Events/RaptEvent.h"
 #include "Events/ReceiveMDATherapyEvent.h"
-#include "Events/ReceiveSMCTherapyEvent.h"
 #include "Events/ReceiveTherapyEvent.h"
 #include "Events/ReportTreatmentFailureDeathEvent.h"
 #include "Events/ReturnToResidenceEvent.h"
@@ -758,50 +757,9 @@ double Person::prob_present_at_mda() {
   return prob_present_at_mda_by_age_[mda_age_index];
 }
 
-
-
-//added for SMC
-
-void Person::generate_prob_present_at_smc_by_location() {
-  if (get_prob_present_at_smc_by_location().empty()) {
-
-    // loop over district instead of pixel
-    //for (std::size_t loc = 0; loc < Model::CONFIG->number_of_locations(); loc++) {
-    for (std::size_t i = 0;
-         i < Model::get_config()->get_strategy_parameters().get_smc().get_mean_prob_individual_present_at_smc().size(); i++) {
-
-      auto alpha = Model::get_config()->get_strategy_parameters().get_smc().get_prob_individual_present_at_smc_distribution()[i].alpha;
-      auto beta = Model::get_config()->get_strategy_parameters().get_smc().get_prob_individual_present_at_smc_distribution()[i].beta;
-      auto value = Model::get_random()->random_beta(alpha, beta);
-      prob_present_at_smc_by_location_.push_back(value);
-    }
-  }
-}
-
-double Person::prob_present_at_smc() {
-  auto district =Model::get_spatial_data()->get_admin_unit(
-      "district", location_);
-  auto smc_districts = Model::get_config()->get_strategy_parameters().get_smc().get_smc_districts();
-
-  auto it = std::find(smc_districts.begin(), smc_districts.end(), district);
-  if (it != smc_districts.end()) {
-    std::size_t index = std::distance(smc_districts.begin(), it);
-    return prob_present_at_smc_by_location_[index];
-  }
-  else{
-    return 0.0; // Not in SMC district
-  }
-  
-  
-}
-
-
-
-
 bool Person::has_effective_drug_in_blood() const {
   for (const auto &kv_drug : *drugs_in_blood_) {
-    // if (kv_drug.second->last_update_value() > 0.5) return true;
-    if (kv_drug.second->last_update_value() > Model::get_config()->get_strategy_parameters().get_smc().get_has_effective_drug_in_blood_threshold()) return true; // changed for SMC calibration
+    if (kv_drug.second->last_update_value() > 0.5) return true;
   }
   return false;
 }
@@ -995,14 +953,6 @@ void Person::schedule_receive_therapy_event(ClonalParasitePopulation* parasite,
   event->set_clinical_caused_parasite(parasite);
   event->set_received_therapy(therapy);
   event->set_is_part_of_mac_therapy(is_part_of_mac_therapy);
-  schedule_basic_event(std::move(event));
-}
-
-//SMC
-void Person::schedule_receive_smc_therapy_event(Therapy* therapy, int days_delay) {
-  auto event = std::make_unique<ReceiveSMCTherapyEvent>(this);
-  event->set_time(calculate_future_time(days_delay));
-  event->set_received_therapy(therapy);
   schedule_basic_event(std::move(event));
 }
 
