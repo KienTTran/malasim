@@ -36,8 +36,8 @@ std::map<std::string, Reporter::ReportType> Reporter::report_type_map = {
     {"SQLiteMonthlyReporter", ReportType::SQLITE_MONTHLY_REPORTER},
     {"SQLiteValidationReporter", ReportType::SQLITE_VALIDATION_REPORTER},
     {"SMCReporter", ReportType::SMC_REPORTER}, // SMC Reporter
-#ifdef ENABLE_TRAVEL_TACKING
-    {"TravelTrackingReporter", TRAVEL_TRACKING_REPORTER},
+#ifdef ENABLE_TRAVEL_TRACKING
+    {"TravelTrackingReporter", ReportType::TRAVEL_TRACKING_REPORTER},
 #endif
 };
 
@@ -76,12 +76,8 @@ std::unique_ptr<Reporter> Reporter::make_report(ReportType report_type) {
       // NOTE: unlike SQLiteMonthlyReporter, this reporter does not take a
       // cell_level_reporting argument; it always writes at its own resolution.
       return std::make_unique<SQLiteValidationReporter>();
-<<<<<<< HEAD
-    }
     case ReportType::SMC_REPORTER:
       return std::make_unique<SMCReporter>(); // SMC Reporter
-=======
->>>>>>> main
 #ifdef ENABLE_TRAVEL_TRACKING
     case ReportType::TRAVEL_TRACKING_REPORTER:
       return std::make_unique<TravelTrackingReporter>();

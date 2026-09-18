@@ -67,10 +67,7 @@ void StrategyParameters::process_config() {
 
     prob_individual_present_at_smc_distribution_.push_back(params);
   }
-  for (auto smc_prob : prob_individual_present_at_smc_distribution_) {
-    std::cout << "alpha: " << smc_prob.alpha << " beta: " << smc_prob.beta <<
-    std::endl;
-  }
+  
   seasonal_malaria_chemoprevention_.set_prob_individual_present_at_smc_distribution(
       prob_individual_present_at_smc_distribution_);
 }
