@@ -185,6 +185,7 @@ void SQLiteValidationReporter::create_reporting_tables_for_level(
           eir REAL NOT NULL,
           pfpr_under5 REAL NOT NULL,
           pfpr_2to10 REAL NOT NULL,
+          pfpr_6to17 REAL NOT NULL,
           pfpr_all REAL NOT NULL,
           infected_individuals INTEGER,
           non_treatment INTEGER NOT NULL,
@@ -236,7 +237,7 @@ void SQLiteValidationReporter::create_reporting_tables_for_level(
     fmt::format("INSERT INTO {} (monthly_data_id, {}, "
                 "population, clinical_episodes, ", site_table_name, location_id_column)
     + age_class_columns + age_columns +
-    "treatments, treatment_failures, eir, pfpr_under5, pfpr_2to10, pfpr_all, "
+    "treatments, treatment_failures, eir, pfpr_under5, pfpr_2to10, pfpr_6to17, pfpr_all, "
     "infected_individuals, non_treatment, under5_treatment, over5_treatment, "
     "progress_to_clinical_in_7d_total, "
     "progress_to_clinical_in_7d_recrudescence, "
@@ -315,6 +316,11 @@ void SQLiteValidationReporter::calculate_and_build_up_site_data_insert_values(in
                                      ? (monthly_site_data_by_level[level_id].pfpr2to10[unit_id]
                                         / monthly_site_data_by_level[level_id].population[unit_id])
                                            * 100.0
+    : 0;
+    double calculatedPfpr6to17 = (monthly_site_data_by_level[level_id].pfpr6to17[unit_id] != 0)
+                                     ? (monthly_site_data_by_level[level_id].pfpr6to17[unit_id]
+                                        / monthly_site_data_by_level[level_id].population[unit_id])
+                                           * 100.0
                                      : 0;
     double calculatedPfprAll = (monthly_site_data_by_level[level_id].pfpr_all[unit_id] != 0)
                                    ? (monthly_site_data_by_level[level_id].pfpr_all[unit_id]
@@ -368,10 +374,10 @@ void SQLiteValidationReporter::calculate_and_build_up_site_data_insert_values(in
     }
 
     singleRow += fmt::format(
-        ", {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})",
+        ", {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})",
         monthly_site_data_by_level[level_id].treatments[unit_id],
         monthly_site_data_by_level[level_id].treatment_failures[unit_id], calculatedEir,
-        calculatedPfprUnder5, calculatedPfpr2to10, calculatedPfprAll,
+        calculatedPfprUnder5, calculatedPfpr2to10, calculatedPfpr6to17, calculatedPfprAll,
         monthly_site_data_by_level[level_id].infections_by_unit[unit_id],
         monthly_site_data_by_level[level_id].nontreatment[unit_id],
         monthly_site_data_by_level[level_id].treatments_under5[unit_id],
@@ -558,7 +564,9 @@ void SQLiteValidationReporter::collect_site_data_for_location(int location_id, i
     monthly_site_data_by_level[level_id].pfpr_under5[unit_id] +=
         (Model::get_mdc()->get_blood_slide_prevalence(location_id, 0, 5) * locationPopulation);
     monthly_site_data_by_level[level_id].pfpr2to10[unit_id] +=
-        (Model::get_mdc()->get_blood_slide_prevalence(location_id, 2, 10) * locationPopulation);
+      (Model::get_mdc()->get_blood_slide_prevalence(location_id, 2, 10) * locationPopulation);
+    monthly_site_data_by_level[level_id].pfpr6to17[unit_id] +=
+        (Model::get_mdc()->get_blood_slide_prevalence(location_id, 6, 17) * locationPopulation);
     monthly_site_data_by_level[level_id].pfpr_all[unit_id] +=
         (Model::get_mdc()->blood_slide_prevalence_by_location()[location_id] * locationPopulation);
   }
@@ -590,6 +598,7 @@ void SQLiteValidationReporter::reset_site_data_structures(int level_id,
   monthly_site_data_by_level[level_id].eir.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].pfpr_under5.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].pfpr2to10.assign(vector_size, 0);
+  monthly_site_data_by_level[level_id].pfpr6to17.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].pfpr_all.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].population.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].clinical_episodes.assign(vector_size, 0);

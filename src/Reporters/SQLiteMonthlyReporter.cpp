@@ -198,6 +198,13 @@ void SQLiteMonthlyReporter::calculate_and_build_up_site_data_insert_values(int m
                                          / monthly_site_data_by_level[level_id].population[unit_id])
                                             * 100.0
                                       : 0;
+
+    double calculated_pfpr6to17 = (monthly_site_data_by_level[level_id].pfpr6to17[unit_id] != 0)
+                                      ? (monthly_site_data_by_level[level_id].pfpr6to17[unit_id]
+                                         / monthly_site_data_by_level[level_id].population[unit_id])
+                                            * 100.0
+                                      : 0;
+
     double calculated_pfpr_all = (monthly_site_data_by_level[level_id].pfpr_all[unit_id] != 0)
                                      ? (monthly_site_data_by_level[level_id].pfpr_all[unit_id]
                                         / monthly_site_data_by_level[level_id].population[unit_id])
@@ -250,9 +257,9 @@ void SQLiteMonthlyReporter::calculate_and_build_up_site_data_insert_values(int m
     }
 
     single_row += fmt::format(
-        ", {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})",
+        ", {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})",
         monthly_site_data_by_level[level_id].treatments[unit_id], calculated_eir,
-        calculated_pfpr_under5, calculated_pfpr2to10, calculated_pfpr_all,
+        calculated_pfpr_under5, calculated_pfpr2to10, calculated_pfpr6to17, calculated_pfpr_all,
         monthly_site_data_by_level[level_id].infections_by_unit[unit_id],
         monthly_site_data_by_level[level_id].treatment_failures[unit_id],
         monthly_site_data_by_level[level_id].nontreatment[unit_id],
@@ -444,6 +451,8 @@ void SQLiteMonthlyReporter::collect_site_data_for_location(int location_id, int 
         (Model::get_mdc()->get_blood_slide_prevalence(location_id, 0, 5) * location_population);
     monthly_site_data_by_level[level_id].pfpr2to10[unit_id] +=
         (Model::get_mdc()->get_blood_slide_prevalence(location_id, 2, 10) * location_population);
+    monthly_site_data_by_level[level_id].pfpr6to17[unit_id] +=
+        (Model::get_mdc()->get_blood_slide_prevalence(location_id, 6, 17) * location_population);
     monthly_site_data_by_level[level_id].pfpr_all[unit_id] +=
         (Model::get_mdc()->blood_slide_prevalence_by_location()[location_id] * location_population);
   }
@@ -490,6 +499,7 @@ void SQLiteMonthlyReporter::reset_site_data_structures(int level_id, int vector_
   monthly_site_data_by_level[level_id].eir.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].pfpr_under5.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].pfpr2to10.assign(vector_size, 0);
+  monthly_site_data_by_level[level_id].pfpr6to17.assign(vector_size,0);
   monthly_site_data_by_level[level_id].pfpr_all.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].population.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].clinical_episodes.assign(vector_size, 0);

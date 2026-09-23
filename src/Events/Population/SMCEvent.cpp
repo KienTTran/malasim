@@ -19,7 +19,9 @@ SMCEvent::SMCEvent(const int& at_time) {
 }
 
 void SMCEvent::do_execute() {
-  spdlog::info("{}: executing Single Round SMC", Model::get_scheduler()->get_current_date_string());
+
+  
+  spdlog::info("{}: executing Single Round {}", Model::get_scheduler()->get_current_date_string(), type == "sbt" ? "SBT" : "SMC");
 
   for(auto &district : districts){
     if (district < 1 || district > Model::get_spatial_data()->get_boundary("district")->max_unit_id) {
@@ -85,7 +87,8 @@ void SMCEvent::do_execute() {
 
       const auto prob = Model::get_random()->random_flat(0.0, 1.0);
       if (prob <= person->prob_present_at_smc()) {
-        auto* therapy = Model::get_therapy_db()[Model::get_config()->get_strategy_parameters().get_smc().get_smc_therapy_id()].get();
+
+        auto* therapy = Model::get_therapy_db()[ therapy_id < 0 ? Model::get_config()->get_strategy_parameters().get_smc().get_smc_therapy_id() : therapy_id].get();
 
         int days_to_receive_smc = Model::get_random()->random_uniform(days_to_complete_all_treatments) + 1;
     
