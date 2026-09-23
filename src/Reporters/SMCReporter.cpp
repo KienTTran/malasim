@@ -63,8 +63,11 @@ void SMCReporter::custom_report(){
     int num_people_tracked = Model::get_config()->get_smc_reporter_settings().get_smc_reporting_number_of_people_tracked();
 
     
-    double min_age_years = 3.0/12.0;  // retrieve from config later
-    double max_age_years = 60.0/12.0; // 5 years actual upper limit
+
+    double min_age_years = Model::get_config()->get_smc_reporter_settings().get_smc_reporting_age_range()[0] / 12.0;
+    double max_age_years = Model::get_config()->get_smc_reporter_settings().get_smc_reporting_age_range()[1] / 12.0;
+
+
 
     int smc_month = get_first_smc_month();
 

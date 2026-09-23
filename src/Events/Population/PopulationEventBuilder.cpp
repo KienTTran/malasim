@@ -255,6 +255,12 @@ std::vector<std::unique_ptr<WorldEvent>> PopulationEventBuilder::build_smc_event
   std::vector<std::unique_ptr<WorldEvent>> events;
   for (const auto &entry : node) {
 
+    std::string type="smc";
+    
+    if (entry["type"]) {
+      type = entry["type"].as<std::string>();
+    }
+
     auto districts = entry["districts"].as<std::vector<int>>();
     auto year_range = entry["year_range"].as<std::vector<int>>();
     auto months = entry["months"].as<std::vector<int>>();
@@ -263,6 +269,13 @@ std::vector<std::unique_ptr<WorldEvent>> PopulationEventBuilder::build_smc_event
         entry["fraction_population_targeted"].as<std::vector<double>>();
     auto days_to_complete_all_treatments =
         entry["days_to_complete_all_treatments"].as<int>();
+
+    int therapy_id = -1; // if therapy_id is defined in the event
+
+    if (entry["therapy_id"]) {
+      therapy_id = entry["therapy_id"].as<int>();
+    }    
+    
 
     int start_year = year_range.front();
     int end_year = (year_range.size() > 1) ? year_range.back() : start_year;
@@ -294,12 +307,14 @@ std::vector<std::unique_ptr<WorldEvent>> PopulationEventBuilder::build_smc_event
                     .count();
 
         auto event = std::make_unique<SMCEvent>(time);
+        event->set_type(type);
         event->set_smc_year(year);
         event->set_smc_month(month);
         event->set_districts(districts);
         event->set_fraction_population_targeted(scaled_fraction_population_targeted);
         event->set_age_range(age_range);
         event->set_days_to_complete(days_to_complete_all_treatments);
+        event->set_therapy_id(therapy_id); // Set therapy ID for the event (SBT support)
         events.push_back(std::move(event));
       }
   }

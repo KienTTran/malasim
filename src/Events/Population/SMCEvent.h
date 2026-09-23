@@ -11,6 +11,8 @@
  */
 class SMCEvent : public WorldEvent {
 private:
+
+    std::string type{"smc"};  // Type of the event (SMC/ SBT), default is "smc"
     std::vector<double> fraction_population_targeted;
     int days_to_complete_all_treatments{14};
     
@@ -18,6 +20,7 @@ private:
     std::vector<int> age_range{0, 120};  // Default age range from 0 to 120 years
     int smc_year;
     int smc_month;
+    int therapy_id; // ID of the therapy used for SMC/SBT, to be set based on configuration (SBT)
     
     
     void do_execute() override;
@@ -36,6 +39,19 @@ public:
      * @param at_time The time at which the event should execute (-1 for immediate execution)
      */
     explicit SMCEvent(const int& at_time = -1);
+
+    /**
+     * @brief Gets the type of the event (SMC or SBT)
+     * @return The event type as a string
+     */
+    [[nodiscard]] const std::string& get_type() const { return type; }
+
+    /**
+     * @brief Sets the type of the event (SMC or SBT)
+     * @param event_type The event type as a string
+     */
+    void set_type(const std::string& event_type) { type = event_type; }
+    
 
     /**
      * @brief Gets the targeted population fractions
@@ -123,4 +139,18 @@ public:
     [[nodiscard]] std::string_view name() const noexcept override {
     return EVENT_NAME;
     }
+
+    /**
+     * @brief Gets the therapy ID used for SMC/SBT
+     * @return The therapy ID
+     */
+    [[nodiscard]] int get_therapy_id() const { return therapy_id; }
+
+    /**
+     * @brief Sets the therapy ID used for SMC/SBT
+     * @param id The therapy ID
+     */
+    void set_therapy_id(const int id) { therapy_id = id; }
+
+
 };

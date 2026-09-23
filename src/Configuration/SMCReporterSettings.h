@@ -13,6 +13,8 @@ public:
   void set_smc_reporting_start_day(const date::year_month_day value) { smc_reporting_start_day = value; }
   [[nodiscard]] date::year_month_day get_smc_reporting_end_day() const { return smc_reporting_end_day;}
   void set_smc_reporting_end_day(const date::year_month_day value) { smc_reporting_end_day = value; }
+  [[nodiscard]] std::vector<int> get_smc_reporting_age_range() const { return smc_reporting_age_range;}
+  void set_smc_reporting_age_range(const std::vector<int> value) { smc_reporting_age_range = value; }
   [[nodiscard]] int get_smc_reporting_number_of_people_tracked() const { return smc_reporting_number_of_people_tracked;}
   void set_smc_reporting_number_of_people_tracked(const int value) { smc_reporting_number_of_people_tracked = value; }
   [[nodiscard]] bool get_smc_reporting_track_per_district() const { return smc_reporting_track_per_district;}
@@ -25,6 +27,7 @@ public:
 private:
   date::year_month_day smc_reporting_start_day = date::year_month_day(date::year(2000), date::month(1), date::day(1));
   date::year_month_day smc_reporting_end_day = date::year_month_day(date::year(2000), date::month(12), date::day(31));
+  std::vector<int> smc_reporting_age_range = std::vector<int>{3, 59}; // Default age range from 0 to 59 months
   int smc_reporting_number_of_people_tracked = 100;
   int smc_reporting_interval = 1; // Default to 1 day interval
   bool smc_reporting_track_per_district = false;
@@ -45,6 +48,7 @@ struct YAML::convert<SMCReporterSettings> {
     node["smc_reporting_track_per_district"] = rhs.get_smc_reporting_track_per_district();
     node["smc_refresh_samples_each_interval"] = rhs.get_smc_refresh_samples_each_interval();
     node["smc_reporting_interval"] = rhs.get_smc_reporting_interval();
+    node["smc_reporting_age_range"] = rhs.get_smc_reporting_age_range();
     return node;
   }
 
@@ -75,7 +79,7 @@ struct YAML::convert<SMCReporterSettings> {
       rhs.set_smc_reporting_track_per_district(node["smc_reporting_track_per_district"].as<bool>());
       rhs.set_smc_refresh_samples_each_interval(node["smc_refresh_samples_each_interval"].as<bool>());
       rhs.set_smc_reporting_interval(node["smc_reporting_interval"].as<int>());
-
+      rhs.set_smc_reporting_age_range(node["smc_reporting_age_range"].as<std::vector<int>>());
       return true;
   }
 };
