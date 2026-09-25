@@ -12,6 +12,32 @@
 #include "Utils/Helpers/StringHelpers.h"
 #include "Utils/Index/PersonIndexByLocationStateAgeClass.h"
 
+namespace {
+// Age bands for the reported PfPR columns. INCLUSIVE, in whole years.
+//
+// These exist so the value and its population weight cannot drift apart: they
+// are used both where the band is accumulated (collect_site_data_for_location)
+// and where it is divided out (calculate_and_build_up_site_data_insert_values).
+//
+// They must match the chemoprevention age_range in the config, which is given
+// in MONTHS and is half-open:  age_range[0]/12 <= age < age_range[1]/12.
+// Reporting bins are whole years, so pick the integer band covering the
+// eligible range most closely:
+//
+//   SMC age_range [3, 59]    ->  0.250 <= age < 4.917  ->  ages 0-4   (+7.1%)
+//   SBT age_range [72, 203]  ->  6.000 <= age < 16.917 ->  ages 6-16  (+0.8%)
+//
+// Ages 17+ are NEVER eligible for SBT at age_range[1] = 203 months. Using 6-17
+// mixes a wholly untreated cohort into the target band and biases any measured
+// SBT effect toward the null.
+constexpr int kPfprUnder5AgeFrom = 0;
+constexpr int kPfprUnder5AgeTo = 4;
+constexpr int kPfpr2to10AgeFrom = 2;
+constexpr int kPfpr2to10AgeTo = 10;
+constexpr int kPfprSbtAgeFrom = 6;
+constexpr int kPfprSbtAgeTo = 16;
+}  // namespace
+
 // Initialize the reporter
 // Sets up the database and prepares it for data entry
 void SQLiteMonthlyReporter::initialize(int job_number, const std::string &path) {
@@ -189,20 +215,20 @@ void SQLiteMonthlyReporter::calculate_and_build_up_site_data_insert_values(int m
       }
       double population_under5 = 0.0;
       double population_2to10 = 0.0;
-      double population_6to17 = 0.0;
+      double population_6to16 = 0.0;
 
-      for (int age = 0; age <= 4; ++age) {
+      for (int age = kPfprUnder5AgeFrom; age <= kPfprUnder5AgeTo; ++age) {
         population_under5 +=
             monthly_site_data_by_level[level_id].population_by_age[unit_id][age];
       }
 
-      for (int age = 2; age <= 10; ++age) {
+      for (int age = kPfpr2to10AgeFrom; age <= kPfpr2to10AgeTo; ++age) {
         population_2to10 +=
             monthly_site_data_by_level[level_id].population_by_age[unit_id][age];
       }
 
-      for (int age = 6; age <= 17; ++age) {
-        population_6to17 +=
+      for (int age = kPfprSbtAgeFrom; age <= kPfprSbtAgeTo; ++age) {
+        population_6to16 +=
             monthly_site_data_by_level[level_id].population_by_age[unit_id][age];
       }
       double calculated_pfpr_under5 =
@@ -217,10 +243,10 @@ void SQLiteMonthlyReporter::calculate_and_build_up_site_data_insert_values(int m
                     / population_2to10 * 100.0
               : 0.0;
 
-      double calculated_pfpr6to17 =
-          (population_6to17 > 0.0)
-              ? monthly_site_data_by_level[level_id].pfpr6to17[unit_id]
-                    / population_6to17 * 100.0
+      double calculated_pfpr6to16 =
+          (population_6to16 > 0.0)
+              ? monthly_site_data_by_level[level_id].pfpr6to16[unit_id]
+                    / population_6to16 * 100.0
               : 0.0;
 
       double calculated_pfpr_all =
@@ -274,10 +300,23 @@ void SQLiteMonthlyReporter::calculate_and_build_up_site_data_insert_values(int m
       single_row += fmt::format(", {}", count);
     }
 
+    // Per-age blood-slide prevalence (percent), population-weighted mean.
+    // ORDER IS LOAD-BEARING: these must be appended in the same position that
+    // blood_slide_prevalence_age_* occupy in `age_columns`, built in
+    // SQLiteDbReporter::create_all_reporting_tables (both go last).
+    for (int age = 0; age < 80; ++age) {
+      const double pop_age = static_cast<double>(
+          monthly_site_data_by_level[level_id].population_by_age[unit_id][age]);
+      const double weighted =
+          monthly_site_data_by_level[level_id].blood_slide_prevalence_by_age[unit_id][age];
+      const double prevalence_percent = (pop_age > 0.0) ? (weighted / pop_age * 100.0) : 0.0;
+      single_row += fmt::format(", {}", prevalence_percent);
+    }
+
     single_row += fmt::format(
         ", {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})",
         monthly_site_data_by_level[level_id].treatments[unit_id], calculated_eir,
-        calculated_pfpr_under5, calculated_pfpr2to10, calculated_pfpr6to17, calculated_pfpr_all,
+        calculated_pfpr_under5, calculated_pfpr2to10, calculated_pfpr6to16, calculated_pfpr_all,
         monthly_site_data_by_level[level_id].infections_by_unit[unit_id],
         monthly_site_data_by_level[level_id].treatment_failures[unit_id],
         monthly_site_data_by_level[level_id].nontreatment[unit_id],
@@ -376,10 +415,16 @@ void SQLiteMonthlyReporter::collect_site_data_for_location(int location_id, int 
   monthly_site_data_by_level[level_id].recrudescence_treatment[unit_id] +=
       Model::get_mdc()->monthly_number_of_recrudescence_treatment_by_location()[location_id];
 
+  // Under-5 means ages 0-4 (0-59 months). age_structure() gives the UPPER bound
+  // of each age class, so a class lies entirely within under-5 exactly when its
+  // upper bound is <= 5. The old test `< 5` matched upper bounds 1,2,3,4 only,
+  // i.e. ages 0-3, so the whole age-4 cohort was counted as over-5.
+  constexpr int kUnder5UpperBoundYears = 5;
+
   for (auto ndx = 0; ndx < age_classes.size(); ndx++) {
     // Collect the treatment by age class, following the 0-59 month convention
-    // for under-5
-    if (age_classes[ndx] < 5) {
+    // for under-5 (every class whose upper bound is <= 5).
+    if (age_classes[ndx] <= kUnder5UpperBoundYears) {
       monthly_site_data_by_level[level_id].treatments_under5[unit_id] +=
           Model::get_mdc()->monthly_number_of_treatment_by_location_age_class()[location_id][ndx];
     } else {
@@ -468,35 +513,47 @@ void SQLiteMonthlyReporter::collect_site_data_for_location(int location_id, int 
 
     double pop_under5 = 0.0;
     double pop_2to10 = 0.0;
-    double pop_6to17 = 0.0;
+    double pop_6to16 = 0.0;
 
-    for (int age = 0; age <= 4; ++age) {
+    for (int age = kPfprUnder5AgeFrom; age <= kPfprUnder5AgeTo; ++age) {
       pop_under5 += pop_by_age[age];
     }
 
-    for (int age = 2; age <= 10; ++age) {
+    for (int age = kPfpr2to10AgeFrom; age <= kPfpr2to10AgeTo; ++age) {
       pop_2to10 += pop_by_age[age];
     }
 
-    for (int age = 6; age <= 17; ++age) {
-      pop_6to17 += pop_by_age[age];
+    for (int age = kPfprSbtAgeFrom; age <= kPfprSbtAgeTo; ++age) {
+      pop_6to16 += pop_by_age[age];
     }
 
     monthly_site_data_by_level[level_id].pfpr_under5[unit_id] +=
-        Model::get_mdc()->get_blood_slide_prevalence(location_id, 0, 4)
+        Model::get_mdc()->get_blood_slide_prevalence(location_id, kPfprUnder5AgeFrom,
+                                                     kPfprUnder5AgeTo)
         * pop_under5;
 
     monthly_site_data_by_level[level_id].pfpr2to10[unit_id] +=
-        Model::get_mdc()->get_blood_slide_prevalence(location_id, 2, 10)
+        Model::get_mdc()->get_blood_slide_prevalence(location_id, kPfpr2to10AgeFrom,
+                                                     kPfpr2to10AgeTo)
         * pop_2to10;
 
-    monthly_site_data_by_level[level_id].pfpr6to17[unit_id] +=
-        Model::get_mdc()->get_blood_slide_prevalence(location_id, 6, 17)
-        * pop_6to17;
+    monthly_site_data_by_level[level_id].pfpr6to16[unit_id] +=
+        Model::get_mdc()->get_blood_slide_prevalence(location_id, kPfprSbtAgeFrom, kPfprSbtAgeTo)
+        * pop_6to16;
 
     monthly_site_data_by_level[level_id].pfpr_all[unit_id] +=
         Model::get_mdc()->blood_slide_prevalence_by_location()[location_id]
         * location_population;
+
+    // Per-single-year blood-slide prevalence, accumulated population-weighted
+    // so it aggregates correctly across the locations in this admin unit.
+    // prevalence(loc, age, age) * pop(loc, age) is identically the blood-slide
+    // count for that location and age, so nothing is lost to the round trip.
+    for (int age = 0; age < 80; ++age) {
+      monthly_site_data_by_level[level_id].blood_slide_prevalence_by_age[unit_id][age] +=
+          Model::get_mdc()->get_blood_slide_prevalence(location_id, age, age)
+          * pop_by_age[age];
+    }
   }
 
   const auto &mdc_age_index =
@@ -541,7 +598,7 @@ void SQLiteMonthlyReporter::reset_site_data_structures(int level_id, int vector_
   monthly_site_data_by_level[level_id].eir.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].pfpr_under5.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].pfpr2to10.assign(vector_size, 0);
-  monthly_site_data_by_level[level_id].pfpr6to17.assign(vector_size,0);
+  monthly_site_data_by_level[level_id].pfpr6to16.assign(vector_size,0);
   monthly_site_data_by_level[level_id].pfpr_all.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].population.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].clinical_episodes.assign(vector_size, 0);
@@ -553,6 +610,8 @@ void SQLiteMonthlyReporter::reset_site_data_structures(int level_id, int vector_
                                                                 std::vector<int>(80, 0));
   monthly_site_data_by_level[level_id].total_immune_by_age.assign(vector_size,
                                                                   std::vector<double>(80, 0));
+  monthly_site_data_by_level[level_id].blood_slide_prevalence_by_age.assign(
+      vector_size, std::vector<double>(80, 0.0));
   monthly_site_data_by_level[level_id].recrudescence_treatment_by_age_class.assign(
       vector_size, std::vector<ul>(num_age_classes, 0));
   monthly_site_data_by_level[level_id].recrudescence_treatment_by_age.assign(

@@ -29,13 +29,17 @@ protected:
   bool enable_cell_level_reporting{false};
 
   struct MonthlySiteData {
-    std::vector<double> eir, pfpr_under5, pfpr2to10, pfpr6to17, pfpr_all;
+    std::vector<double> eir, pfpr_under5, pfpr2to10, pfpr6to16, pfpr_all;
     std::vector<int> population, clinical_episodes, treatments, treatment_failures, nontreatment,
         treatments_under5, treatments_over5, infections_by_unit;
     std::vector<std::vector<int>> clinical_episodes_by_age_class;
     std::vector<std::vector<int>> clinical_episodes_by_age;
     std::vector<std::vector<int>> population_by_age;
     std::vector<std::vector<double>> total_immune_by_age;
+    // Population-weighted accumulator for per-single-year blood-slide
+    // prevalence: sum over locations of prevalence(loc, age) * pop(loc, age).
+    // Divided by population_by_age at output time to give percent.
+    std::vector<std::vector<double>> blood_slide_prevalence_by_age;
     std::vector<std::vector<int>> multiple_of_infection;
     std::vector<std::vector<int>> number_of_people_seeking_treatment_by_location_age_index;
     std::vector<ul> progress_to_clinical_in_7d_total;

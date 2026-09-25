@@ -152,6 +152,15 @@ void SQLiteDbReporter::create_all_reporting_tables() {
         fmt::format("number_of_people_seeking_treatment_by_location_age_index_{} INTEGER, ", idx);
   }
 
+  // Per-single-year blood-slide prevalence (percent, 0-100). Ages >= 80 are
+  // folded into index 79 upstream, so _79 means "age 79 and over".
+  // Change this one constant to rename the columns (and the Python reader).
+  constexpr const char* kPrevalenceByAgeColumnPrefix = "blood_slide_prevalence_age_";
+
+  for (auto age = 0; age < 80; age++) {
+    age_column_definitions += fmt::format("{}{} REAL, ", kPrevalenceByAgeColumnPrefix, age);
+  }
+
   std::string age_columns;
   for (auto age = 0; age < 80; age++) {
     age_columns += fmt::format("clinical_episodes_by_age_{}, ", age);
@@ -169,6 +178,11 @@ void SQLiteDbReporter::create_all_reporting_tables() {
   for (auto idx = 0; idx < (age_index_count > 0 ? age_index_count : 1); ++idx) {
     age_columns +=
         fmt::format("number_of_people_seeking_treatment_by_location_age_index_{}, ", idx);
+  }
+  // Must stay LAST, matching the append order in
+  // SQLiteMonthlyReporter::calculate_and_build_up_site_data_insert_values.
+  for (auto age = 0; age < 80; age++) {
+    age_columns += fmt::format("{}{}, ", kPrevalenceByAgeColumnPrefix, age);
   }
 
   // // Include cell level in the number of levels
@@ -214,7 +228,7 @@ void SQLiteDbReporter::create_reporting_tables_for_level(
           eir REAL NOT NULL,
           pfpr_under5 REAL NOT NULL,
           pfpr_2to10 REAL NOT NULL,
-          pfpr_6to17 REAL NOT NULL,
+          pfpr_6to16 REAL NOT NULL,
           pfpr_all REAL NOT NULL,
           infected_individuals INTEGER,
           non_treatment INTEGER NOT NULL,
@@ -266,7 +280,7 @@ void SQLiteDbReporter::create_reporting_tables_for_level(
       fmt::format("INSERT INTO {} (monthly_data_id, {}, "
         "population, clinical_episodes, ", site_table_name, location_id_column)
       + age_class_columns + age_columns +
-      "treatments, eir, pfpr_under5, pfpr_2to10, pfpr_6to17, pfpr_all, "
+      "treatments, eir, pfpr_under5, pfpr_2to10, pfpr_6to16, pfpr_all, "
       "infected_individuals, treatment_failures, "
       "non_treatment, under5_treatment, over5_treatment, "
       "progress_to_clinical_in_7d_total, "
