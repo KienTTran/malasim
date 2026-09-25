@@ -187,29 +187,47 @@ void SQLiteMonthlyReporter::calculate_and_build_up_site_data_insert_values(int m
 
           calculated_eir = 0.0;
       }
-    double calculated_pfpr_under5 =
-        (monthly_site_data_by_level[level_id].pfpr_under5[unit_id] != 0)
-            ? (monthly_site_data_by_level[level_id].pfpr_under5[unit_id]
-               / monthly_site_data_by_level[level_id].population[unit_id])
-                  * 100.0
-            : 0;
-    double calculated_pfpr2to10 = (monthly_site_data_by_level[level_id].pfpr2to10[unit_id] != 0)
-                                      ? (monthly_site_data_by_level[level_id].pfpr2to10[unit_id]
-                                         / monthly_site_data_by_level[level_id].population[unit_id])
-                                            * 100.0
-                                      : 0;
+      double population_under5 = 0.0;
+      double population_2to10 = 0.0;
+      double population_6to17 = 0.0;
 
-    double calculated_pfpr6to17 = (monthly_site_data_by_level[level_id].pfpr6to17[unit_id] != 0)
-                                      ? (monthly_site_data_by_level[level_id].pfpr6to17[unit_id]
-                                         / monthly_site_data_by_level[level_id].population[unit_id])
-                                            * 100.0
-                                      : 0;
+      for (int age = 0; age <= 4; ++age) {
+        population_under5 +=
+            monthly_site_data_by_level[level_id].population_by_age[unit_id][age];
+      }
 
-    double calculated_pfpr_all = (monthly_site_data_by_level[level_id].pfpr_all[unit_id] != 0)
-                                     ? (monthly_site_data_by_level[level_id].pfpr_all[unit_id]
-                                        / monthly_site_data_by_level[level_id].population[unit_id])
-                                           * 100.0
-                                     : 0;
+      for (int age = 2; age <= 10; ++age) {
+        population_2to10 +=
+            monthly_site_data_by_level[level_id].population_by_age[unit_id][age];
+      }
+
+      for (int age = 6; age <= 17; ++age) {
+        population_6to17 +=
+            monthly_site_data_by_level[level_id].population_by_age[unit_id][age];
+      }
+      double calculated_pfpr_under5 =
+      (population_under5 > 0.0)
+          ? monthly_site_data_by_level[level_id].pfpr_under5[unit_id]
+                / population_under5 * 100.0
+          : 0.0;
+
+      double calculated_pfpr2to10 =
+          (population_2to10 > 0.0)
+              ? monthly_site_data_by_level[level_id].pfpr2to10[unit_id]
+                    / population_2to10 * 100.0
+              : 0.0;
+
+      double calculated_pfpr6to17 =
+          (population_6to17 > 0.0)
+              ? monthly_site_data_by_level[level_id].pfpr6to17[unit_id]
+                    / population_6to17 * 100.0
+              : 0.0;
+
+      double calculated_pfpr_all =
+          (unit_population > 0.0)
+              ? monthly_site_data_by_level[level_id].pfpr_all[unit_id]
+                    / unit_population * 100.0
+              : 0.0;
 
     std::string single_row =
         fmt::format("({}, {}, {}, {}", month_id, unit_id,
@@ -445,16 +463,40 @@ void SQLiteMonthlyReporter::collect_site_data_for_location(int location_id, int 
       eir_location = 0.0;
     }
 
-    monthly_site_data_by_level[level_id].eir[unit_id] +=
-      eir_location * static_cast<double>(location_population);
+    const auto &pop_by_age =
+    Model::get_mdc()->popsize_by_location_age()[location_id];
+
+    double pop_under5 = 0.0;
+    double pop_2to10 = 0.0;
+    double pop_6to17 = 0.0;
+
+    for (int age = 0; age <= 4; ++age) {
+      pop_under5 += pop_by_age[age];
+    }
+
+    for (int age = 2; age <= 10; ++age) {
+      pop_2to10 += pop_by_age[age];
+    }
+
+    for (int age = 6; age <= 17; ++age) {
+      pop_6to17 += pop_by_age[age];
+    }
+
     monthly_site_data_by_level[level_id].pfpr_under5[unit_id] +=
-        (Model::get_mdc()->get_blood_slide_prevalence(location_id, 0, 5) * location_population);
+        Model::get_mdc()->get_blood_slide_prevalence(location_id, 0, 4)
+        * pop_under5;
+
     monthly_site_data_by_level[level_id].pfpr2to10[unit_id] +=
-        (Model::get_mdc()->get_blood_slide_prevalence(location_id, 2, 10) * location_population);
+        Model::get_mdc()->get_blood_slide_prevalence(location_id, 2, 10)
+        * pop_2to10;
+
     monthly_site_data_by_level[level_id].pfpr6to17[unit_id] +=
-        (Model::get_mdc()->get_blood_slide_prevalence(location_id, 6, 17) * location_population);
+        Model::get_mdc()->get_blood_slide_prevalence(location_id, 6, 17)
+        * pop_6to17;
+
     monthly_site_data_by_level[level_id].pfpr_all[unit_id] +=
-        (Model::get_mdc()->blood_slide_prevalence_by_location()[location_id] * location_population);
+        Model::get_mdc()->blood_slide_prevalence_by_location()[location_id]
+        * location_population;
   }
 
   const auto &mdc_age_index =

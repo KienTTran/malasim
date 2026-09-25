@@ -347,6 +347,24 @@ public:
   [[nodiscard]] const std::vector<bool> &get_mutation_mask() const { return mutation_mask_; }
   void set_mutation_mask(const std::vector<bool> &value) { mutation_mask_ = value; }
 
+  // Accept either a YAML sequence of booleans or a compact scalar string
+  // (e.g. "||||111||1000000,0||||||0000000000000|1") where only the '1'
+  // character marks a mutable position; every other character ('0', '|',
+  // ',' etc.) is treated as immutable. Shared by the config loader and the
+  // change_mutation_mask population event so both accept the same formats.
+  [[nodiscard]] static std::vector<bool> parse_mutation_mask(const YAML::Node &node) {
+    if (node.IsSequence()) { return node.as<std::vector<bool>>(); }
+    if (!node.IsScalar()) {
+      throw std::runtime_error("mutation_mask must be a string or sequence of booleans");
+    }
+
+    const auto mask_string = node.as<std::string>();
+    std::vector<bool> mutation_mask;
+    mutation_mask.reserve(mask_string.size());
+    for (const char ch : mask_string) { mutation_mask.push_back(ch == '1'); }
+    return mutation_mask;
+  }
+
   [[nodiscard]] double get_mutation_probability_per_locus() const {
     return mutation_probability_per_locus_;
   }
@@ -665,20 +683,7 @@ struct convert<GenotypeParameters> {
       throw std::runtime_error("Missing fields in GenotypeParameters");
     }
     // mutation_mask: accept string (e.g., "0011101") or sequence of bools
-    std::vector<bool> mutation_mask;
-    if (node["mutation_mask"].IsSequence()) {
-      mutation_mask = node["mutation_mask"].as<std::vector<bool>>();
-    } else if (node["mutation_mask"].IsScalar()) {
-      const auto mask_str = node["mutation_mask"].as<std::string>();
-      mutation_mask.reserve(mask_str.size());
-      for (const char ch : mask_str) {
-        mutation_mask.push_back(ch == '1');  // Only '1' = mutable; '0', '|', ',' etc. = immutable
-      }
-    } else {
-      throw std::runtime_error(
-          "GenotypeParameters::mutation_mask must be a string or sequence of booleans");
-    }
-    rhs.set_mutation_mask(mutation_mask);
+    rhs.set_mutation_mask(GenotypeParameters::parse_mutation_mask(node["mutation_mask"]));
     rhs.set_mutation_probability_per_locus(node["mutation_probability_per_locus"].as<double>());
     if (node["default_cnv_reversion_multiplier"]) {
       rhs.set_default_cnv_reversion_multiplier(
