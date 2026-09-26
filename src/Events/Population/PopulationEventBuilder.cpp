@@ -8,6 +8,7 @@
 #include "PopulationEventBuilder.h"
 
 #include <fmt/format.h>
+#include <spdlog/spdlog.h>
 
 #include <algorithm>
 #include <cstdint>
@@ -277,8 +278,95 @@ std::vector<std::unique_ptr<WorldEvent>> PopulationEventBuilder::build_smc_event
     }    
     
 
+    // ---- validate the entry (SMC events skip Config::validate_population_events) ----
+    const std::string label = (type == "sbt") ? "SBT" : "SMC";
+    if (type != "smc" && type != "sbt") {
+      throw std::invalid_argument(fmt::format("SMC event: type must be 'smc' or 'sbt', got '{}'",
+                                              type));
+    }
+    if (year_range.empty() || year_range.size() > 2) {
+      throw std::invalid_argument(
+          fmt::format("{} event: year_range must have 1 or 2 values, got {}", label,
+                      year_range.size()));
+    }
+    if (months.empty()) {
+      throw std::invalid_argument(fmt::format("{} event: months must not be empty", label));
+    }
+    for (const int m : months) {
+      if (m < 1 || m > 12) {
+        throw std::invalid_argument(fmt::format("{} event: invalid month {}", label, m));
+      }
+    }
+    if (age_range.size() != 2 || age_range[0] < 0 || age_range[0] >= age_range[1]) {
+      throw std::invalid_argument(fmt::format(
+          "{} event: age_range must be [min_months, max_months] with min < max", label));
+    }
+    if (districts.empty()) {
+      throw std::invalid_argument(fmt::format("{} event: districts must not be empty", label));
+    }
+    if (days_to_complete_all_treatments < 1) {
+      throw std::invalid_argument(
+          fmt::format("{} event: days_to_complete_all_treatments must be >= 1", label));
+    }
+    // fraction_population_targeted: one value per district, or a single value
+    // applied to every district (it was previously indexed per district without
+    // any check, reading past the end of a shorter list).
+    if (base_fraction_population_targeted.size() == 1 && districts.size() > 1) {
+      base_fraction_population_targeted.assign(districts.size(),
+                                               base_fraction_population_targeted.front());
+    }
+    if (base_fraction_population_targeted.size() != districts.size()) {
+      throw std::invalid_argument(fmt::format(
+          "{} event: fraction_population_targeted has {} values for {} districts (give one "
+          "value per district, or a single value for all)",
+          label, base_fraction_population_targeted.size(), districts.size()));
+    }
+    for (const double f : base_fraction_population_targeted) {
+      if (f < 0.0) {
+        throw std::invalid_argument(
+            fmt::format("{} event: fraction_population_targeted must be >= 0", label));
+      }
+    }
+    if (therapy_id >= 0 && therapy_id >= static_cast<int>(Model::get_therapy_db().size())
+        && !Model::get_therapy_db().empty()) {
+      throw std::invalid_argument(
+          fmt::format("{} event: therapy_id {} is not in the therapy database", label, therapy_id));
+    }
+
+    // Attendance comes from seasonal_malaria_chemoprevention.smc_districts
+    // (Person::prob_present_at_smc); anyone outside that list has attendance 0,
+    // so a round targeting such a district treats nobody.
+    const auto &smc_params = config->get_strategy_parameters().get_smc();
+    const auto &smc_districts = smc_params.get_smc_districts();
+    for (const int d : districts) {
+      if (std::find(smc_districts.begin(), smc_districts.end(), d) == smc_districts.end()) {
+        throw std::invalid_argument(fmt::format(
+            "{} event: district {} is not in seasonal_malaria_chemoprevention.smc_districts, so "
+            "nobody there would attend. Add it (with mean/sd_prob_individual_present_at_smc).",
+            label, d));
+      }
+    }
+    if (!smc_params.get_enable()) {
+      spdlog::warn(
+          "{} event listed but seasonal_malaria_chemoprevention.enable is false. The flag is not "
+          "used to switch rounds off; these rounds WILL run.",
+          label);
+    }
+    if (therapy_id < 0) {
+      spdlog::info("{} event (years {}-{}) has no therapy_id; it uses the global "
+                   "seasonal_malaria_chemoprevention.smc_therapy_id = {}",
+                   label, year_range.front(), year_range.back(), smc_params.get_smc_therapy_id());
+    }
+
     int start_year = year_range.front();
     int end_year = (year_range.size() > 1) ? year_range.back() : start_year;
+    if (end_year < start_year) {
+      throw std::invalid_argument(fmt::format("{} event: year_range [{}, {}] is reversed", label,
+                                              start_year, end_year));
+    }
+    const auto sim_start = config->get_simulation_timeframe().get_starting_date();
+    const auto sim_end = config->get_simulation_timeframe().get_ending_date();
+    const std::size_t events_before = events.size();
 
     for (int year = start_year; year <= end_year; ++year) {
       // Coverage is defined for year 2024.
@@ -302,6 +390,12 @@ std::vector<std::unique_ptr<WorldEvent>> PopulationEventBuilder::build_smc_event
       for (const int month : months) {
 
         const auto starting_date = date::year{year} / month / 15;
+        if (date::sys_days{starting_date} < date::sys_days{sim_start}
+            || date::sys_days{starting_date} > date::sys_days{sim_end}) {
+          spdlog::warn("{} event: round {}-{:02d}-15 is outside the simulation period; skipped",
+                       label, year, month);
+          continue;
+        }
         auto time = (date::sys_days{starting_date}
                  - date::sys_days{config->get_simulation_timeframe().get_starting_date()})
                     .count();
@@ -318,6 +412,12 @@ std::vector<std::unique_ptr<WorldEvent>> PopulationEventBuilder::build_smc_event
         events.push_back(std::move(event));
       }
   }
+    std::string months_str;
+    for (const int m : months) { months_str += (months_str.empty() ? "" : ",") + std::to_string(m); }
+    if (events.size() > events_before) {
+      spdlog::info("{} event: {} rounds scheduled, years {}-{}, months [{}]", label,
+                   events.size() - events_before, start_year, end_year, months_str);
+    }
 }
 
   return events;

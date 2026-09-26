@@ -4,6 +4,7 @@
 #include <Simulation/Model.h>
 #include <Utils/Helpers/TimeHelpers.h>
 #include <Utils/Random.h>
+#include <fmt/format.h>
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
@@ -409,7 +410,17 @@ void Person::determine_symptomatic_recrudescence(
   // there are 2 methods to calculate the probability to develop symptom
   // One from the papaer, another from the immune system in the simulation.
   //
-  const auto pfpr = Model::get_mdc()->blood_slide_prevalence_by_location()[location_] * 100;
+  // The odds-ratio model below was fitted to a location's (steady-state) PfPR.
+  // "current" (default, legacy) uses the latest monthly snapshot, which makes the
+  // probability - and therefore recorded treatment failures - swing with the
+  // transmission season. "annual_mean" uses the mean of the last 12 monthly values.
+  const bool use_annual_mean_pfpr =
+      Model::get_config()->get_model_settings().get_recrudescence_pfpr_source() == "annual_mean";
+  const auto pfpr =
+      (use_annual_mean_pfpr
+           ? Model::get_mdc()->annual_mean_blood_slide_prevalence(location_)
+           : Model::get_mdc()->blood_slide_prevalence_by_location()[location_])
+      * 100;
 
   const auto is_young_children = get_age() <= 6;
 
@@ -445,7 +456,8 @@ void Person::determine_symptomatic_recrudescence(
     // mark the test treatment failure event as a failure
     for (auto &[time, event] : get_events()) {
       auto* tf_event = dynamic_cast<TestTreatmentFailureEvent*>(event.get());
-      if (tf_event != nullptr && tf_event->clinical_caused_parasite() == clinical_caused_parasite) {
+      if (tf_event != nullptr && tf_event->clinical_caused_parasite() == clinical_caused_parasite
+          && tf_event->clinical_caused_parasite_uid() == clinical_caused_parasite->uid()) {
         event->set_executable(false);
         Model::get_mdc()->record_1_tf(location_, true);
         Model::get_mdc()->record_1_treatment_failure_by_therapy(location_, age_class_,
@@ -786,6 +798,14 @@ double Person::prob_present_at_smc() {
   auto it = std::find(smc_districts.begin(), smc_districts.end(), district);
   if (it != smc_districts.end()) {
     std::size_t index = std::distance(smc_districts.begin(), it);
+    if (index >= prob_present_at_smc_by_location_.size()) {
+      // mean/sd_prob_individual_present_at_smc shorter than smc_districts
+      // (rejected when the config is loaded; kept here as a guard)
+      throw std::out_of_range(fmt::format(
+          "prob_present_at_smc: district {} is entry {} of smc_districts but only {} "
+          "presence probabilities were generated",
+          district, index, prob_present_at_smc_by_location_.size()));
+    }
     return prob_present_at_smc_by_location_[index];
   }
   else{
@@ -936,7 +956,8 @@ void Person::schedule_clinical_recurrence_event(ClonalParasitePopulation* parasi
       // If events are within 7 days, don't schedule a new one
       if (std::abs(existing_time - new_event_time) <= 7) {
         Model::get_mdc()->progress_to_clinical_in_7d_counter[location_].total++;
-        if (existing_progress_event->clinical_caused_parasite() == parasite) {
+        if (existing_progress_event->clinical_caused_parasite() == parasite
+            && existing_progress_event->clinical_caused_parasite_uid() == parasite->uid()) {
           Model::get_mdc()->progress_to_clinical_in_7d_counter[location_].recrudescence++;
         } else {
           Model::get_mdc()->progress_to_clinical_in_7d_counter[location_].new_infection++;

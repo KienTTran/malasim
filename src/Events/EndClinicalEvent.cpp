@@ -27,7 +27,8 @@ void EndClinicalEvent::do_execute() {
     person->get_immune_system()->set_increase(true);
     person->set_host_state(Person::ASYMPTOMATIC);
 
-    if (person->get_all_clonal_parasite_populations()->contain(clinical_caused_parasite_)) {
+    if (person->get_all_clonal_parasite_populations()->contain(clinical_caused_parasite_,
+                                                             clinical_caused_parasite_uid_)) {
       person->determine_symptomatic_recrudescence(clinical_caused_parasite_);
     }
   }

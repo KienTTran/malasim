@@ -84,6 +84,15 @@ bool SingleHostClonalParasitePopulations::contain(ClonalParasitePopulation* bloo
   });
 }
 
+bool SingleHostClonalParasitePopulations::contain(ClonalParasitePopulation* blood_parasite,
+                                                  std::uint64_t uid) {
+  if (blood_parasite == nullptr) { return false; }
+  return std::ranges::any_of(parasites_, [blood_parasite, uid](const auto &parasite) {
+    if (!parasite) { throw std::runtime_error("Parasite is nullptr"); }
+    return parasite.get() == blood_parasite && parasite->uid() == uid;
+  });
+}
+
 void SingleHostClonalParasitePopulations::change_all_parasite_update_function(
     ParasiteDensityUpdateFunction* from, ParasiteDensityUpdateFunction* to) const {
   for (const auto &parasite : parasites_) {

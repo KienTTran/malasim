@@ -1307,6 +1307,20 @@ public:
   };
   std::vector<ProgressToClinicalCounter> progress_to_clinical_in_7d_counter;
 
+  // Mean all-age PfPR over the last 12 monthly population statistics (or fewer
+  // early in the run). Falls back to the current value before the first update.
+  [[nodiscard]] double annual_mean_blood_slide_prevalence(core::LocationId location) const;
+
+private:
+  static constexpr int kPfprHistoryMonths = 12;
+  DoubleVector2 pfpr_monthly_history_by_location_;
+  int pfpr_history_next_index_{0};
+  int pfpr_history_count_{0};
+  int pfpr_history_last_time_{-1};
+  void record_pfpr_history();
+
+public:
+
 private:
   // New counter: monthly_number_of_people_seeking_treatment_by_location_age_index_
   IntVector2 monthly_number_of_people_seeking_treatment_by_location_age_index_;

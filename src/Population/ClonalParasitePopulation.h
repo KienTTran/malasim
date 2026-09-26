@@ -1,6 +1,8 @@
 #ifndef CLONALPARASITEPOPULATION_H
 #define CLONALPARASITEPOPULATION_H
 
+#include <cstdint>
+
 #include "Core/types.h"
 #include "ParasiteDensity/ParasiteDensityUpdateFunction.h"
 #include "Treatment/Therapies/DrugType.h"
@@ -25,6 +27,12 @@ public:
   ~ClonalParasitePopulation() override;
 
   static constexpr double LOG_ZERO_PARASITE_DENSITY = -1000;
+
+  // Unique, never-reused id. Events keep a raw pointer to "their" parasite; after
+  // that parasite is freed the allocator can hand the same address to a new
+  // parasite, so pointer equality alone can match the wrong clone. Compare the
+  // uid as well (see SingleHostClonalParasitePopulations::contain(ptr, uid)).
+  [[nodiscard]] std::uint64_t uid() const noexcept { return uid_; }
 
   [[nodiscard]] double last_update_log10_parasite_density() const noexcept {
     return last_update_log10_parasite_density_;
@@ -75,6 +83,9 @@ private:
   double gametocyte_level_{0.0};
 
   core::SimDay first_date_in_blood_{core::K_INVALID_SIM_DAY};
+
+  std::uint64_t uid_{0};
+  static inline std::uint64_t next_uid_{1};
 };
 
 #endif /* CLONALPARASITEPOPULATION_H */

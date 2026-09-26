@@ -1,6 +1,8 @@
 #ifndef RECEIVETHERAPYEVENT_H
 #define RECEIVETHERAPYEVENT_H
 
+#include <cstdint>
+
 #include "Event.h"
 #include "Population/ClonalParasitePopulation.h"
 
@@ -29,8 +31,10 @@ public:
   void set_received_therapy(Therapy* value) { received_therapy_ = value; }
 
   ClonalParasitePopulation* clinical_caused_parasite() { return clinical_caused_parasite_; }
+  [[nodiscard]] std::uint64_t clinical_caused_parasite_uid() const { return clinical_caused_parasite_uid_; }
   void set_clinical_caused_parasite(ClonalParasitePopulation* value) {
     clinical_caused_parasite_ = value;
+    clinical_caused_parasite_uid_ = (value != nullptr) ? value->uid() : 0;
   }
 
   [[nodiscard]] bool is_part_of_mac_therapy() const { return is_part_of_mac_therapy_; }
@@ -40,6 +44,7 @@ private:
   bool is_part_of_mac_therapy_{false};
   Therapy* received_therapy_{nullptr};
   ClonalParasitePopulation* clinical_caused_parasite_{nullptr};
+  std::uint64_t clinical_caused_parasite_uid_{0};
   void do_execute() override;
 };
 

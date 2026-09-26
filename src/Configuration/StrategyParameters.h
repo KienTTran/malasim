@@ -478,6 +478,27 @@ struct convert<StrategyParameters::SeasonalMalariaChemoprevention> {
         rhs.set_smc_districts(node["smc_districts"].as<std::vector<int>>());
         rhs.set_mean_prob_individual_present_at_smc(node["mean_prob_individual_present_at_smc"].as<std::vector<double>>());
         rhs.set_sd_prob_individual_present_at_smc(node["sd_prob_individual_present_at_smc"].as<std::vector<double>>());
+        // One attendance mean/sd per smc_districts entry: Person::prob_present_at_smc
+        // indexes the generated probabilities by the district's position in smc_districts.
+        const auto n_districts = rhs.get_smc_districts().size();
+        // A single mean/sd applies to every SMC district.
+        if (n_districts > 1 && rhs.get_mean_prob_individual_present_at_smc().size() == 1
+            && rhs.get_sd_prob_individual_present_at_smc().size() == 1) {
+            rhs.set_mean_prob_individual_present_at_smc(std::vector<double>(
+                n_districts, rhs.get_mean_prob_individual_present_at_smc().front()));
+            rhs.set_sd_prob_individual_present_at_smc(std::vector<double>(
+                n_districts, rhs.get_sd_prob_individual_present_at_smc().front()));
+        }
+        if (rhs.get_mean_prob_individual_present_at_smc().size() != n_districts
+            || rhs.get_sd_prob_individual_present_at_smc().size() != n_districts) {
+            throw std::runtime_error(
+                "seasonal_malaria_chemoprevention: mean_prob_individual_present_at_smc ("
+                + std::to_string(rhs.get_mean_prob_individual_present_at_smc().size())
+                + ") and sd_prob_individual_present_at_smc ("
+                + std::to_string(rhs.get_sd_prob_individual_present_at_smc().size())
+                + ") must each have one value per smc_districts entry ("
+                + std::to_string(n_districts) + ")");
+        }
         return true;
     }
 };

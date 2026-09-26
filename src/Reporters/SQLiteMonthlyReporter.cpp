@@ -508,6 +508,11 @@ void SQLiteMonthlyReporter::collect_site_data_for_location(int location_id, int 
       eir_location = 0.0;
     }
 
+    // Population-weighted, so the write-out step (accumulated_eir / unit
+    // population) reports the weighted mean EIR of the unit. This accumulation
+    // was missing, so `eir` was always written as 0.
+    monthly_site_data_by_level[level_id].eir[unit_id] += eir_location * location_population;
+
     const auto &pop_by_age =
     Model::get_mdc()->popsize_by_location_age()[location_id];
 

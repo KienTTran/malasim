@@ -18,8 +18,8 @@ void TestTreatmentFailureEvent::do_execute() {
 
   // If the parasite is still present at a detectable level, then it's a
   // treatment failure
-  if (person->get_all_clonal_parasite_populations()->contain(
-          clinical_caused_parasite())
+  if (person->get_all_clonal_parasite_populations()->contain(clinical_caused_parasite_,
+                                                             clinical_caused_parasite_uid_)
       && clinical_caused_parasite_->last_update_log10_parasite_density()
              > Model::get_config()->get_parasite_parameters().get_parasite_density_levels().get_log_parasite_density_detectable()) {
     Model::get_mdc()->record_1_treatment_failure_by_therapy(

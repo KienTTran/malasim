@@ -116,7 +116,8 @@ void ProgressToClinicalEvent::do_execute() {
   }
 
   // if the clinical_caused_parasite eventually removed then do nothing
-  if (!person->get_all_clonal_parasite_populations()->contain(clinical_caused_parasite_)) {
+  if (!person->get_all_clonal_parasite_populations()->contain(clinical_caused_parasite_,
+                                                              clinical_caused_parasite_uid_)) {
     // spdlog::info("ProgressToClinicalEvent::do_execute: parasite removed");
     return;
   }
@@ -217,6 +218,15 @@ void ProgressToClinicalEvent::transition_to_clinical_state(Person* person) {
 
     Model::get_mdc()->record_1_treatment(person->get_location(), person->get_age(),
                                          person->get_age_class(), therapy->get_id());
+
+    // A recurrence episode (scheduled by Person::schedule_clinical_recurrence_event
+    // after a symptomatic recrudescence) that gets treated is a recrudescence
+    // treatment. It is also counted in `treatments` above, as before; this
+    // counter was never incremented, so recrudescence_treatment* were always 0.
+    if (is_recurrence_) {
+      Model::get_mdc()->record_1_recrudescence_treatment(
+          person->get_location(), person->get_age(), person->get_age_class(), therapy->get_id());
+    }
 
     person->schedule_test_treatment_failure_event(
         clinical_caused_parasite_,

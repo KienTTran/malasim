@@ -38,7 +38,25 @@ public:
   bool get_enable_recrudescence() const { return enable_recrudescence_; }
   void set_enable_recrudescence(const bool value) { enable_recrudescence_ = value; }
 
-  void process_config() override { spdlog::info("Processing ModelSettings"); }
+  // PfPR used by the symptomatic-recrudescence odds model:
+  //   "current"     - latest monthly snapshot (legacy behaviour, default)
+  //   "annual_mean" - mean of the last 12 monthly snapshots
+  [[nodiscard]] const std::string &get_recrudescence_pfpr_source() const {
+    return recrudescence_pfpr_source_;
+  }
+  void set_recrudescence_pfpr_source(const std::string &value) {
+    if (value != "current" && value != "annual_mean") {
+      throw std::invalid_argument(
+          "model_settings.recrudescence_pfpr_source must be 'current' or 'annual_mean', got '"
+          + value + "'");
+    }
+    recrudescence_pfpr_source_ = value;
+  }
+
+  void process_config() override {
+    spdlog::info("Processing ModelSettings");
+    spdlog::info("Symptomatic recrudescence uses '{}' PfPR", recrudescence_pfpr_source_);
+  }
 
 private:
   int days_between_stdout_output_ = 30;
@@ -46,6 +64,7 @@ private:
   bool record_genome_db_ = true;
   bool cell_level_reporting_ = true;
   bool enable_recrudescence_ = true;
+  std::string recrudescence_pfpr_source_ = "current";
 };
 
 template <>
@@ -57,6 +76,7 @@ struct YAML::convert<ModelSettings> {
     node["record_genome_db"] = rhs.get_record_genome_db();
     node["cell_level_reporting"] = rhs.get_cell_level_reporting();
     node["enable_recrudescence"] = rhs.get_enable_recrudescence();
+    node["recrudescence_pfpr_source"] = rhs.get_recrudescence_pfpr_source();
     return node;
   }
 
@@ -82,6 +102,11 @@ struct YAML::convert<ModelSettings> {
     // enable_recrudescence is optional, defaults to true for backward compatibility
     if (node["enable_recrudescence"]) {
       rhs.set_enable_recrudescence(node["enable_recrudescence"].as<bool>());
+    }
+
+    // recrudescence_pfpr_source is optional, defaults to "current" (legacy)
+    if (node["recrudescence_pfpr_source"]) {
+      rhs.set_recrudescence_pfpr_source(node["recrudescence_pfpr_source"].as<std::string>());
     }
 
     return true;

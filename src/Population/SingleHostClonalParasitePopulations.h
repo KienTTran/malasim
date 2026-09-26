@@ -66,6 +66,11 @@ public:
 
   bool contain(ClonalParasitePopulation* blood_parasite);
 
+  // Safe membership test for a pointer held by an event: true only if the
+  // pointer is in this host AND still refers to the same clone (same uid).
+  // Never dereferences blood_parasite.
+  bool contain(ClonalParasitePopulation* blood_parasite, std::uint64_t uid);
+
   void change_all_parasite_update_function(ParasiteDensityUpdateFunction* from,
                                            ParasiteDensityUpdateFunction* to) const;
 

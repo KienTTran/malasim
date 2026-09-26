@@ -143,6 +143,13 @@ void ModelDataCollector::initialize() {
   progress_to_clinical_in_7d_counter = std::vector<ProgressToClinicalCounter>(
       Model::get_config()->number_of_locations(), ProgressToClinicalCounter());
 
+  pfpr_monthly_history_by_location_ =
+      DoubleVector2(Model::get_config()->number_of_locations(),
+                    DoubleVector(kPfprHistoryMonths, 0.0));
+  pfpr_history_next_index_ = 0;
+  pfpr_history_count_ = 0;
+  pfpr_history_last_time_ = -1;
+
   current_utl_duration_ = 0;
   utl_duration_ = IntVector();
 
@@ -432,6 +439,32 @@ void ModelDataCollector::perform_population_statistic() {
           / static_cast<double>(popsize_by_location_age_[loc][age]);
     }
   }
+
+  record_pfpr_history();
+}
+
+void ModelDataCollector::record_pfpr_history() {
+  // perform_population_statistic() runs at every monthly report and again from
+  // yearly_update(); only record one snapshot per simulated day.
+  const int now = Model::get_scheduler()->current_time();
+  if (now == pfpr_history_last_time_) { return; }
+  pfpr_history_last_time_ = now;
+
+  for (int loc = 0; loc < Model::get_config()->number_of_locations(); loc++) {
+    const double pfpr = blood_slide_prevalence_by_location_[loc];
+    pfpr_monthly_history_by_location_[loc][pfpr_history_next_index_] =
+        std::isfinite(pfpr) ? pfpr : 0.0;
+  }
+  pfpr_history_next_index_ = (pfpr_history_next_index_ + 1) % kPfprHistoryMonths;
+  pfpr_history_count_ = std::min(pfpr_history_count_ + 1, kPfprHistoryMonths);
+}
+
+double ModelDataCollector::annual_mean_blood_slide_prevalence(core::LocationId location) const {
+  if (pfpr_history_count_ == 0) { return blood_slide_prevalence_by_location_[location]; }
+  const auto &history = pfpr_monthly_history_by_location_[location];
+  double sum = 0.0;
+  for (int i = 0; i < pfpr_history_count_; i++) { sum += history[i]; }
+  return sum / pfpr_history_count_;
 }
 
 void ModelDataCollector::collect_1_clinical_episode(core::LocationId location,
@@ -1042,6 +1075,12 @@ void ModelDataCollector::monthly_update() {
     zero_fill(monthly_treatment_success_by_location_);
     zero_fill(monthly_number_of_tf_by_location_);
     zero_fill(monthly_number_of_mutation_events_by_location_);
+
+    // The "within 7 days" counters are reported as monthly values, so they must
+    // be cleared with the other monthly counters (they previously accumulated
+    // for the whole run).
+    std::fill(progress_to_clinical_in_7d_counter.begin(), progress_to_clinical_in_7d_counter.end(),
+              ProgressToClinicalCounter{});
 
     for (int loc = 0; loc < Model::get_config()->number_of_locations(); loc++) {
       zero_fill(monthly_nontreatment_by_location_age_class_[loc]);

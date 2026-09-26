@@ -8,7 +8,8 @@
 #include "Simulation/Model.h"
 #include "SingleHostClonalParasitePopulations.h"
 
-ClonalParasitePopulation::ClonalParasitePopulation(Genotype* genotype) : genotype_(genotype) {}
+ClonalParasitePopulation::ClonalParasitePopulation(Genotype* genotype)
+    : genotype_(genotype), uid_(next_uid_++) {}
 
 ClonalParasitePopulation::~ClonalParasitePopulation() = default;
 
