@@ -34,6 +34,15 @@ public:
   // uid as well (see SingleHostClonalParasitePopulations::contain(ptr, uid)).
   [[nodiscard]] std::uint64_t uid() const noexcept { return uid_; }
 
+  // True while this clone is waiting for the clinical decision it skipped
+  // because it reached the blood under an effective drug.
+  [[nodiscard]] bool pending_breakthrough_check() const noexcept {
+    return pending_breakthrough_check_;
+  }
+  void set_pending_breakthrough_check(const bool value) noexcept {
+    pending_breakthrough_check_ = value;
+  }
+
   [[nodiscard]] double last_update_log10_parasite_density() const noexcept {
     return last_update_log10_parasite_density_;
   }
@@ -85,6 +94,7 @@ private:
   core::SimDay first_date_in_blood_{core::K_INVALID_SIM_DAY};
 
   std::uint64_t uid_{0};
+  bool pending_breakthrough_check_{false};
   static inline std::uint64_t next_uid_{1};
 };
 

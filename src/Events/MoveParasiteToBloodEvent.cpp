@@ -39,26 +39,15 @@ void MoveParasiteToBloodEvent::do_execute() {
           0.5));
 
   if (person->has_effective_drug_in_blood()) {
-    // spdlog::info("Person has drug in blood");
-    // person has drug in blood
+    // person has drug in blood: no clinical decision now. With
+    // model_settings.breakthrough_after_prophylaxis the decision is made once
+    // the drug protection ends (Person::check_breakthrough_after_prophylaxis);
+    // otherwise (legacy) this clone can never become clinical.
     new_parasite->set_update_function(
         Model::get_instance()->having_drug_update_function());
+    new_parasite->set_pending_breakthrough_check(true);
   } else {
-    // spdlog::info("Person does not have drug in blood");
-    if (person->get_all_clonal_parasite_populations()->size() > 1) {
-      // spdlog::info("person->get_all_clonal_parasite_populations()->size() > 1");
-      const auto &coinfection_cfg = Model::get_config()->get_epidemiological_parameters().get_allow_new_coinfection_to_cause_symptoms();
-      if (coinfection_cfg.get_enable()
-          && Model::get_random()->random_flat(0.0, 1.0) < coinfection_cfg.get_probability()) {
-        person->determine_clinical_or_not(new_parasite);
-      } else {
-        new_parasite->set_update_function(
-            Model::get_instance()->immunity_clearance_update_function());
-      }
-    } else {
-      // spdlog::info("person->get_all_clonal_parasite_populations()->size() <= 1");
-      person->determine_clinical_or_not(new_parasite);
-    }
+    person->determine_clinical_for_new_blood_parasite(new_parasite);
   }
 
   person->schedule_mature_gametocyte_event(new_parasite);

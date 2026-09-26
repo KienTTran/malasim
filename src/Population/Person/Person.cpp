@@ -496,6 +496,40 @@ void Person::determine_symptomatic_recrudescence(
   }
 }
 
+void Person::determine_clinical_for_new_blood_parasite(ClonalParasitePopulation* parasite) {
+  if (all_clonal_parasite_populations_->size() > 1) {
+    const auto &coinfection_cfg = Model::get_config()
+                                      ->get_epidemiological_parameters()
+                                      .get_allow_new_coinfection_to_cause_symptoms();
+    if (coinfection_cfg.get_enable()
+        && Model::get_random()->random_flat(0.0, 1.0) < coinfection_cfg.get_probability()) {
+      determine_clinical_or_not(parasite);
+    } else {
+      parasite->set_update_function(Model::immunity_clearance_update_function());
+    }
+  } else {
+    determine_clinical_or_not(parasite);
+  }
+}
+
+void Person::check_breakthrough_after_prophylaxis() {
+  if (!Model::get_config()->get_model_settings().get_breakthrough_after_prophylaxis()) { return; }
+  if (all_clonal_parasite_populations_->size() == 0) { return; }
+  if (has_effective_drug_in_blood()) { return; }  // still protected
+
+  // Collect first: determine_clinical_* never removes clones, but keep the
+  // iteration independent of any container changes.
+  std::vector<ClonalParasitePopulation*> pending;
+  for (std::size_t i = 0; i < all_clonal_parasite_populations_->size(); ++i) {
+    auto* parasite = all_clonal_parasite_populations_->at(i);
+    if (parasite->pending_breakthrough_check()) { pending.push_back(parasite); }
+  }
+  for (auto* parasite : pending) {
+    parasite->set_pending_breakthrough_check(false);
+    determine_clinical_for_new_blood_parasite(parasite);
+  }
+}
+
 void Person::determine_clinical_or_not(ClonalParasitePopulation* clinical_caused_parasite) {
   if (all_clonal_parasite_populations_->contain(clinical_caused_parasite)) {
     // spdlog::info("Person::determine_clinical_or_not: Person has the parasite");
@@ -544,6 +578,9 @@ void Person::update() {
   immune_system_->update();
 
   update_current_state();
+
+  // After drug levels and cut-off clearing are current for today.
+  check_breakthrough_after_prophylaxis();
 
   // update biting level only less than 1 to save performance
   //  the other will be update in birthday event

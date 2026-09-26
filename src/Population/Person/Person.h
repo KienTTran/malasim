@@ -238,6 +238,16 @@ public:
 
   void determine_clinical_or_not(ClonalParasitePopulation* clinical_caused_parasite);
 
+  // Clinical decision for a clone newly exposed without effective drug:
+  // applies the co-infection rule when the host already carries other clones,
+  // otherwise determine_clinical_or_not. Used on arrival in blood and, when
+  // breakthrough_after_prophylaxis is on, once the drug protection ends.
+  void determine_clinical_for_new_blood_parasite(ClonalParasitePopulation* parasite);
+
+  // breakthrough_after_prophylaxis: re-evaluate clones that arrived under drug
+  // once no effective drug remains. Called from update().
+  void check_breakthrough_after_prophylaxis();
+
   void update_current_state();
 
   void randomly_choose_parasite();

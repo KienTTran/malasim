@@ -53,9 +53,22 @@ public:
     recrudescence_pfpr_source_ = value;
   }
 
+  // Infections that reach the blood while an effective drug is present skip the
+  // clinical decision (MoveParasiteToBloodEvent). false (default, legacy): they
+  // are never re-evaluated and can never become clinical. true: once no
+  // effective drug remains, each surviving such parasite gets the clinical
+  // decision it skipped (breakthrough infection).
+  [[nodiscard]] bool get_breakthrough_after_prophylaxis() const {
+    return breakthrough_after_prophylaxis_;
+  }
+  void set_breakthrough_after_prophylaxis(const bool value) {
+    breakthrough_after_prophylaxis_ = value;
+  }
+
   void process_config() override {
     spdlog::info("Processing ModelSettings");
     spdlog::info("Symptomatic recrudescence uses '{}' PfPR", recrudescence_pfpr_source_);
+    spdlog::info("Breakthrough after prophylaxis: {}", breakthrough_after_prophylaxis_);
   }
 
 private:
@@ -65,6 +78,7 @@ private:
   bool cell_level_reporting_ = true;
   bool enable_recrudescence_ = true;
   std::string recrudescence_pfpr_source_ = "current";
+  bool breakthrough_after_prophylaxis_ = false;
 };
 
 template <>
@@ -77,6 +91,7 @@ struct YAML::convert<ModelSettings> {
     node["cell_level_reporting"] = rhs.get_cell_level_reporting();
     node["enable_recrudescence"] = rhs.get_enable_recrudescence();
     node["recrudescence_pfpr_source"] = rhs.get_recrudescence_pfpr_source();
+    node["breakthrough_after_prophylaxis"] = rhs.get_breakthrough_after_prophylaxis();
     return node;
   }
 
@@ -107,6 +122,11 @@ struct YAML::convert<ModelSettings> {
     // recrudescence_pfpr_source is optional, defaults to "current" (legacy)
     if (node["recrudescence_pfpr_source"]) {
       rhs.set_recrudescence_pfpr_source(node["recrudescence_pfpr_source"].as<std::string>());
+    }
+
+    // breakthrough_after_prophylaxis is optional, defaults to false (legacy)
+    if (node["breakthrough_after_prophylaxis"]) {
+      rhs.set_breakthrough_after_prophylaxis(node["breakthrough_after_prophylaxis"].as<bool>());
     }
 
     return true;
