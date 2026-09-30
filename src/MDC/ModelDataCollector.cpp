@@ -1004,38 +1004,30 @@ void ModelDataCollector::record_amu_afu(Person* person,
 double ModelDataCollector::get_blood_slide_prevalence(core::LocationId location,
                                                       const int &age_from,
                                                       const int &age_to) {
-  double blood_slide_numbers = 0;
-  double popsize = 0;
-  //    age count from 0
+  // age_from and age_to are inclusive integer-age bins, not model age classes.
+  // Examples:
+  //   (0, 4)  -> 0 <= age < 5
+  //   (2, 9)  -> 2 <= age < 10
+  //   (6, 16) -> 6 <= age < 17
+  // Ages >= 80 are folded into bin 79 upstream by age_clamp.
+  const auto &slides = blood_slide_number_by_location_age_[location];
+  const auto &pop = popsize_by_location_age_[location];
 
-  if (age_from < 10) {
-    if (age_to <= 10) {
-      for (int ac = age_from; ac <= age_to; ac++) {
-        blood_slide_numbers += blood_slide_number_by_location_age_group_[location][ac];
-        popsize += popsize_by_location_age_class_[location][ac];
-      }
-    } else {
-      for (int ac = age_from; ac <= 10; ac++) {
-        blood_slide_numbers += blood_slide_number_by_location_age_group_[location][ac];
-        popsize += popsize_by_location_age_class_[location][ac];
-      }
-      int ac = 10;
-      while (ac < age_to) {
-        blood_slide_numbers += blood_slide_number_by_location_age_group_by_5_[location][ac / 5];
-        popsize += popsize_by_location_age_class_by_5_[location][ac / 5];
-        ac += 5;
-      }
-    }
-  } else {
-    int ac = age_from;
+  const int max_age = static_cast<int>(std::min(slides.size(), pop.size())) - 1;
+  if (max_age < 0) { return 0.0; }
 
-    while (ac < age_to) {
-      blood_slide_numbers += blood_slide_number_by_location_age_group_by_5_[location][ac / 5];
-      popsize += popsize_by_location_age_class_by_5_[location][ac / 5];
-      ac += 5;
-    }
+  const int lo = std::max(0, age_from);
+  const int hi = std::min(age_to, max_age);
+  if (hi < lo) { return 0.0; }
+
+  double blood_slide_numbers = 0.0;
+  double popsize = 0.0;
+  for (int age = lo; age <= hi; ++age) {
+    blood_slide_numbers += slides[age];
+    popsize += pop[age];
   }
-  return (popsize == 0) ? 0 : blood_slide_numbers / popsize;
+
+  return (popsize == 0.0) ? 0.0 : blood_slide_numbers / popsize;
 }
 
 void ModelDataCollector::monthly_update() {

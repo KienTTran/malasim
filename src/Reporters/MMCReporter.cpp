@@ -188,8 +188,8 @@ void MMCReporter::print_eir_pfpr_by_location() {
     }
 
     // pfpr <5 and all
-    ss << mdc->get_blood_slide_prevalence(loc, 0, 5) * 100 << tsv::SEP;
-    ss << mdc->get_blood_slide_prevalence(loc, 2, 10) * 100 << tsv::SEP;
+    ss << mdc->get_blood_slide_prevalence(loc, ModelDataCollector::PFPR_UNDER5_AGE_FROM, ModelDataCollector::PFPR_UNDER5_AGE_TO) * 100 << tsv::SEP;
+    ss << mdc->get_blood_slide_prevalence(loc, ModelDataCollector::PFPR_2TO10_AGE_FROM, ModelDataCollector::PFPR_2TO10_AGE_TO) * 100 << tsv::SEP;
     ss << mdc->blood_slide_prevalence_by_location()[loc] * 100 << tsv::SEP;
     //    std::cout << population->size() << "\t"
     //              << mdc->blood_slide_prevalence_by_location()[loc] * 100 <<

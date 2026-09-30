@@ -218,6 +218,14 @@ void ProgressToClinicalEvent::transition_to_clinical_state(Person* person) {
     Model::get_mdc()->record_1_treatment(person->get_location(), person->get_age(),
                                          person->get_age_class(), therapy->get_id());
 
+    // Recurrent clinical cases are also tracked separately from the overall
+    // treatment count. schedule_clinical_recurrence_event() marks these
+    // ProgressToClinicalEvent instances with is_recurrence_ = true.
+    if (is_recurrence_) {
+      Model::get_mdc()->record_1_recrudescence_treatment(
+          person->get_location(), person->get_age(), person->get_age_class(), therapy->get_id());
+    }
+
     person->schedule_test_treatment_failure_event(
         clinical_caused_parasite_,
         Model::get_config()->get_therapy_parameters().get_tf_testing_day(), therapy->get_id());

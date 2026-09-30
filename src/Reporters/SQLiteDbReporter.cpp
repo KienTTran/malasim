@@ -129,6 +129,11 @@ void SQLiteDbReporter::create_all_reporting_tables() {
   }
 
   for (auto age = 0; age < 80; age++) {
+    age_column_definitions +=
+        fmt::format("blood_slide_number_by_location_age_{} REAL, ", age);
+  }
+
+  for (auto age = 0; age < 80; age++) {
     age_column_definitions += fmt::format("total_immune_by_age_{} REAL, ", age);
   }
 
@@ -157,6 +162,9 @@ void SQLiteDbReporter::create_all_reporting_tables() {
     age_columns += fmt::format("clinical_episodes_by_age_{}, ", age);
   }
   for (auto age = 0; age < 80; age++) { age_columns += fmt::format("population_by_age_{}, ", age); }
+  for (auto age = 0; age < 80; age++) {
+    age_columns += fmt::format("blood_slide_number_by_location_age_{}, ", age);
+  }
   for (auto age = 0; age < 80; age++) {
     age_columns += fmt::format("total_immune_by_age_{}, ", age);
   }
@@ -214,6 +222,7 @@ void SQLiteDbReporter::create_reporting_tables_for_level(
           eir REAL NOT NULL,
           pfpr_under5 REAL NOT NULL,
           pfpr_2to10 REAL NOT NULL,
+          pfpr_6to17 REAL NOT NULL,
           pfpr_all REAL NOT NULL,
           infected_individuals INTEGER,
           non_treatment INTEGER NOT NULL,
@@ -265,7 +274,7 @@ void SQLiteDbReporter::create_reporting_tables_for_level(
       fmt::format("INSERT INTO {} (monthly_data_id, {}, "
         "population, clinical_episodes, ", site_table_name, location_id_column)
       + age_class_columns + age_columns +
-      "treatments, eir, pfpr_under5, pfpr_2to10, pfpr_all, "
+      "treatments, eir, pfpr_under5, pfpr_2to10, pfpr_6to17, pfpr_all, "
       "infected_individuals, treatment_failures, "
       "non_treatment, under5_treatment, over5_treatment, "
       "progress_to_clinical_in_7d_total, "

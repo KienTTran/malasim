@@ -298,21 +298,22 @@ version6_pfpr_incidence_calibrations:
   # the simulation will randomly select one of the candidates to use in the simulation.
   random_selection: false
   calibration_ids:
-    0: #5 in Fig 12 (highest p_seek_base)
+    0: #5 in Fig 11 (highest p_seek_base)
       "epidemiological_parameters:allow_new_coinfection_to_cause_symptoms:probability": 0.5
       "immune_system_parameters:immune_effect_on_progression_to_clinical": 3.0
       "immune_system_parameters:factor_effect_age_mature_immunity": 0.1
       "immune_system_parameters:midpoint": 0.2
       "epidemiological_parameters:age_based_probability_of_seeking_treatment:power:base": 0.8
-      "genotype_parameters:mutation_probability_per_locus": 0.00125 # PfPR 25% 6-month sustained
+      "genotype_parameters:mutation_probability_per_locus": 0.0012314 # PfPR 10% 3-month sustained
       "genotype_parameters:default_cnv_reversion_multiplier": 0.0
-    1: #1 in Fig 9 (top-1)
+    1: #1 in Fig 9 (top-1), this is the best fit parameterization according to mean squared error, when including
+      #  all incidence data up to 800 cases/thousand
       "epidemiological_parameters:allow_new_coinfection_to_cause_symptoms:probability": 0.6
       "immune_system_parameters:immune_effect_on_progression_to_clinical": 3.0
       "immune_system_parameters:factor_effect_age_mature_immunity": 0.1
       "immune_system_parameters:midpoint": 0.15
       "epidemiological_parameters:age_based_probability_of_seeking_treatment:power:base": 0.6
-      "genotype_parameters:mutation_probability_per_locus": 0.0015 # PfPR 25% 6-month sustained
+      "genotype_parameters:mutation_probability_per_locus": 0.0021324 # PfPR 10% 3-month sustained
       "genotype_parameters:default_cnv_reversion_multiplier": 0.0
     2: #1 in Fig 10 (top-1)
       "epidemiological_parameters:allow_new_coinfection_to_cause_symptoms:probability": 0.7
@@ -320,39 +321,31 @@ version6_pfpr_incidence_calibrations:
       "immune_system_parameters:factor_effect_age_mature_immunity": 1.0
       "immune_system_parameters:midpoint": 0.04
       "epidemiological_parameters:age_based_probability_of_seeking_treatment:power:base": 0.6
-      "genotype_parameters:mutation_probability_per_locus": 0.00055 # PfPR 25% 6-month sustained
+      "genotype_parameters:mutation_probability_per_locus": 0.0015708 # PfPR 10% 3-month sustained
       "genotype_parameters:default_cnv_reversion_multiplier": 0.0
-    3: #1 in Fig 11 (top-1)
-      "epidemiological_parameters:allow_new_coinfection_to_cause_symptoms:probability": 0.6
-      "immune_system_parameters:immune_effect_on_progression_to_clinical": 3.0
-      "immune_system_parameters:factor_effect_age_mature_immunity": 0.1
-      "immune_system_parameters:midpoint": 0.15
-      "epidemiological_parameters:age_based_probability_of_seeking_treatment:power:base": 0.6
-      "genotype_parameters:mutation_probability_per_locus": 0.00175 # PfPR 25% 6-month sustained
-      "genotype_parameters:default_cnv_reversion_multiplier": 0.0
-    4: #5 in Fig 9 (highest p_ci_symp)
+    3: #5 in Fig 9 (highest p_ci_symp)
       "epidemiological_parameters:allow_new_coinfection_to_cause_symptoms:probability": 1.0
       "immune_system_parameters:immune_effect_on_progression_to_clinical": 1.5
       "immune_system_parameters:factor_effect_age_mature_immunity": 0.5
       "immune_system_parameters:midpoint": 0.1
       "epidemiological_parameters:age_based_probability_of_seeking_treatment:power:base": 0.65
-      "genotype_parameters:mutation_probability_per_locus": 0.00065 # PfPR 10% 6-month sustained
+      "genotype_parameters:mutation_probability_per_locus": 0.0010493 # PfPR 10% 3-month sustained
       "genotype_parameters:default_cnv_reversion_multiplier": 0.0
-    5: #2 in Fig 10 (highest p_seek_base)
+    4: #2 in Fig 10 (highest p_seek_base)
       "epidemiological_parameters:allow_new_coinfection_to_cause_symptoms:probability": 0.5
       "immune_system_parameters:immune_effect_on_progression_to_clinical": 1.5
       "immune_system_parameters:factor_effect_age_mature_immunity": 0.5
       "immune_system_parameters:midpoint": 0.1
       "epidemiological_parameters:age_based_probability_of_seeking_treatment:power:base": 0.75
-      "genotype_parameters:mutation_probability_per_locus": 0.0008 # PfPR 25% 6-month sustained
+      "genotype_parameters:mutation_probability_per_locus": 0.0014017 # PfPR 10% 3-month sustained
       "genotype_parameters:default_cnv_reversion_multiplier": 0.0
-    6: #9 in Fig 9/10 (highest incidence)
+    5: #9 in Fig 9/10 (highest incidence)
       "epidemiological_parameters:allow_new_coinfection_to_cause_symptoms:probability": 0.5
       "immune_system_parameters:immune_effect_on_progression_to_clinical": 3.5
       "immune_system_parameters:factor_effect_age_mature_immunity": 7.5
       "immune_system_parameters:midpoint": 0.2
       "epidemiological_parameters:age_based_probability_of_seeking_treatment:power:base": 0.6
-      "genotype_parameters:mutation_probability_per_locus": 0.00065 # PfPR 10% 6-month sustained
+      "genotype_parameters:mutation_probability_per_locus": 0.0007012 # PfPR 10% 3-month sustained
       "genotype_parameters:default_cnv_reversion_multiplier": 0.0
 
 # ---------------------------------------------------------------

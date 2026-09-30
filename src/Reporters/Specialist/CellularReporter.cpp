@@ -113,7 +113,7 @@ void CellularReporter::monthly_report() {
   ss << fmt::format(
       "{},{},{:.2f},{:.2f},{},{},{},{},{},{},{},{},{},{:.2f},{:.2f},{},{}\n",
       Model::get_scheduler()->current_time(), population,
-      Model::get_mdc()->get_blood_slide_prevalence(0, 2, 10) * 100.0,
+      Model::get_mdc()->get_blood_slide_prevalence(0, ModelDataCollector::PFPR_2TO10_AGE_FROM, ModelDataCollector::PFPR_2TO10_AGE_TO) * 100.0,
       (Model::get_treatment_coverage()->p_treatment_under_5[0] +
        Model::get_treatment_coverage()->p_treatment_over_5[0]) /
           2.0,

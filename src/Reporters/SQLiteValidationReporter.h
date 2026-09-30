@@ -28,12 +28,13 @@ protected:
   bool enable_cell_level_reporting{false};
 
   struct MonthlySiteData {
-    std::vector<double> eir, pfpr_under5, pfpr2to10, pfpr_all;
+    std::vector<double> eir, pfpr_under5, pfpr2to10, pfpr6to17, pfpr_all;
     std::vector<int> population, clinical_episodes, treatments, treatment_failures,
                     nontreatment, treatments_under5, treatments_over5, infections_by_unit;
     std::vector<std::vector<int>> clinical_episodes_by_age_class;
     std::vector<std::vector<int>> clinical_episodes_by_age;
     std::vector<std::vector<int>> population_by_age;
+    std::vector<std::vector<double>> blood_slide_number_by_location_age;
     std::vector<std::vector<double>> total_immune_by_age;
     std::vector<std::vector<int>> multiple_of_infection;
     std::vector<std::vector<int>> number_of_people_seeking_treatment_by_location_age_index;
@@ -62,6 +63,7 @@ protected:
   std::vector<std::string> insert_values;
 
 private:
+  void create_and_populate_configuration_table();
   void create_all_reporting_tables() override;
   void create_reporting_tables_for_level(int level_id,
     const std::string& age_class_column_definitions,

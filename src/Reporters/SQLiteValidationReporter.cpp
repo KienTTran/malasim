@@ -9,6 +9,7 @@
 #include "Population/Population.h"
 #include "Simulation//Model.h"
 #include "Spatial/GIS/SpatialData.h"
+#include "Utils/Helpers/StringHelpers.h"
 #include "Utils/Index/PersonIndexByLocationStateAgeClass.h"
 
 // Initialize the reporter
@@ -46,6 +47,66 @@ void SQLiteValidationReporter::initialize(int jobNumber, const std::string &path
   insert_genome_query_prefixes_.resize(admin_level_count + 1);
 
   CELL_LEVEL_ID = admin_level_count;
+
+  // Persist the applied calibration configuration in validation databases too,
+  // matching SQLiteMonthlyReporter.
+  create_and_populate_configuration_table();
+}
+
+void SQLiteValidationReporter::create_and_populate_configuration_table() {
+  if (db == nullptr) { return; }
+
+  try {
+    TransactionGuard transaction{db.get()};
+
+    const std::string create_configuration = R""""(
+      CREATE TABLE IF NOT EXISTS configuration (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          section TEXT NOT NULL,
+          key TEXT NOT NULL,
+          value TEXT NOT NULL
+      );
+    )"""";
+    db->execute(create_configuration);
+    db->execute("DELETE FROM configuration;");
+
+    const std::string section = "version6_pfpr_incidence_calibrations";
+    const auto &calibration_ids = Model::get_config()->get_version6_pfpr_incidence_calibrations();
+
+    std::vector<std::string> rows;
+    auto add_row = [&](const std::string &key, const std::string &value) {
+      std::string escaped_key = key;
+      std::string escaped_value = value;
+      StringHelpers::replace_all(escaped_key, "'", "''");
+      StringHelpers::replace_all(escaped_value, "'", "''");
+      rows.emplace_back(
+          fmt::format("('{}', '{}', '{}')", section, escaped_key, escaped_value));
+    };
+
+    add_row("section_present",
+            Model::get_config()->has_version6_pfpr_incidence_calibrations() ? "true" : "false");
+    add_row("chosen_calibration_id", std::to_string(calibration_ids.get_chosen_calibration_id()));
+    add_row("random_selection", calibration_ids.get_random_selection() ? "true" : "false");
+
+    if (calibration_ids.has_selected_calibration_id()) {
+      const auto &selected = calibration_ids.get_selected_calibration_id();
+      for (const auto &[path, val] : selected.overrides) {
+        add_row(path, fmt::format("{}", val));
+      }
+    } else {
+      spdlog::info(
+          "SQLiteValidationReporter: no selected version6_pfpr_incidence_calibrations "
+          "calibration_id (chosen_calibration_id={}); recording metadata only.",
+          calibration_ids.get_chosen_calibration_id());
+    }
+
+    const std::string query_prefix =
+        "INSERT INTO configuration (section, key, value) VALUES ";
+    batch_insert_query(query_prefix, rows);
+
+    spdlog::info("SQLiteValidationReporter: recorded {} '{}' configuration rows.", rows.size(),
+                 section);
+  } catch (const std::exception &ex) { spdlog::error("{}:\n{}", __FUNCTION__, ex.what()); }
 }
 
 std::string SQLiteValidationReporter::get_site_table_name(int level_id) const {
@@ -101,6 +162,11 @@ void SQLiteValidationReporter::create_all_reporting_tables() {
   }
 
   for (auto age = 0; age < 80; age++) {
+    age_column_definitions +=
+        fmt::format("blood_slide_number_by_location_age_{} REAL, ", age);
+  }
+
+  for (auto age = 0; age < 80; age++) {
     age_column_definitions += fmt::format("total_immune_by_age_{} REAL, ", age);
   }
 
@@ -129,6 +195,9 @@ void SQLiteValidationReporter::create_all_reporting_tables() {
     age_columns += fmt::format("clinical_episodes_by_age_{}, ", age);
   }
   for (auto age = 0; age < 80; age++) { age_columns += fmt::format("population_by_age_{}, ", age); }
+  for (auto age = 0; age < 80; age++) {
+    age_columns += fmt::format("blood_slide_number_by_location_age_{}, ", age);
+  }
   for (auto age = 0; age < 80; age++) {
     age_columns += fmt::format("total_immune_by_age_{}, ", age);
   }
@@ -185,6 +254,7 @@ void SQLiteValidationReporter::create_reporting_tables_for_level(
           eir REAL NOT NULL,
           pfpr_under5 REAL NOT NULL,
           pfpr_2to10 REAL NOT NULL,
+          pfpr_6to17 REAL NOT NULL,
           pfpr_all REAL NOT NULL,
           infected_individuals INTEGER,
           non_treatment INTEGER NOT NULL,
@@ -236,7 +306,7 @@ void SQLiteValidationReporter::create_reporting_tables_for_level(
     fmt::format("INSERT INTO {} (monthly_data_id, {}, "
                 "population, clinical_episodes, ", site_table_name, location_id_column)
     + age_class_columns + age_columns +
-    "treatments, treatment_failures, eir, pfpr_under5, pfpr_2to10, pfpr_all, "
+    "treatments, treatment_failures, eir, pfpr_under5, pfpr_2to10, pfpr_6to17, pfpr_all, "
     "infected_individuals, non_treatment, under5_treatment, over5_treatment, "
     "progress_to_clinical_in_7d_total, "
     "progress_to_clinical_in_7d_recrudescence, "
@@ -306,21 +376,39 @@ void SQLiteValidationReporter::calculate_and_build_up_site_data_insert_values(in
                                ? (monthly_site_data_by_level[level_id].eir[unit_id]
                                   / monthly_site_data_by_level[level_id].population[unit_id])
                                : 0;
-    double calculatedPfprUnder5 = (monthly_site_data_by_level[level_id].pfpr_under5[unit_id] != 0)
-                                      ? (monthly_site_data_by_level[level_id].pfpr_under5[unit_id]
-                                         / monthly_site_data_by_level[level_id].population[unit_id])
-                                            * 100.0
-                                      : 0;
-    double calculatedPfpr2to10 = (monthly_site_data_by_level[level_id].pfpr2to10[unit_id] != 0)
-                                     ? (monthly_site_data_by_level[level_id].pfpr2to10[unit_id]
-                                        / monthly_site_data_by_level[level_id].population[unit_id])
-                                           * 100.0
-                                     : 0;
-    double calculatedPfprAll = (monthly_site_data_by_level[level_id].pfpr_all[unit_id] != 0)
-                                   ? (monthly_site_data_by_level[level_id].pfpr_all[unit_id]
-                                      / monthly_site_data_by_level[level_id].population[unit_id])
-                                         * 100.0
-                                   : 0;
+    double populationUnder5 = 0.0;
+    double population2to10 = 0.0;
+    double population6to17 = 0.0;
+    for (int age = ModelDataCollector::PFPR_UNDER5_AGE_FROM;
+         age <= ModelDataCollector::PFPR_UNDER5_AGE_TO; ++age) {
+      populationUnder5 += monthly_site_data_by_level[level_id].population_by_age[unit_id][age];
+    }
+    for (int age = ModelDataCollector::PFPR_2TO10_AGE_FROM;
+         age <= ModelDataCollector::PFPR_2TO10_AGE_TO; ++age) {
+      population2to10 += monthly_site_data_by_level[level_id].population_by_age[unit_id][age];
+    }
+    for (int age = ModelDataCollector::PFPR_6TO17_AGE_FROM;
+         age <= ModelDataCollector::PFPR_6TO17_AGE_TO; ++age) {
+      population6to17 += monthly_site_data_by_level[level_id].population_by_age[unit_id][age];
+    }
+
+    double calculatedPfprUnder5 =
+        (populationUnder5 > 0.0)
+            ? monthly_site_data_by_level[level_id].pfpr_under5[unit_id] / populationUnder5 * 100.0
+            : 0.0;
+    double calculatedPfpr2to10 =
+        (population2to10 > 0.0)
+            ? monthly_site_data_by_level[level_id].pfpr2to10[unit_id] / population2to10 * 100.0
+            : 0.0;
+    double calculatedPfpr6to17 =
+        (population6to17 > 0.0)
+            ? monthly_site_data_by_level[level_id].pfpr6to17[unit_id] / population6to17 * 100.0
+            : 0.0;
+    double calculatedPfprAll =
+        (monthly_site_data_by_level[level_id].population[unit_id] > 0)
+            ? monthly_site_data_by_level[level_id].pfpr_all[unit_id]
+                  / monthly_site_data_by_level[level_id].population[unit_id] * 100.0
+            : 0.0;
 
     std::string singleRow =
         fmt::format("({}, {}, {}, {}", monthId, unit_id,
@@ -347,6 +435,11 @@ void SQLiteValidationReporter::calculate_and_build_up_site_data_insert_values(in
       singleRow += fmt::format(", {}", population);
     }
 
+    for (const auto &slides :
+         monthly_site_data_by_level[level_id].blood_slide_number_by_location_age[unit_id]) {
+      singleRow += fmt::format(", {}", slides);
+    }
+
     for (const auto &immune : monthly_site_data_by_level[level_id].total_immune_by_age[unit_id]) {
       singleRow += fmt::format(", {}", immune);
     }
@@ -368,10 +461,10 @@ void SQLiteValidationReporter::calculate_and_build_up_site_data_insert_values(in
     }
 
     singleRow += fmt::format(
-        ", {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})",
+        ", {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})",
         monthly_site_data_by_level[level_id].treatments[unit_id],
         monthly_site_data_by_level[level_id].treatment_failures[unit_id], calculatedEir,
-        calculatedPfprUnder5, calculatedPfpr2to10, calculatedPfprAll,
+        calculatedPfprUnder5, calculatedPfpr2to10, calculatedPfpr6to17, calculatedPfprAll,
         monthly_site_data_by_level[level_id].infections_by_unit[unit_id],
         monthly_site_data_by_level[level_id].nontreatment[unit_id],
         monthly_site_data_by_level[level_id].treatments_under5[unit_id],
@@ -472,7 +565,7 @@ void SQLiteValidationReporter::collect_site_data_for_location(int location_id, i
   for (auto ndx = 0; ndx < ageClasses.size(); ndx++) {
     // Collect the treatment by age class, following the 0-59 month convention
     // for under-5
-    if (ageClasses[ndx] < 5) {
+    if (ageClasses[ndx] <= 5) {
       monthly_site_data_by_level[level_id].treatments_under5[unit_id] +=
           Model::get_mdc()->monthly_number_of_treatment_by_location_age_class()[location_id][ndx];
     } else {
@@ -494,6 +587,11 @@ void SQLiteValidationReporter::collect_site_data_for_location(int location_id, i
   for (auto age = 0; age < 80; age++) {
     monthly_site_data_by_level[level_id].population_by_age[unit_id][age] +=
         Model::get_mdc()->popsize_by_location_age()[location_id][age];
+  }
+
+  for (auto age = 0; age < 80; age++) {
+    monthly_site_data_by_level[level_id].blood_slide_number_by_location_age[unit_id][age] +=
+        Model::get_mdc()->blood_slide_number_by_location_age()[location_id][age];
   }
 
   for (auto age = 0; age < 80; age++) {
@@ -555,10 +653,35 @@ void SQLiteValidationReporter::collect_site_data_for_location(int location_id, i
                            ? 0
                            : Model::get_mdc()->eir_by_location_year()[location_id].back();
     monthly_site_data_by_level[level_id].eir[unit_id] += (eirLocation * locationPopulation);
+    const auto &pop_by_age = Model::get_mdc()->popsize_by_location_age()[location_id];
+    double pop_under5 = 0.0;
+    double pop_2to10 = 0.0;
+    double pop_6to17 = 0.0;
+    for (int age = ModelDataCollector::PFPR_UNDER5_AGE_FROM;
+         age <= ModelDataCollector::PFPR_UNDER5_AGE_TO; ++age) {
+      pop_under5 += pop_by_age[age];
+    }
+    for (int age = ModelDataCollector::PFPR_2TO10_AGE_FROM;
+         age <= ModelDataCollector::PFPR_2TO10_AGE_TO; ++age) {
+      pop_2to10 += pop_by_age[age];
+    }
+    for (int age = ModelDataCollector::PFPR_6TO17_AGE_FROM;
+         age <= ModelDataCollector::PFPR_6TO17_AGE_TO; ++age) {
+      pop_6to17 += pop_by_age[age];
+    }
+
     monthly_site_data_by_level[level_id].pfpr_under5[unit_id] +=
-        (Model::get_mdc()->get_blood_slide_prevalence(location_id, 0, 5) * locationPopulation);
+        Model::get_mdc()->get_blood_slide_prevalence(
+            location_id, ModelDataCollector::PFPR_UNDER5_AGE_FROM,
+            ModelDataCollector::PFPR_UNDER5_AGE_TO) * pop_under5;
     monthly_site_data_by_level[level_id].pfpr2to10[unit_id] +=
-        (Model::get_mdc()->get_blood_slide_prevalence(location_id, 2, 10) * locationPopulation);
+        Model::get_mdc()->get_blood_slide_prevalence(
+            location_id, ModelDataCollector::PFPR_2TO10_AGE_FROM,
+            ModelDataCollector::PFPR_2TO10_AGE_TO) * pop_2to10;
+    monthly_site_data_by_level[level_id].pfpr6to17[unit_id] +=
+        Model::get_mdc()->get_blood_slide_prevalence(
+            location_id, ModelDataCollector::PFPR_6TO17_AGE_FROM,
+            ModelDataCollector::PFPR_6TO17_AGE_TO) * pop_6to17;
     monthly_site_data_by_level[level_id].pfpr_all[unit_id] +=
         (Model::get_mdc()->blood_slide_prevalence_by_location()[location_id] * locationPopulation);
   }
@@ -590,6 +713,7 @@ void SQLiteValidationReporter::reset_site_data_structures(int level_id,
   monthly_site_data_by_level[level_id].eir.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].pfpr_under5.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].pfpr2to10.assign(vector_size, 0);
+  monthly_site_data_by_level[level_id].pfpr6to17.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].pfpr_all.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].population.assign(vector_size, 0);
   monthly_site_data_by_level[level_id].clinical_episodes.assign(vector_size, 0);
@@ -599,6 +723,8 @@ void SQLiteValidationReporter::reset_site_data_structures(int level_id,
                                                                        std::vector<int>(80, 0));
   monthly_site_data_by_level[level_id].population_by_age.assign(vector_size,
                                                                 std::vector<int>(80, 0));
+  monthly_site_data_by_level[level_id].blood_slide_number_by_location_age.assign(
+      vector_size, std::vector<double>(80, 0.0));
   monthly_site_data_by_level[level_id].total_immune_by_age.assign(vector_size,
                                                                   std::vector<double>(80, 0));
   monthly_site_data_by_level[level_id].recrudescence_treatment_by_age_class.assign(
