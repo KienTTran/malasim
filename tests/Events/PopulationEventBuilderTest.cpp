@@ -113,6 +113,12 @@ TEST_F(PopulationEventBuilderTest, BuildsConfigurationChangeEvents) {
   EXPECT_EQ(dynamic_cast<ChangeMutationMaskEvent*>(mask[0].get())->mask,
             std::vector<bool>({true, false, true}));
 
+  const auto scalar_mask = PopulationEventBuilder::build_change_mutation_mask_events(
+      YAML::Load("- date: 2024/01/05\n  mutation_mask: \"|101,0\""), config());
+  ASSERT_EQ(scalar_mask.size(), 1);
+  EXPECT_EQ(dynamic_cast<ChangeMutationMaskEvent*>(scalar_mask[0].get())->mask,
+            std::vector<bool>({false, true, false, true, false, false}));
+
   const auto ifr = PopulationEventBuilder::build_change_interrupted_feeding_rate_event(
       YAML::Load("- location: 0\n  date: 2024/01/06\n  interrupted_feeding_rate: 0.3"), config());
   ASSERT_EQ(ifr.size(), 1);

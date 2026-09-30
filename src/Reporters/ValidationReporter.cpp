@@ -554,8 +554,8 @@ void ValidationReporter::print_eir_pfpr_by_location(std::stringstream &ss) {
     }
     ss << tsv::GROUP_SEP;  // 11
     // pfpr <5 , 2-10 and all
-    ss << Model::get_mdc()->get_blood_slide_prevalence(loc, 2, 10) * 100 << tsv::SEP;
-    ss << Model::get_mdc()->get_blood_slide_prevalence(loc, 0, 5) * 100 << tsv::SEP;
+    ss << Model::get_mdc()->get_blood_slide_prevalence(loc, ModelDataCollector::PFPR_2TO10_AGE_FROM, ModelDataCollector::PFPR_2TO10_AGE_TO) * 100 << tsv::SEP;
+    ss << Model::get_mdc()->get_blood_slide_prevalence(loc, ModelDataCollector::PFPR_UNDER5_AGE_FROM, ModelDataCollector::PFPR_UNDER5_AGE_TO) * 100 << tsv::SEP;
     ss << Model::get_mdc()->blood_slide_prevalence_by_location()[loc] * 100 << tsv::SEP;
   }
 }

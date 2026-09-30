@@ -1096,6 +1096,15 @@ public:
                       Therapy* therapy,
                       ClonalParasitePopulation* clinical_caused_parasite);
 
+  // Canonical half-open PfPR reporting bands represented by inclusive
+  // integer-year bins. For example, [0, 5) is passed as 0..4.
+  static constexpr int PFPR_UNDER5_AGE_FROM = 0;
+  static constexpr int PFPR_UNDER5_AGE_TO = 4;
+  static constexpr int PFPR_2TO10_AGE_FROM = 2;
+  static constexpr int PFPR_2TO10_AGE_TO = 9;
+  static constexpr int PFPR_6TO17_AGE_FROM = 6;
+  static constexpr int PFPR_6TO17_AGE_TO = 16;
+
   double get_blood_slide_prevalence(core::LocationId location,
                                     const int &age_from,
                                     const int &age_to);
