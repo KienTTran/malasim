@@ -407,27 +407,65 @@ void SQLiteDbReporter::initialize_database(int jobNumber,
   std::error_code filesystem_error;
   std::filesystem::path db_path;
 
-  if (std::filesystem::is_regular_file(output_path, filesystem_error)) {
-    db_path = output_path;
+  if (path.empty()) {
+    db_path = default_filename;
   } else {
+    const auto last_character = path.back();
+    const bool has_trailing_separator =
+        last_character == '/' || last_character == '\\';
+
+    const bool path_exists =
+        std::filesystem::exists(output_path, filesystem_error);
     if (filesystem_error) {
-      throw std::filesystem::filesystem_error("Unable to inspect SQLite output path", output_path,
-                                              filesystem_error);
+      throw std::filesystem::filesystem_error(
+          "Unable to inspect SQLite output path", output_path, filesystem_error);
     }
-    if (!std::filesystem::exists(output_path, filesystem_error)) {
-      const auto last_character = path.empty() ? '\0' : path.back();
-      if (last_character == '/' || last_character == '\\') {
-        std::filesystem::create_directories(output_path, filesystem_error);
-        if (filesystem_error) {
-          throw std::filesystem::filesystem_error("Unable to create SQLite output directory",
-                                                  output_path, filesystem_error);
-        }
-        db_path = output_path / default_filename;
-      } else {
-        db_path = output_path;
+
+    if (path_exists &&
+        std::filesystem::is_directory(output_path, filesystem_error)) {
+      if (filesystem_error) {
+        throw std::filesystem::filesystem_error(
+            "Unable to inspect SQLite output directory", output_path, filesystem_error);
       }
-    } else {
+      // Existing directory: place the reporter's default DB inside it.
       db_path = output_path / default_filename;
+    } else if (path_exists &&
+               std::filesystem::is_regular_file(output_path, filesystem_error)) {
+      if (filesystem_error) {
+        throw std::filesystem::filesystem_error(
+            "Unable to inspect SQLite output file", output_path, filesystem_error);
+      }
+      // Existing regular file: use it exactly as supplied.
+      db_path = output_path;
+    } else if (has_trailing_separator) {
+      // Non-existent path ending in / or \: create it as a directory.
+      std::filesystem::create_directories(output_path, filesystem_error);
+      if (filesystem_error) {
+        throw std::filesystem::filesystem_error(
+            "Unable to create SQLite output directory", output_path, filesystem_error);
+      }
+      db_path = output_path / default_filename;
+    } else if (output_path.extension() == ".db") {
+      // Non-existent explicit .db path: use it as the complete filename.
+      db_path = output_path;
+    } else {
+      // Otherwise treat the supplied path as a filename prefix.
+      // Example:
+      //   path = output/calibration_beta_0.001_access_0.684_district_13_pop_617_
+      //   default_filename = monthly_data_17.db
+      // becomes:
+      //   output/calibration_beta_0.001_access_0.684_district_13_pop_617_monthly_data_17.db
+      db_path = std::filesystem::path(path + default_filename);
+    }
+  }
+
+  // Ensure the parent directory exists for explicit file paths and prefixes.
+  const auto parent_path = db_path.parent_path();
+  if (!parent_path.empty()) {
+    std::filesystem::create_directories(parent_path, filesystem_error);
+    if (filesystem_error) {
+      throw std::filesystem::filesystem_error(
+          "Unable to create SQLite output parent directory", parent_path, filesystem_error);
     }
   }
 
