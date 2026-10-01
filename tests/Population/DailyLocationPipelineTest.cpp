@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <numeric>
 
 #include "Mosquito/Mosquito.h"
 #include "Parasites/Genotype.h"
@@ -94,6 +95,65 @@ TEST_F(DailyLocationPipelineTest, ZeroFoiLocationDoesNotPreventLaterCohortCleari
 
   EXPECT_EQ(mosquito->genotypes_table[tracking_index][0][0], nullptr);
   EXPECT_EQ(mosquito->genotypes_table[tracking_index][1][0], nullptr);
+}
+
+TEST_F(DailyLocationPipelineTest, LastInfectiousDeathsClearFoiWithoutRouletteSampling) {
+  auto* population = Model::get_population();
+  constexpr int location = 0;
+  auto* first = population->give_1_birth(location);
+  auto* second = population->give_1_birth(location);
+  population->update_current_foi();
+  auto &weights = population->individual_foi_by_location()[location];
+  const auto &people = population->all_alive_persons_by_location()[location];
+  std::fill(weights.begin(), weights.end(), 0.0);
+  weights[std::distance(people.begin(), std::find(people.begin(), people.end(), first))] = 0.01;
+  weights[std::distance(people.begin(), std::find(people.begin(), people.end(), second))] = 0.015;
+  population->current_force_of_infection_by_location()[location] = 0.01 + 0.015;
+  // Removing the two infectious people leaves uninfected recipients and a
+  // positive floating-point residue in the old subtract-only implementation.
+  first->set_host_state(Person::DEAD);
+  population->clear_dead_people_at_location(location);
+  second->set_host_state(Person::DEAD);
+  population->clear_dead_people_at_location(location);
+
+  ASSERT_FALSE(population->all_alive_persons_by_location()[location].empty());
+  ASSERT_EQ(std::accumulate(weights.begin(), weights.end(), 0.0), 0.0);
+  // Stop before invoking the mosquito pipeline if the bug is still present:
+  // roulette sampling would log the error and then dereference nullptr.
+  ASSERT_EQ(population->current_force_of_infection_by_location()[location], 0.0);
+  auto* mosquito = Model::get_mosquito();
+  auto* config = Model::get_config();
+  const auto mosquito_size = config->location_db()[location].mosquito_size;
+  ASSERT_GT(mosquito_size, 0);
+  auto &cohort = mosquito->genotypes_table[0][location];
+  std::fill(cohort.begin(), cohort.end(), Model::get_genotype_db()->at(0));
+
+  mosquito->infect_new_cohort_at_location(config, Model::get_random(), population, location, 0);
+
+  for (int index = 0; index < mosquito_size; ++index) { EXPECT_EQ(cohort[index], nullptr); }
+}
+
+TEST_F(DailyLocationPipelineTest, DeathRemovalPreservesSmallPositiveFoi) {
+  auto* population = Model::get_population();
+  constexpr int location = 0;
+  auto* dying_person = population->give_1_birth(location);
+  population->update_current_foi();
+  const auto &people = population->all_alive_persons_by_location()[location];
+  ASSERT_GE(people.size(), 2U);
+  auto &weights = population->individual_foi_by_location()[location];
+  std::fill(weights.begin(), weights.end(), 0.0);
+  const auto dying_index =
+      std::distance(people.begin(), std::find(people.begin(), people.end(), dying_person));
+  weights[dying_index] = 0.01;
+  const auto survivor_index = dying_index == 0 ? 1 : 0;
+  constexpr double expectedFoi = 1e-20;
+  weights[survivor_index] = expectedFoi;
+  population->current_force_of_infection_by_location()[location] = 0.01 + expectedFoi;
+  dying_person->set_host_state(Person::DEAD);
+
+  population->clear_dead_people_at_location(location);
+
+  EXPECT_EQ(population->current_force_of_infection_by_location()[location], expectedFoi);
 }
 
 TEST_F(DailyLocationPipelineTest, DailyUpdateLeavesEveryLocationSamplingStateAligned) {

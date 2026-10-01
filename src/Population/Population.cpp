@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cfloat>
 #include <memory>
+#include <numeric>
 #include <stdexcept>
 
 #include "ClinicalUpdateFunction.h"
@@ -605,6 +606,18 @@ void Population::clear_dead_people_at_location(const int location) {
   for (auto* person : dead_people) {
     remove_from_daily_sampling_state(location, person);
     remove_dead_person(person);
+  }
+  if (!dead_people.empty()) {
+    // Subtracting removed weights can leave a positive residue when no FOI
+    // remains, or erase a small positive FOI. Rebuild totals from surviving
+    // weights once per batch so roulette sampling uses the actual distribution.
+    const auto &foi = individual_foi_by_location_[location];
+    const auto &biting = individual_relative_biting_by_location_[location];
+    const auto &moving = individual_relative_moving_by_location_[location];
+    current_force_of_infection_by_location_[location] =
+        std::accumulate(foi.begin(), foi.end(), 0.0);
+    sum_relative_biting_by_location_[location] = std::accumulate(biting.begin(), biting.end(), 0.0);
+    sum_relative_moving_by_location_[location] = std::accumulate(moving.begin(), moving.end(), 0.0);
   }
 }
 

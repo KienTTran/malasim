@@ -17,6 +17,8 @@
 - **Population out-of-bounds access**: Added guards for `K_INVALID_LOCATION_ID` in `Population::add_person()` and `remove_person()` to prevent crashes when Person is created with default constructor (location_ = K_INVALID_LOCATION_ID)
 - **MFTAgeBasedStrategyTest**: Reduced simulation time from 100 to 80 years to fit in `core::SimDay` (int16_t max ~89 years)
 - **RouletteTest test pollution**: Added `Model::get_instance()->release()` in SetUp/TearDown to properly clean up singleton state between tests; changed from `set_location(i)` to `set_number_of_times_bitten(i)` as temporary identifier to avoid side effects
+- **Roulette sampling safety**: Recompute sampling totals from weights, reject mismatched object/weight vectors and invalid weights, and clamp rounded upper-bound draws so valid samples are not returned as `nullptr`; retain zero-total sampling disable behavior
+- **Population sampling totals after deaths**: Recalculate FOI, biting, and movement totals from surviving people to avoid floating-point residue or loss of small positive weights
 
 ## Refactor
 
@@ -57,6 +59,9 @@
 - `docs/cnv-reversion.md` - Added feature documentation
 - `docs/cnv-reversion-plan.md` - Updated plan to match implemented behavior
 - `src/Utils/Cli.h` - Added `print_memory_stats` field and `--memory-stats` flag
+- `src/Utils/Random.h` - Share validated roulette sampling logic between pointer and tuple APIs
+- `tests/Core/Random/RandomTest_sampling_edges.cpp` - Add regressions for stale totals, mismatched vectors, invalid weights, and subnormal weights
+- `tests/Population/DailyLocationPipelineTest.cpp` - Cover sampling total recalculation after person deaths
 - `src/malasim/main.cpp` - Added memory stats printing and early exit
 - `tests/Utils/CliTest.cpp` - Added tests for `--memory-stats` flag
 - `src/Utils/Cli.h` - Removed singleton, converted to static utility class
